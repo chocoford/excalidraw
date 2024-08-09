@@ -123,7 +123,7 @@ export const CLASSES = {
  * - https://learn.microsoft.com/en-us/typography/opentype/spec/ibmfc
  */
 export const FONT_FAMILY = {
-  Virgil: 1,
+  "Virgil, HanziPen SC, Cangnanshoujiti, KaiTi": 1,
   Helvetica: 2,
   Cascadia: 3,
   // leave 4 unused as it was historically used for Assistant (which we don't use anymore) or custom font (Obsidian)
@@ -159,7 +159,8 @@ export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
 
 export const MIN_FONT_SIZE = 1;
 export const DEFAULT_FONT_SIZE = 20;
-export const DEFAULT_FONT_FAMILY: FontFamilyValues = FONT_FAMILY.Excalifont;
+export const DEFAULT_FONT_FAMILY: FontFamilyValues =
+  FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"];
 export const DEFAULT_TEXT_ALIGN = "left";
 export const DEFAULT_VERTICAL_ALIGN = "top";
 export const DEFAULT_VERSION = "{version}";
