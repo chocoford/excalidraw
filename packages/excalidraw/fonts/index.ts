@@ -210,7 +210,7 @@ export class Fonts {
     // TODO: let's tweak this once we know how `register` will be exposed as part of the custom fonts API
     const _register = register.bind(fonts);
 
-    _register("Virgil", FONT_METADATA[FONT_FAMILY.Virgil], {
+    _register("Virgil", FONT_METADATA[FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"]], {
       uri: Virgil,
     });
 
@@ -337,7 +337,7 @@ export const getVerticalOffset = (
 ) => {
   const { unitsPerEm, ascender, descender } =
     Fonts.registered.get(fontFamily)?.metadata.metrics ||
-    FONT_METADATA[FONT_FAMILY.Virgil].metrics;
+    FONT_METADATA[FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"]].metrics;
 
   const fontSizeEm = fontSize / unitsPerEm;
   const lineGap =
