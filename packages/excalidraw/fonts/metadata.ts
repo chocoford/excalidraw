@@ -68,7 +68,7 @@ export const FONT_METADATA: Record<number, FontMetadata> = {
     },
     icon: FontFamilyCodeIcon,
   },
-  [FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"]]: {
+  [FONT_FAMILY["Excalifont, YRDZST, SetoFont"]]: {
     metrics: {
       unitsPerEm: 1000,
       ascender: 886,

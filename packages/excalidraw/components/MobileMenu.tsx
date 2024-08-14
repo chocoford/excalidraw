@@ -72,7 +72,7 @@ export const MobileMenu = ({
   } = useTunnels();
   const renderToolbar = () => {
     return (
-      <FixedSideContainer side="top" className="App-top-bar">
+      <FixedSideContainer side="top" className="App-top-bar" style={{ display: "none" }}>
         {renderWelcomeScreen && <WelcomeScreenCenterTunnel.Out />}
         <Section heading="shapes">
           {(heading: React.ReactNode) => (

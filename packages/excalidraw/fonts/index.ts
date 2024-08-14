@@ -18,7 +18,8 @@ import {
 import { ExcalidrawFont, type Font } from "./ExcalidrawFont";
 import { getContainerElement } from "../element/textElement";
 
-import Virgil from "./assets/Virgil-Regular.woff2";
+import YRDZST from "./assets/YRDZST-Regular.ttf";
+import SetoFont from "./assets/SetoFont.ttf";
 import Excalifont from "./assets/Excalifont-Regular.woff2";
 import Cascadia from "./assets/CascadiaCode-Regular.woff2";
 import ComicShanns from "./assets/ComicShanns-Regular.woff2";
@@ -210,9 +211,19 @@ export class Fonts {
     // TODO: let's tweak this once we know how `register` will be exposed as part of the custom fonts API
     const _register = register.bind(fonts);
 
-    _register("Virgil", FONT_METADATA[FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"]], {
-      uri: Virgil,
-    });
+    _register(
+      "Excalifont, YRDZST, SetoFont",
+      FONT_METADATA[FONT_FAMILY["Excalifont, YRDZST, SetoFont"]],
+      {
+        uri: Excalifont,
+      },
+      {
+        uri: "/YRDZST-Regular.ttf",
+      },
+      {
+        uri: SetoFont,
+      },
+    );
 
     _register("Excalifont", FONT_METADATA[FONT_FAMILY.Excalifont], {
       uri: Excalifont,
@@ -337,7 +348,7 @@ export const getVerticalOffset = (
 ) => {
   const { unitsPerEm, ascender, descender } =
     Fonts.registered.get(fontFamily)?.metadata.metrics ||
-    FONT_METADATA[FONT_FAMILY["Virgil, HanziPen SC, Cangnanshoujiti, KaiTi"]].metrics;
+    FONT_METADATA[FONT_FAMILY["Excalifont, YRDZST, SetoFont"]].metrics;
 
   const fontSizeEm = fontSize / unitsPerEm;
   const lineGap =

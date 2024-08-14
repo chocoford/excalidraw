@@ -126,7 +126,9 @@ const Heading = ({ children }: { children: React.ReactNode }) => {
 Heading.displayName = "Heading";
 
 const Menu = ({ children }: { children?: React.ReactNode }) => {
-  return <div className="welcome-screen-menu">{children}</div>;
+  return <div className="welcome-screen-menu" style={{ display: "none" }}>
+      {children}
+    </div>;
 };
 Menu.displayName = "Menu";
 

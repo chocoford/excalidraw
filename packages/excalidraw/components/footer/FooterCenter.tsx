@@ -13,6 +13,7 @@ const FooterCenter = ({ children }: { children?: React.ReactNode }) => {
           "layer-ui__wrapper__footer-left--transition-bottom":
             appState.zenModeEnabled,
         })}
+        style={{ display: "none" }}
       >
         {children}
       </div>

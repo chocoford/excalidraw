@@ -466,7 +466,7 @@
   },
   "welcomeScreen": {
     "app": {
-      "center_heading": "您的所有数据都储存在浏览器本地。",
+      "center_heading": "您的所有数据都储存在App中。",
       "center_heading_plus": "是否前往 Excalidraw+ ？",
       "menuHint": "导出、首选项、语言……"
     },

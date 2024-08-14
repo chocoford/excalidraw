@@ -33,6 +33,7 @@ import type {
   BinaryFiles,
   ExcalidrawInitialDataState,
   UIAppState,
+  ToolType,
 } from "../packages/excalidraw/types";
 import type { ResolvablePromise } from "../packages/excalidraw/utils";
 import {
@@ -582,11 +583,19 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
+  const [lastActiveTool, setLastActiveTool] = useState<ToolType | "custom" | null>(null);
+
   const onChange = (
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    // send message to excalidrawZ
+    if (lastActiveTool !== appState.activeTool.type) {
+      console.info("activeTool onChange:", appState, appState.activeTool);
+      (window as any).excalidrawZHelper.didSetActiveTool(appState.activeTool);
+      setLastActiveTool(appState.activeTool.type);
+    }
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }

@@ -202,7 +202,7 @@ const LayerUI = ({
   };
 
   const renderCanvasActions = () => (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", display: "none" }}>
       {/* wrapping to Fragment stops React from occasionally complaining
                 about identical Keys */}
       <tunnels.MainMenuTunnel.Out />
@@ -256,7 +256,7 @@ const LayerUI = ({
           {!appState.viewModeEnabled && (
             <Section heading="shapes" className="shapes-section">
               {(heading: React.ReactNode) => (
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", display: "none" }}>
                   {renderWelcomeScreen && (
                     <tunnels.WelcomeScreenToolbarHintTunnel.Out />
                   )}
@@ -344,6 +344,7 @@ const LayerUI = ({
                 "transition-right": appState.zenModeEnabled,
               },
             )}
+            style={{ display: "none" }}
           >
             {appState.collaborators.size > 0 && (
               <UserList

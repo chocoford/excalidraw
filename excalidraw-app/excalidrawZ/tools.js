@@ -1,3 +1,25 @@
+import "./clipboard";
+
+const sendMessage = ({ event, data }) => {
+  if (
+    window.webkit &&
+    window.webkit.messageHandlers &&
+    window.webkit.messageHandlers.excalidrawZ
+  ) {
+    console.info("sendMessage", { event, data });
+    try {
+      window.webkit.messageHandlers.excalidrawZ.postMessage({
+        event,
+        data,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  } else {
+    console.error("can not send message");
+  }
+};
+
 /**
  *
  * @param {number[]} buffer
@@ -45,12 +67,23 @@ const saveFile = () => {
   } catch {}
 };
 
+const getIsDark = () => {
+  const container = document
+    .getElementsByClassName("excalidraw-container")
+    .item(0);
+  if (!container) {
+    return false;
+  }
+  return container.classList.contains(`theme--dark`);
+};
+
 /**
  *
  * @param {'dark' | 'light' | undefined} theme
  */
 const toggleColorTheme = (theme = undefined) => {
-  if (document.documentElement.classList.contains(theme)) {
+  const isDark = getIsDark();
+  if ((theme === "dark") === isDark) {
     return;
   }
   document.dispatchEvent(
@@ -70,7 +103,7 @@ const toggleColorTheme = (theme = undefined) => {
  *
  * @param {'png' | 'svg'} type
  */
-const exportImage = (type = "png") => {
+const exportImage = () => {
   document.dispatchEvent(
     new KeyboardEvent("keydown", {
       key: "e",
@@ -86,46 +119,116 @@ const exportImage = (type = "png") => {
     const modalContainer = document.querySelector(
       ".excalidraw-modal-container",
     );
-    modalContainer.querySelector('button[aria-label="Export to PNG"]').click();
-    modalContainer.querySelector('button[aria-label="Close"]').click();
+    modalContainer.querySelector('button[aria-label*="PNG"]').click();
+    // modalContainer.querySelector('button[aria-label="Close"]').click();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        keyCode: 27, // Deprecated but still used in some older browsers
+        code: "Escape",
+        which: 27,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
   }, 100);
 };
 
-const watchExcalidrawState = () => {
-  let lastVersion = "";
-  setInterval(() => {
-    const data = localStorage.getItem("excalidraw");
-    let state = localStorage.getItem("excalidraw-state");
-    const version = localStorage.getItem("version-files");
-    if (lastVersion === version) {
-      return;
-    }
-    try {
-      state = JSON.parse(state);
-      // data = JSON.parse(data);
-      sendMessage({
-        event: "onStateChanged",
-        data: {
-          state,
-          data,
-        },
-      });
-    } catch {}
-    lastVersion = version;
-  }, 2000);
+export const didSetActiveTool = (tool) => {
+  sendMessage({
+    event: "didSetActiveTool",
+    data: tool,
+  });
 };
 
-const sendMessage = ({ event, data }) => {
-  console.info("sendMessage", { event, data });
-  if (
-    window.webkit &&
-    window.webkit.messageHandlers &&
-    window.webkit.messageHandlers.toggleMessageHandler
-  ) {
-    window.webkit.messageHandlers.toggleMessageHandler.postMessage({
-      event,
-      data,
+const watchExcalidrawState = async () => {
+  try {
+    const filesStoreConnection = await new Promise((resolve, reject) => {
+      const filesStoreConnection = indexedDB.open("files-db", 1);
+      filesStoreConnection.onsuccess = function (event) {
+        const db = event.target.result;
+        resolve(db);
+        //
+        // 获取对象存储
+        // resolve(transaction.objectStore("files-store"));
+      };
+      filesStoreConnection.onerror = function (event) {
+        reject("获取所有数据出错: " + event.target.error);
+      };
     });
+
+    console.info("Connect files store done.");
+
+    let lastVersion = "";
+    setInterval(async () => {
+      let data = localStorage.getItem("excalidraw");
+      let state = localStorage.getItem("excalidraw-state");
+      const version = localStorage.getItem("version-files");
+      if (lastVersion === version) {
+        return;
+      }
+      try {
+        state = JSON.parse(state);
+        /**
+         * @type {any[]}
+         */
+        const elements = JSON.parse(data);
+        // 这里你可以使用游标或索引获取数据
+        /**
+         * @type {{
+         *  created: Date;
+         *  dataURL: string;
+         *  id: string;
+         *  lastRetrieved: number;
+         *  mimeType: string;
+         * }[]}
+         */
+        const files = await new Promise((resolve, reject) => {
+          const transaction = filesStoreConnection.transaction(
+            ["files-store"],
+            "readonly",
+          );
+          const objectStore = transaction.objectStore("files-store");
+          const request = objectStore.getAll();
+          request.onsuccess = function (event) {
+            resolve(event.target.result);
+          };
+          request.onerror = function (event) {
+            reject("获取所有数据出错: " + event.target.error);
+          };
+        });
+
+        const usedFiles = files.filter((file) => {
+          if (elements.find((e) => e.fileId === file.id)) {
+            return true;
+          }
+          return false;
+        });
+        sendMessage({
+          event: "onStateChanged",
+          data: {
+            state,
+            data: {
+              dataString: JSON.stringify({
+                elements,
+                files: usedFiles.reduce((pre, cur) => {
+                  return {
+                    ...pre,
+                    [cur.id]: cur,
+                  };
+                }, {}),
+              }),
+              elements,
+            },
+          },
+        });
+      } catch (error) {
+        console.error(error);
+      }
+      lastVersion = version;
+    }, 2000);
+  } catch (error) {
+    console.error(error);
   }
 };
 
@@ -136,36 +239,36 @@ const hideEls = () => {
   // Callback function to execute when mutations are observed
   const callback = (mutationList, observer) => {
     for (const mutation of mutationList) {
-      console.log(mutation);
+      // console.log(mutation);
       if (mutation.type === "childList") {
-        mutation.addedNodes.forEach((node) => {
-          if (
-            node.classList.contains("dropdown-menu-button") ||
-            node.classList.contains("welcome-screen-decor-hint--menu")
-          ) {
-            node.style.display = "none";
-          }
+        // mutation.addedNodes.forEach((node) => {
+        //   if (
+        //     node.classList.contains("dropdown-menu-button") ||
+        //     node.classList.contains("welcome-screen-decor-hint--menu")
+        //   ) {
+        //     node.style.display = "none";
+        //   }
 
-          if (node.classList.contains("welcome-screen-center")) {
-            node.querySelector(".welcome-screen-menu").style.display = "none";
-          }
-        });
+        //   if (node.classList.contains("welcome-screen-center")) {
+        //     node.querySelector(".welcome-screen-menu").style.display = "none";
+        //   }
+        // });
 
-        if (
-          mutation.nextSibling &&
-          mutation.nextSibling.classList.contains(
-            "layer-ui__wrapper__footer-right",
-          )
-        ) {
-          mutation.nextSibling.style.display = "none";
-        }
+        // if (
+        //   mutation.nextSibling &&
+        //   mutation.nextSibling.classList.contains(
+        //     "layer-ui__wrapper__footer-right",
+        //   )
+        // ) {
+        //   mutation.nextSibling.style.display = "none";
+        // }
 
-        // top right
-        if (
-          mutation.target.classList.contains("layer-ui__wrapper__top-right")
-        ) {
-          mutation.target.style.display = "none";
-        }
+        // // top right
+        // if (
+        //   mutation.target.classList.contains("layer-ui__wrapper__top-right")
+        // ) {
+        //   mutation.target.style.display = "none";
+        // }
         // model container
         if (mutation.target.classList.contains("excalidraw-modal-container")) {
           mutation.target.style.opacity = 0;
@@ -183,115 +286,86 @@ const hideEls = () => {
 };
 
 const onload = () => {
-  watchExcalidrawState();
+  setTimeout(() => {
+    watchExcalidrawState();
+  }, 2000);
   hideEls();
 };
 
 const toggleToolbarAction = (key) => {
-  const eventInfo = {
-    0: {
-      key: "0",
-      code: "Digit0",
+  const eventInfo = {};
+  for (let i = 0; i <= 9; i++) {
+    const key = i.toString();
+    const keyCode = 48 + i; // '0' 对应的 keyCode 是 48，依次类推
+    eventInfo[i] = {
+      key,
+      code: `Digit${key}`,
       altKey: false,
       shiftKey: false,
       composed: true,
-      keyCode: 48,
-      which: 48,
-    },
-    1: {
-      key: "1",
-      code: "Digit1",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 49,
-      which: 49,
-    },
-    2: {
-      key: "2",
-      code: "Digit2",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 50,
-      which: 50,
-    },
-    3: {
-      key: "3",
-      code: "Digit3",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 51,
-      which: 51,
-    },
-    4: {
-      key: "4",
-      code: "Digit4",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 52,
-      which: 52,
-    },
-    5: {
-      key: "5",
-      code: "Digit5",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 53,
-      which: 53,
-    },
-    6: {
-      key: "6",
-      code: "Digit6",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 54,
-      which: 54,
-    },
-    7: {
-      key: "7",
-      code: "Digit7",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 55,
-      which: 55,
-    },
-    8: {
-      key: "8",
-      code: "Digit8",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 56,
-      which: 56,
-    },
-    9: {
-      key: "9",
-      code: "Digit9",
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode: 57,
-      which: 57,
-    },
+      keyCode,
+      which: keyCode,
+    };
   }
-  if (eventInfo[key]) document.dispatchEvent(new KeyboardEvent("keydown", eventInfo[key]));
-}
+  for (let i = 0; i < 26; i++) {
+    const letter = String.fromCharCode(65 + i); // 'A' 对应的 ASCII 码是 65，依次类推
+    const keyCode = 65 + i; // 'A' 对应的 keyCode 是 65，依次类推
+    eventInfo[letter] = {
+      key: letter,
+      code: `Key${letter}`,
+      altKey: false,
+      shiftKey: false,
+      composed: true,
+      keyCode,
+      which: keyCode,
+    };
+  }
+  if (eventInfo[key]) {
+    document.dispatchEvent(new KeyboardEvent("keydown", eventInfo[key]));
+  }
+};
 
 window.addEventListener("DOMContentLoaded", onload);
 
+document.addEventListener(
+  "focus",
+  (event) => {
+    console.log(event);
+    if (
+      event.target.tagName === "INPUT" ||
+      event.target.tagName === "TEXTAREA"
+    ) {
+      sendMessage({
+        event: "onFocus",
+      });
+    }
+  },
+  true,
+);
+document.addEventListener(
+  "blur",
+  (event) => {
+    console.log(event);
+    if (
+      event.target.tagName === "INPUT" ||
+      event.target.tagName === "TEXTAREA"
+    ) {
+      sendMessage({
+        event: "onBlur",
+      });
+    }
+  },
+  true,
+);
 window.excalidrawZHelper = {
   loadFile,
   saveFile,
 
   toggleColorTheme,
   exportImage,
-  getIsDark: () => document.documentElement.classList.contains("dark"),
+  getIsDark,
 
   toggleToolbarAction,
+
+  didSetActiveTool,
 };
