@@ -90,7 +90,7 @@ const Center = ({ children }: { children?: React.ReactNode }) => {
   const { WelcomeScreenCenterTunnel } = useTunnels();
   return (
     <WelcomeScreenCenterTunnel.In>
-      <div className="welcome-screen-center">
+      <div className="welcome-screen-center" style={{ marginTop: 0 }}>
         {children || (
           <>
             <Logo />

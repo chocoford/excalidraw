@@ -6,7 +6,8 @@ export const Section: React.FC<{
   heading: "canvasActions" | "selectedShapeActions" | "shapes";
   children?: React.ReactNode | ((heading: React.ReactNode) => React.ReactNode);
   className?: string;
-}> = ({ heading, children, ...props }) => {
+  style?: React.CSSProperties;
+}> = ({ heading, children, style, ...props }) => {
   const { id } = useExcalidrawContainer();
   const header = (
     <h2 className="visually-hidden" id={`${id}-${heading}-title`}>
@@ -14,7 +15,7 @@ export const Section: React.FC<{
     </h2>
   );
   return (
-    <section {...props} aria-labelledby={`${id}-${heading}-title`}>
+    <section {...props} aria-labelledby={`${id}-${heading}-title`} style={ style }>
       {typeof children === "function" ? (
         children(header)
       ) : (
