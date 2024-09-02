@@ -48,7 +48,7 @@ import {
 } from "../appState";
 import type { PastedMixedContent } from "../clipboard";
 import { copyTextToSystemClipboard, parseClipboard } from "../clipboard";
-import { ARROW_TYPE, type EXPORT_IMAGE_TYPES } from "../constants";
+import { ARROW_TYPE, EXPORT_DATA_TYPES, type EXPORT_IMAGE_TYPES } from "../constants";
 import {
   APP_NAME,
   CURSOR_TYPE,
@@ -9524,6 +9524,24 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     if (file) {
+      if (file.name.endsWith("excalidrawlibjson")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const json = JSON.parse(reader.result as string);
+          json.type = EXPORT_DATA_TYPES.excalidrawLibrary;
+          const libraryItems = parseLibraryJSON(JSON.stringify(json));
+          this.addElementsFromPasteOrLibrary({
+            elements: distributeLibraryItemsOnSquareGrid(libraryItems),
+            position: event,
+            files: null,
+          });
+        };
+        reader.readAsText(file);
+        return;
+      }
+      // load excalidrawlibJson
+      // if (file.type)
+
       // Attempt to parse an excalidraw/excalidrawlib file
       await this.loadFileToCanvas(file, fileHandle);
     }
