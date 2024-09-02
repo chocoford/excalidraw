@@ -1,4 +1,5 @@
 import "./clipboard";
+import { exportToBlob, exportToSvg } from "../../packages/utils/export";
 
 const sendMessage = ({ event, data }) => {
   if (
@@ -325,6 +326,37 @@ const toggleToolbarAction = (key) => {
   }
 };
 
+const exportElementsToBlob = async (id, elements) => {
+  const blob = await exportToBlob({ elements, files: null, type: "png" });
+
+  const reader = new FileReader();
+  reader.onloadend = function () {
+    sendMessage({
+      event: "getElementsBlob",
+      data: {
+        id,
+        blobData: reader.result.split(",")[1], // 移除前缀 "data:*/*;base64,"
+      },
+    });
+  };
+  reader.readAsDataURL(blob);
+};
+
+const exportElementsToSvg = async (id, elements) => {
+  const svg = await exportToSvg({ elements, files: null });
+  // 创建一个新的 XMLSerializer 实例
+  const serializer = new XMLSerializer();
+  // 将 SVG 元素序列化为字符串
+  const svgString = serializer.serializeToString(svg);
+  sendMessage({
+    event: "getElementsSVG",
+    data: {
+      id,
+      svg: svgString,
+    },
+  });
+};
+
 window.addEventListener("DOMContentLoaded", onload);
 
 document.addEventListener(
@@ -368,4 +400,7 @@ window.excalidrawZHelper = {
   toggleToolbarAction,
 
   didSetActiveTool,
+
+  exportElementsToBlob,
+  exportElementsToSvg,
 };
