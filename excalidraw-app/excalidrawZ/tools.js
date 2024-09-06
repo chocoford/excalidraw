@@ -68,6 +68,23 @@ const saveFile = () => {
   } catch {}
 };
 
+const loadLibraryItem = (json) => {
+  const mineType = "application/vnd.excalidrawlib+json";
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData(mineType, JSON.stringify(json));
+  const positionX = window.innerWidth / 2;
+  const positionY = window.innerHeight / 2;
+  const dropEvent = new DragEvent("drop", {
+    dataTransfer,
+    bubbles: true,
+    cancelable: true,
+    clientX: positionX,
+    clientY: positionY,
+  });
+  const node = document.querySelector(".excalidraw-container");
+  node.dispatchEvent(dropEvent);
+};
+
 const getIsDark = () => {
   const container = document
     .getElementsByClassName("excalidraw-container")
@@ -291,6 +308,10 @@ const onload = () => {
     watchExcalidrawState();
   }, 2000);
   hideEls();
+
+  sendMessage({
+    event: "onload",
+  });
 };
 
 const toggleToolbarAction = (key) => {
@@ -390,8 +411,12 @@ document.addEventListener(
   true,
 );
 window.excalidrawZHelper = {
+  sendMessage,
+
   loadFile,
   saveFile,
+
+  loadLibraryItem,
 
   toggleColorTheme,
   exportImage,

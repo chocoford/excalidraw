@@ -27,16 +27,28 @@ export const actionAddToLibrary = register({
       }
     }
 
+    const theAddedLibraryItem = {
+      id: randomId(),
+      status: "unpublished",
+      elements: selectedElements.map(deepCopyElement),
+      created: Date.now(),
+    };
+    (window as any).excalidrawZHelper.sendMessage({
+      event: "addLibrary",
+      data: theAddedLibraryItem,
+    });
+    // prevent default...
+    // return;
     return app.library
       .getLatestLibrary()
       .then((items) => {
         return app.library.setLibrary([
-          {
-            id: randomId(),
-            status: "unpublished",
-            elements: selectedElements.map(deepCopyElement),
-            created: Date.now(),
-          },
+          // {
+          //   id: randomId(),
+          //   status: "unpublished",
+          //   elements: selectedElements.map(deepCopyElement),
+          //   created: Date.now(),
+          // },
           ...items,
         ]);
       })
