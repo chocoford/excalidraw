@@ -171,7 +171,7 @@ const watchExcalidrawState = async () => {
         // resolve(transaction.objectStore("files-store"));
       };
       filesStoreConnection.onerror = function (event) {
-        reject("获取所有数据出错: " + event.target.error);
+        reject(`获取所有数据出错: ${event.target.error}`);
       };
     });
 
@@ -179,7 +179,7 @@ const watchExcalidrawState = async () => {
 
     let lastVersion = "";
     setInterval(async () => {
-      let data = localStorage.getItem("excalidraw");
+      const data = localStorage.getItem("excalidraw");
       let state = localStorage.getItem("excalidraw-state");
       const version = localStorage.getItem("version-files");
       if (lastVersion === version) {
@@ -212,7 +212,7 @@ const watchExcalidrawState = async () => {
             resolve(event.target.result);
           };
           request.onerror = function (event) {
-            reject("获取所有数据出错: " + event.target.error);
+            reject(`获取所有数据出错: ${event.target.error}`);
           };
         });
 
@@ -222,6 +222,14 @@ const watchExcalidrawState = async () => {
           }
           return false;
         });
+
+        const filesDict = usedFiles.reduce((pre, cur) => {
+          return {
+            ...pre,
+            [cur.id]: cur,
+          };
+        }, {});
+
         sendMessage({
           event: "onStateChanged",
           data: {
@@ -229,14 +237,10 @@ const watchExcalidrawState = async () => {
             data: {
               dataString: JSON.stringify({
                 elements,
-                files: usedFiles.reduce((pre, cur) => {
-                  return {
-                    ...pre,
-                    [cur.id]: cur,
-                  };
-                }, {}),
+                files: filesDict,
               }),
               elements,
+              files: filesDict,
             },
           },
         });
@@ -255,7 +259,7 @@ const hideEls = () => {
   // Options for the observer (which mutations to observe)
   const config = { attributes: true, childList: true, subtree: true };
   // Callback function to execute when mutations are observed
-  const callback = (mutationList, observer) => {
+  const callback = (mutationList) => {
     for (const mutation of mutationList) {
       // console.log(mutation);
       if (mutation.type === "childList") {
@@ -312,6 +316,18 @@ const onload = () => {
   sendMessage({
     event: "onload",
   });
+
+  // pre focus
+  const textarea = document.createElement("textarea");
+  textarea.style.position = "absolute";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  setTimeout(() => {
+    textarea.focus();
+    setTimeout(() => {
+      textarea.remove();
+    }, 50);
+  }, 20);
 };
 
 const toggleToolbarAction = (key) => {
@@ -383,7 +399,6 @@ window.addEventListener("DOMContentLoaded", onload);
 document.addEventListener(
   "focus",
   (event) => {
-    console.log(event);
     if (
       event.target.tagName === "INPUT" ||
       event.target.tagName === "TEXTAREA"
@@ -398,7 +413,6 @@ document.addEventListener(
 document.addEventListener(
   "blur",
   (event) => {
-    console.log(event);
     if (
       event.target.tagName === "INPUT" ||
       event.target.tagName === "TEXTAREA"

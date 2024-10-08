@@ -16,7 +16,7 @@ async function clipboardItemsToBase64(clipboardItems) {
             reader.readAsDataURL(data);
           });
         } else if (typeof data === "string") {
-          return { type, data: data };
+          return { type, data };
         }
         // 对于其他类型的数据，这里可以根据需要添加更多的处理分支
       }),

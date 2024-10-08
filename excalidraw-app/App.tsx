@@ -583,7 +583,9 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
-  const [lastActiveTool, setLastActiveTool] = useState<ToolType | "custom" | null>(null);
+  const [lastActiveTool, setLastActiveTool] = useState<
+    ToolType | "custom" | null
+  >(null);
 
   const onChange = (
     elements: readonly OrderedExcalidrawElement[],
