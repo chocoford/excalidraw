@@ -159,11 +159,32 @@ const toggleImageInvertSwitch = (flag) => {
   if (window.excalidrawZHelper.shouldPreventInvertImage === flag) {
     return;
   }
+
   window.excalidrawZHelper.shouldPreventInvertImage = flag;
-  window.excalidrawZHelper.toggleColorTheme("dark");
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Î",
+      code: "KeyD",
+      altKey: true,
+      shiftKey: true,
+      composed: true,
+      keyCode: 68,
+      which: 68,
+    }),
+  );
   setTimeout(() => {
-    window.excalidrawZHelper.toggleColorTheme("light");
-  }, 50);
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Î",
+        code: "KeyD",
+        altKey: true,
+        shiftKey: true,
+        composed: true,
+        keyCode: 68,
+        which: 68,
+      }),
+    );
+  }, 0);
 };
 
 /**
