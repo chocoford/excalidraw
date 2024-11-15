@@ -1,6 +1,6 @@
 import "./clipboard";
 import { exportToBlob, exportToSvg } from "../../packages/utils/export";
-
+import { antiInvertImage } from "./image";
 const sendMessage = ({ event, data }) => {
   if (
     window.webkit &&
@@ -21,17 +21,52 @@ const sendMessage = ({ event, data }) => {
   }
 };
 
+// let isDatabasesReady = false;
 /**
  *
  * @param {number[]} buffer
  */
-const loadFile = (buffer) => {
+const loadFileBuffer = async (buffer) => {
   const uint8Array = new Uint8Array(buffer);
-  const file = new File([uint8Array], "file.excalidraw", {
-    lastModified: new Date().getTime(),
-    type: "",
+  const jsonString = new TextDecoder("utf-8").decode(uint8Array);
+  const content = JSON.parse(jsonString);
+  console.info("loadFileBuffer", buffer, jsonString, content);
+  const files = await getRelativeFiles(content.elements);
+  content.files = files;
+  const blob = new Blob([JSON.stringify(content)], {
+    type: "application/vnd.excalidraw+json",
   });
+  // 使用 Blob 创建 File 对象
+  const file = new File([blob], "file.excalidraw", {
+    type: "application/vnd.excalidraw+json",
+  });
+  await loadFile(file);
+};
 
+/**
+ *
+ * @param {string} dataString
+ */
+const loadFileString = async (dataString) => {
+  const content = JSON.parse(dataString);
+  const files = await getRelativeFiles(content.elements);
+  content.files = files;
+  console.info("loadFileString", content);
+  // 创建一个 Blob 对象，并指定类型为 JSON 格式
+  const blob = new Blob([JSON.stringify(content)], {
+    type: "application/vnd.excalidraw+json",
+  });
+  // 使用 Blob 创建 File 对象
+  const file = new File([blob], "file.excalidraw", {
+    type: "application/vnd.excalidraw+json",
+  });
+  await loadFile(file);
+};
+
+/**
+ * @param {File} file
+ */
+const loadFile = async (file) => {
   function FakeDataTransfer(file) {
     this.dropEffect = "all";
     this.effectAllowed = "all";
@@ -101,6 +136,9 @@ const getIsDark = () => {
  */
 const toggleColorTheme = (theme = undefined) => {
   const isDark = getIsDark();
+  if (theme !== "dark") {
+    window.excalidrawZHelper.shouldPreventInvertImage = false;
+  }
   if ((theme === "dark") === isDark) {
     return;
   }
@@ -115,6 +153,17 @@ const toggleColorTheme = (theme = undefined) => {
       which: 68,
     }),
   );
+};
+
+const toggleImageInvertSwitch = (flag) => {
+  if (window.excalidrawZHelper.shouldPreventInvertImage === flag) {
+    return;
+  }
+  window.excalidrawZHelper.shouldPreventInvertImage = flag;
+  window.excalidrawZHelper.toggleColorTheme("dark");
+  setTimeout(() => {
+    window.excalidrawZHelper.toggleColorTheme("light");
+  }, 50);
 };
 
 /**
@@ -158,23 +207,80 @@ export const didSetActiveTool = (tool) => {
     data: tool,
   });
 };
+/** @type IDBDatabase */
+let filesStoreConnection = null;
+const connectFileStore = async () => {
+  filesStoreConnection = await new Promise((resolve, reject) => {
+    const filesStoreConnection = indexedDB.open("files-db", 1);
+    filesStoreConnection.onsuccess = function (event) {
+      const db = event.target.result;
+      resolve(db);
+    };
+    filesStoreConnection.onerror = function (event) {
+      reject(`获取所有数据出错: ${event.target.error}`);
+    };
+  });
+};
+
+const getAllFiles = async () => {
+  /**
+   * @type {{
+   *  created: Date;
+   *  dataURL: string;
+   *  id: string;
+   *  lastRetrieved: number;
+   *  mimeType: string;
+   * }[]}
+   */
+  const files = await new Promise((resolve, reject) => {
+    const transaction = filesStoreConnection.transaction(
+      ["files-store"],
+      "readonly",
+    );
+    const objectStore = transaction.objectStore("files-store");
+    const request = objectStore.getAll();
+    request.onsuccess = function (event) {
+      resolve(event.target.result);
+    };
+    request.onerror = function (event) {
+      reject(`获取所有数据出错: ${event.target.error}`);
+    };
+  });
+
+  return files;
+};
+/// extracts relative files from indexed-db.
+const getRelativeFiles = async (elements) => {
+  const files = await getAllFiles();
+
+  const usedFiles = files.filter((file) => {
+    if (elements.find((e) => e.fileId === file.id)) {
+      return true;
+    }
+    return false;
+  });
+
+  /**
+   * @type {{[id: string]: {
+   *  created: Date;
+   *  dataURL: string;
+   *  id: string;
+   *  lastRetrieved: number;
+   *  mimeType: string;
+   * }}}
+   */
+  const filesDict = usedFiles.reduce((pre, cur) => {
+    return {
+      ...pre,
+      [cur.id]: cur,
+    };
+  }, {});
+
+  return filesDict;
+};
 
 const watchExcalidrawState = async () => {
   try {
-    const filesStoreConnection = await new Promise((resolve, reject) => {
-      const filesStoreConnection = indexedDB.open("files-db", 1);
-      filesStoreConnection.onsuccess = function (event) {
-        const db = event.target.result;
-        resolve(db);
-        //
-        // 获取对象存储
-        // resolve(transaction.objectStore("files-store"));
-      };
-      filesStoreConnection.onerror = function (event) {
-        reject(`获取所有数据出错: ${event.target.error}`);
-      };
-    });
-
     console.info("Connect files store done.");
 
     let lastVersion = "";
@@ -191,45 +297,7 @@ const watchExcalidrawState = async () => {
          * @type {any[]}
          */
         const elements = JSON.parse(data);
-        // 这里你可以使用游标或索引获取数据
-        /**
-         * @type {{
-         *  created: Date;
-         *  dataURL: string;
-         *  id: string;
-         *  lastRetrieved: number;
-         *  mimeType: string;
-         * }[]}
-         */
-        const files = await new Promise((resolve, reject) => {
-          const transaction = filesStoreConnection.transaction(
-            ["files-store"],
-            "readonly",
-          );
-          const objectStore = transaction.objectStore("files-store");
-          const request = objectStore.getAll();
-          request.onsuccess = function (event) {
-            resolve(event.target.result);
-          };
-          request.onerror = function (event) {
-            reject(`获取所有数据出错: ${event.target.error}`);
-          };
-        });
-
-        const usedFiles = files.filter((file) => {
-          if (elements.find((e) => e.fileId === file.id)) {
-            return true;
-          }
-          return false;
-        });
-
-        const filesDict = usedFiles.reduce((pre, cur) => {
-          return {
-            ...pre,
-            [cur.id]: cur,
-          };
-        }, {});
-
+        const filesDict = await getRelativeFiles(elements);
         sendMessage({
           event: "onStateChanged",
           data: {
@@ -237,7 +305,7 @@ const watchExcalidrawState = async () => {
             data: {
               dataString: JSON.stringify({
                 elements,
-                files: filesDict,
+                // files: filesDict,
               }),
               elements,
               files: filesDict,
@@ -317,7 +385,10 @@ const onload = () => {
     event: "onload",
   });
 
-  // pre focus
+  // connect file store
+  connectFileStore();
+
+  // pre focus - remove annoying sounds
   const textarea = document.createElement("textarea");
   textarea.style.position = "absolute";
   textarea.style.opacity = "0";
@@ -363,8 +434,20 @@ const toggleToolbarAction = (key) => {
   }
 };
 
-const exportElementsToBlob = async (id, elements) => {
-  const blob = await exportToBlob({ elements, files: null, type: "png" });
+/**
+ * Export elements to blob(png).
+ * @param {string} id The id used to map message from ExcalidrawZ.
+ * @param {any[]} elements Excalidraw elements.
+ * @param {boolean} exportEmbedScene
+ */
+const exportElementsToBlob = async (id, elements, exportEmbedScene = false) => {
+  const blob = await exportToBlob({
+    elements,
+    files: await getRelativeFiles(elements),
+    appState: {
+      exportEmbedScene,
+    },
+  });
 
   const reader = new FileReader();
   reader.onloadend = function () {
@@ -379,8 +462,14 @@ const exportElementsToBlob = async (id, elements) => {
   reader.readAsDataURL(blob);
 };
 
-const exportElementsToSvg = async (id, elements) => {
-  const svg = await exportToSvg({ elements, files: null });
+const exportElementsToSvg = async (id, elements, exportEmbedScene = false) => {
+  const svg = await exportToSvg({
+    elements,
+    files: await getRelativeFiles(elements),
+    appState: {
+      exportEmbedScene,
+    },
+  });
   // 创建一个新的 XMLSerializer 实例
   const serializer = new XMLSerializer();
   // 将 SVG 元素序列化为字符串
@@ -391,6 +480,50 @@ const exportElementsToSvg = async (id, elements) => {
       id,
       svg: svgString,
     },
+  });
+};
+
+/**
+ * Send media files to client.
+ * @param {string} id The id used to map message from ExcalidrawZ.
+ * @param {any[]} files Media files.
+ */
+const getAllMedias = async (id) => {
+  const files = await getAllFiles();
+  sendMessage({
+    event: "getAllMedias",
+    data: {
+      id,
+      files,
+    },
+  });
+};
+
+/**
+ * Insert files to IndexedDB.
+ * @param {string} filesJSONString The files to be inseted in the form fo json stringified string.
+ */
+const insertMedias = async (filesJSONString) => {
+  const files = JSON.parse(filesJSONString);
+  return await new Promise((resolve, reject) => {
+    const transaction = filesStoreConnection.transaction(
+      ["files-store"],
+      "readwrite",
+    );
+    const objectStore = transaction.objectStore("files-store");
+    for (const file of files) {
+      objectStore.put(file, file.id);
+    }
+
+    transaction.oncomplete = function () {
+      console.info("All records added successfully!");
+      resolve();
+    };
+
+    transaction.onerror = function (event) {
+      console.error("Transaction error:", event.target.error);
+      reject(event.target.error);
+    };
   });
 };
 
@@ -427,7 +560,8 @@ document.addEventListener(
 window.excalidrawZHelper = {
   sendMessage,
 
-  loadFile,
+  loadFileBuffer,
+  loadFileString,
   saveFile,
 
   loadLibraryItem,
@@ -442,4 +576,12 @@ window.excalidrawZHelper = {
 
   exportElementsToBlob,
   exportElementsToSvg,
+
+  getAllMedias,
+  insertMedias,
+
+  shouldPreventInvertImage: true,
+  toggleImageInvertSwitch,
+
+  antiInvertImage,
 };

@@ -429,13 +429,28 @@ const drawElementOnCanvas = (
           );
           context.clip();
         }
-        context.drawImage(
-          img,
-          0 /* hardcoded for the selection box*/,
-          0,
-          element.width,
-          element.height,
-        );
+
+        const excalidrawCanvas = document.querySelector(".excalidraw__canvas");
+        const shouldInvert =
+          (window as any).excalidrawZHelper.shouldPreventInvertImage &&
+          !!excalidrawCanvas &&
+          !!getComputedStyle(excalidrawCanvas).filter;
+        if (shouldInvert) {
+          const canvas = (window as any).excalidrawZHelper.antiInvertImage(
+            img,
+            element.width,
+            element.height,
+          );
+          context.drawImage(canvas, 0, 0, element.width, element.height);
+        } else {
+          context.drawImage(
+            img,
+            0 /* hardcoded for the selection box*/,
+            0,
+            element.width,
+            element.height,
+          );
+        }
       } else {
         drawImagePlaceholder(element, context);
       }
