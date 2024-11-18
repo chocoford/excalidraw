@@ -161,6 +161,7 @@ export const MobileMenu = ({
           marginBottom: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
           marginLeft: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
           marginRight: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
+          opacity: 0,
         }}
       >
         <Island padding={0}>
