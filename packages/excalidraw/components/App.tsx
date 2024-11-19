@@ -9623,6 +9623,9 @@ class App extends React.Component<AppProps, AppState> {
           replaceFiles: true,
           storeAction: StoreAction.CAPTURE,
         });
+        setTimeout(() => {
+          this.resetHistory();
+        }, 200);
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         await this.library
           .updateLibrary({

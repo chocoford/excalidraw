@@ -17,7 +17,7 @@ const sendMessage = ({ event, data }) => {
       console.error(error);
     }
   } else {
-    console.error("can not send message");
+    console.error("can not send message", { event, data });
   }
 };
 
@@ -396,12 +396,114 @@ const hideEls = () => {
   observer.observe(targetNode, config);
 };
 
+const watchHistoryButtonState = () => {
+  const containerNode = document.querySelector(".excalidraw-container");
+  let undoButtonNode = null;
+  let redoButtonNode = null;
+  if (!containerNode) {
+    console.warn("containerNode not found.");
+    return;
+  }
+
+  const undoButtonObserver = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "disabled"
+      ) {
+        sendMessage({
+          event: "historyStateChanged",
+          data: {
+            type: "undo",
+            disabled: undoButtonNode.disabled,
+          },
+        });
+      }
+    });
+  });
+  const redoButtonObserver = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "disabled"
+      ) {
+        sendMessage({
+          event: "historyStateChanged",
+          data: {
+            type: "redo",
+            disabled: redoButtonNode.disabled,
+          },
+        });
+      }
+    });
+  });
+
+  const observeHistoryButtons = () => {
+    const newUndoButtonNode = document.querySelector(
+      '[data-testid="button-undo"]',
+    );
+    sendMessage({
+      event: "historyStateChanged",
+      data: {
+        type: "undo",
+        disabled: newUndoButtonNode.disabled,
+      },
+    });
+    const newRedoButtonNode = document.querySelector(
+      '[data-testid="button-redo"]',
+    );
+    sendMessage({
+      event: "historyStateChanged",
+      data: {
+        type: "redo",
+        disabled: newRedoButtonNode.disabled,
+      },
+    });
+    if (newUndoButtonNode && newUndoButtonNode !== undoButtonNode) {
+      undoButtonNode = newUndoButtonNode;
+      undoButtonObserver.disconnect();
+      undoButtonObserver.observe(newUndoButtonNode, { attributes: true });
+    }
+    if (newRedoButtonNode && newRedoButtonNode !== redoButtonNode) {
+      redoButtonNode = newRedoButtonNode;
+      redoButtonObserver.disconnect();
+      redoButtonObserver.observe(newRedoButtonNode, { attributes: true });
+    }
+  };
+
+  const containerObserver = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "class"
+      ) {
+        observeHistoryButtons();
+      }
+    });
+  });
+  observeHistoryButtons();
+  containerObserver.observe(containerNode, { attributes: true });
+};
+
+const observeContainerLoad = (callback) => {
+  const bodyObserver = new MutationObserver(() => {
+    const containerNode = document.querySelector(".excalidraw-container");
+    if (containerNode) {
+      bodyObserver.disconnect();
+      callback(containerNode);
+    }
+  });
+  bodyObserver.observe(document.body, { childList: true, subtree: true });
+};
+
 const onload = () => {
   setTimeout(() => {
     watchExcalidrawState();
   }, 2000);
   hideEls();
-
+  observeContainerLoad(() => {
+    watchHistoryButtonState();
+  });
   sendMessage({
     event: "onload",
   });
@@ -450,6 +552,17 @@ const toggleToolbarAction = (key) => {
       which: keyCode,
     };
   }
+
+  eventInfo.Escape = {
+    key: "Escape",
+    code: "Escape",
+    altKey: false,
+    shiftKey: false,
+    composed: true,
+    keyCode: 27, // ESC 对应的 keyCode 是 27
+    which: 27,
+  };
+
   if (eventInfo[key]) {
     document.dispatchEvent(new KeyboardEvent("keydown", eventInfo[key]));
   }
@@ -605,4 +718,11 @@ window.excalidrawZHelper = {
   toggleImageInvertSwitch,
 
   antiInvertImage,
+
+  undo: () => {
+    document.querySelector('[data-testid="button-undo"]')?.click();
+  },
+  redo: () => {
+    document.querySelector('[data-testid="button-redo"]')?.click();
+  },
 };

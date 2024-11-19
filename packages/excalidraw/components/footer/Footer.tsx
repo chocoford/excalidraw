@@ -35,6 +35,7 @@ const Footer = ({
     <footer
       role="contentinfo"
       className="layer-ui__wrapper__footer App-menu App-menu_bottom"
+      style={{ opacity: 0, pointerEvents: "none" }}
     >
       <div
         className={clsx("layer-ui__wrapper__footer-left zen-mode-transition", {
@@ -75,7 +76,6 @@ const Footer = ({
         className={clsx("layer-ui__wrapper__footer-right zen-mode-transition", {
           "transition-right": appState.zenModeEnabled,
         })}
-        style={{ display: "none" }}
       >
         <div style={{ position: "relative" }}>
           {renderWelcomeScreen && <WelcomeScreenHelpHintTunnel.Out />}

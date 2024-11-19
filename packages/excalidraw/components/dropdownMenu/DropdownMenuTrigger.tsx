@@ -30,7 +30,6 @@ const MenuTrigger = ({
       data-testid="dropdown-menu-button"
       title={title}
       {...rest}
-      style={device.editor.isMobile ? { opacity: 0, pointerEvents: "none" } : {}}
     >
       {children}
     </button>

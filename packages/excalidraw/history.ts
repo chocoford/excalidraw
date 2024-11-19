@@ -42,7 +42,6 @@ export class History {
     appStateChange: AppStateChange,
   ) {
     const entry = HistoryEntry.create(appStateChange, elementsChange);
-
     if (!entry.isEmpty()) {
       // we have the latest changes, no need to `applyLatest`, which is done within `History.push`
       this.undoStack.push(entry.inverse());
