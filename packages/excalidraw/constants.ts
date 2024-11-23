@@ -2,6 +2,7 @@ import cssVariables from "./css/variables.module.scss";
 import type { AppProps, AppState } from "./types";
 import type { ExcalidrawElement, FontFamilyValues } from "./element/types";
 import { COLOR_PALETTE } from "./colors";
+
 export const isDarwin = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 export const isWindows = /^Win/.test(navigator.platform);
 export const isAndroid = /\b(android)\b/i.test(navigator.userAgent);
@@ -112,7 +113,12 @@ export const ENV = {
 
 export const CLASSES = {
   SHAPE_ACTIONS_MENU: "App-menu__left",
+  ZOOM_ACTIONS: "zoom-actions",
+  SEARCH_MENU_INPUT_WRAPPER: "layer-ui__search-inputWrapper",
 };
+
+export const CJK_HAND_DRAWN_FALLBACK_FONT = "Xiaolai";
+export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
 
 /**
  * // TODO: shouldn't be really `const`, likely neither have integers as values, due to value for the custom fonts, which should likely be some hash.
@@ -132,6 +138,22 @@ export const FONT_FAMILY = {
   "Lilita One": 7,
   "Comic Shanns": 8,
   "Liberation Sans": 9,
+};
+
+export const FONT_FAMILY_FALLBACKS = {
+  [CJK_HAND_DRAWN_FALLBACK_FONT]: 100,
+  [WINDOWS_EMOJI_FALLBACK_FONT]: 1000,
+};
+
+export const getFontFamilyFallbacks = (
+  fontFamily: number,
+): Array<keyof typeof FONT_FAMILY_FALLBACKS> => {
+  switch (fontFamily) {
+    case FONT_FAMILY.Excalifont:
+      return [CJK_HAND_DRAWN_FALLBACK_FONT, WINDOWS_EMOJI_FALLBACK_FONT];
+    default:
+      return [WINDOWS_EMOJI_FALLBACK_FONT];
+  }
 };
 
 export const THEME = {
@@ -154,8 +176,6 @@ export const FRAME_STYLE = {
   nameFontSize: 14,
   nameLineHeight: 1.25,
 };
-
-export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
 
 export const MIN_FONT_SIZE = 1;
 export const DEFAULT_FONT_SIZE = 20;
@@ -180,7 +200,8 @@ export const COLOR_VOICE_CALL = "#a2f1a6";
 
 export const CANVAS_ONLY_ACTIONS = ["selectAll"];
 
-export const GRID_SIZE = 20; // TODO make it configurable?
+export const DEFAULT_GRID_SIZE = 20;
+export const DEFAULT_GRID_STEP = 5;
 
 export const IMAGE_MIME_TYPES = {
   svg: "image/svg+xml",
@@ -235,7 +256,7 @@ export const VERSION_TIMEOUT = 30000;
 export const SCROLL_TIMEOUT = 100;
 export const ZOOM_STEP = 0.1;
 export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 30.0;
+export const MAX_ZOOM = 30;
 export const HYPERLINK_TOOLTIP_DELAY = 300;
 
 // Report a user inactive after IDLE_THRESHOLD milliseconds
@@ -375,6 +396,7 @@ export const DEFAULT_ELEMENT_PROPS: {
 };
 
 export const LIBRARY_SIDEBAR_TAB = "library";
+export const CANVAS_SEARCH_TAB = "search";
 
 export const DEFAULT_SIDEBAR = {
   name: "default",

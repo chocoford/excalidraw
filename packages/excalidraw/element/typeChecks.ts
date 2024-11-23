@@ -2,6 +2,7 @@ import { ROUNDNESS } from "../constants";
 import type { ElementOrToolType } from "../types";
 import type { MarkNonNullable } from "../utility-types";
 import { assertNever } from "../utils";
+import type { Bounds } from "./bounds";
 import type {
   ExcalidrawElement,
   ExcalidrawTextElement,
@@ -176,6 +177,24 @@ export const isRectanguloidElement = (
   );
 };
 
+// TODO: Remove this when proper distance calculation is introduced
+// @see binding.ts:distanceToBindableElement()
+export const isRectangularElement = (
+  element?: ExcalidrawElement | null,
+): element is ExcalidrawBindableElement => {
+  return (
+    element != null &&
+    (element.type === "rectangle" ||
+      element.type === "image" ||
+      element.type === "text" ||
+      element.type === "iframe" ||
+      element.type === "embeddable" ||
+      element.type === "frame" ||
+      element.type === "magicframe" ||
+      element.type === "freedraw")
+  );
+};
+
 export const isTextBindableContainer = (
   element: ExcalidrawElement | null,
   includeLocked = true,
@@ -301,7 +320,19 @@ export const getDefaultRoundnessTypeForElement = (
 };
 
 export const isFixedPointBinding = (
-  binding: PointBinding,
+  binding: PointBinding | FixedPointBinding,
 ): binding is FixedPointBinding => {
-  return binding.fixedPoint != null;
+  return (
+    Object.hasOwn(binding, "fixedPoint") &&
+    (binding as FixedPointBinding).fixedPoint != null
+  );
 };
+
+// TODO: Move this to @excalidraw/math
+export const isBounds = (box: unknown): box is Bounds =>
+  Array.isArray(box) &&
+  box.length === 4 &&
+  typeof box[0] === "number" &&
+  typeof box[1] === "number" &&
+  typeof box[2] === "number" &&
+  typeof box[3] === "number";

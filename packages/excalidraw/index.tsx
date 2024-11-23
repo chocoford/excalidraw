@@ -2,11 +2,11 @@ import React, { useEffect } from "react";
 import { InitializeApp } from "./components/InitializeApp";
 import App from "./components/App";
 import { isShallowEqual } from "./utils";
+import polyfill from "./polyfill";
 
 import "./css/app.scss";
 import "./css/styles.scss";
-import "./fonts/assets/fonts.css";
-import polyfill from "./polyfill";
+import "./fonts/fonts.css";
 
 import type { AppProps, ExcalidrawProps } from "./types";
 import { defaultLang } from "./i18n";
@@ -213,6 +213,7 @@ export {
   hashString,
   isInvisiblySmallElement,
   getNonDeletedElements,
+  getTextFromElements,
 } from "./element";
 export { defaultLang, useI18n, languages } from "./i18n";
 export {
@@ -271,6 +272,7 @@ export { MainMenu };
 export { useDevice } from "./components/App";
 export { WelcomeScreen };
 export { LiveCollaborationTrigger };
+export { Stats } from "./components/Stats";
 
 export { DefaultSidebar } from "./components/DefaultSidebar";
 export { TTDDialog } from "./components/TTDDialog/TTDDialog";
@@ -286,3 +288,6 @@ export {
   isElementInsideBBox,
   elementPartiallyOverlapsWithOrContainsBBox,
 } from "../utils/withinBounds";
+
+export { DiagramToCodePlugin } from "./components/DiagramToCodePlugin/DiagramToCodePlugin";
+export { getDataURL } from "./data/blob";

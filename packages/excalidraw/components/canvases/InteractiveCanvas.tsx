@@ -202,7 +202,10 @@ const getRelevantAppStateProps = (
   activeEmbeddable: appState.activeEmbeddable,
   snapLines: appState.snapLines,
   zenModeEnabled: appState.zenModeEnabled,
-  editingElement: appState.editingElement,
+  editingTextElement: appState.editingTextElement,
+  isCropping: appState.isCropping,
+  croppingElementId: appState.croppingElementId,
+  searchMatches: appState.searchMatches,
 });
 
 const areEqual = (

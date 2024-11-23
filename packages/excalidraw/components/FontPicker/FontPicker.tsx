@@ -21,7 +21,7 @@ export const DEFAULT_FONTS = [
     value: FONT_FAMILY["Excalifont, YRDZST, SetoFont"],
     icon: FreedrawIcon,
     text: `ExcalidrawZ-${t("labels.handDrawn")}`,
-    testId: "font-family-handrawn",
+    testId: "font-family-hand-drawn",
   },
   {
     value: FONT_FAMILY.Nunito,

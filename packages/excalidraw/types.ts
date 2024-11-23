@@ -24,7 +24,6 @@ import type {
   ExcalidrawNonSelectionElement,
 } from "./element/types";
 import type { Action } from "./actions/types";
-import type { Point as RoughPoint } from "roughjs/bin/geometry";
 import type { LinearElementEditor } from "./element/linearElementEditor";
 import type { SuggestedBinding } from "./element/binding";
 import type { ImportedDataState } from "./data/types";
@@ -40,10 +39,8 @@ import type { FileSystemHandle } from "./data/filesystem";
 import type { IMAGE_MIME_TYPES, MIME_TYPES } from "./constants";
 import type { ContextMenuItems } from "./components/ContextMenu";
 import type { SnapLine } from "./snapping";
-import type { Merge, MaybePromise, ValueOf } from "./utility-types";
+import type { Merge, MaybePromise, ValueOf, MakeBrand } from "./utility-types";
 import type { StoreActionType } from "./store";
-
-export type Point = Readonly<RoughPoint>;
 
 export type SocketId = string & { _brand: "SocketId" };
 
@@ -109,6 +106,11 @@ export type BinaryFileData = {
    * Epoch timestamp in milliseconds.
    */
   lastRetrieved?: number;
+  /**
+   * indicates the version of the file. This can be used to determine whether
+   * the file dataURL has changed e.g. as part of restore due to schema update.
+   */
+  version?: number;
 };
 
 export type BinaryFileMetadata = Omit<BinaryFileData, "dataURL">;
@@ -176,8 +178,11 @@ export type StaticCanvasAppState = Readonly<
     exportScale: AppState["exportScale"];
     selectedElementsAreBeingDragged: AppState["selectedElementsAreBeingDragged"];
     gridSize: AppState["gridSize"];
+    gridStep: AppState["gridStep"];
     frameRendering: AppState["frameRendering"];
     currentHoveredFontFamily: AppState["currentHoveredFontFamily"];
+    // Cropping
+    croppingElementId: AppState["croppingElementId"];
   }
 >;
 
@@ -199,7 +204,12 @@ export type InteractiveCanvasAppState = Readonly<
     // SnapLines
     snapLines: AppState["snapLines"];
     zenModeEnabled: AppState["zenModeEnabled"];
-    editingElement: AppState["editingElement"];
+    editingTextElement: AppState["editingTextElement"];
+    // Cropping
+    isCropping: AppState["isCropping"];
+    croppingElementId: AppState["croppingElementId"];
+    // Search matches
+    searchMatches: AppState["searchMatches"];
   }
 >;
 
@@ -219,6 +229,7 @@ export type ObservedElementsAppState = {
   editingLinearElementId: LinearElementEditor["elementId"] | null;
   // Right now it's coupled to `editingLinearElement`, ideally it should not be really needed as we already have selectedElementIds & editingLinearElementId
   selectedLinearElementId: LinearElementEditor["elementId"] | null;
+  croppingElementId: AppState["croppingElementId"];
 };
 
 export interface AppState {
@@ -267,13 +278,9 @@ export interface AppState {
   editingFrame: string | null;
   elementsToHighlight: NonDeleted<ExcalidrawElement>[] | null;
   /**
-   * currently set for:
-   * - text elements while in wysiwyg
-   * - newly created linear elements while in line editor (not set for existing
-   *   elements in line editor)
-   * - and new images while being placed on canvas
+   * set when a new text is created or when an existing text is being edited
    */
-  editingElement: NonDeletedExcalidrawElement | null;
+  editingTextElement: NonDeletedExcalidrawElement | null;
   editingLinearElement: LinearElementEditor | null;
   activeTool: {
     /**
@@ -324,14 +331,6 @@ export interface AppState {
   openDialog:
     | null
     | { name: "imageExport" | "help" | "jsonExport" }
-    | {
-        name: "settings";
-        source:
-          | "tool" // when magicframe tool is selected
-          | "generation" // when magicframe generate button is clicked
-          | "settings"; // when AI settings dialog is explicitly invoked
-        tab: "text-to-diagram" | "diagram-to-code";
-      }
     | { name: "ttd"; tab: "text-to-diagram" | "mermaid" }
     | { name: "commandPalette" };
   /**
@@ -351,7 +350,10 @@ export interface AppState {
   toast: { message: string; closable?: boolean; duration?: number } | null;
   zenModeEnabled: boolean;
   theme: Theme;
-  gridSize: number | null;
+  /** grid cell px size */
+  gridSize: number;
+  gridStep: number;
+  gridModeEnabled: boolean;
   viewModeEnabled: boolean;
 
   /** top-most selected groups (i.e. does not include nested groups) */
@@ -395,7 +397,24 @@ export interface AppState {
   userToFollow: UserToFollow | null;
   /** the socket ids of the users following the current user */
   followedBy: Set<SocketId>;
+
+  /** image cropping */
+  isCropping: boolean;
+  croppingElementId: ExcalidrawElement["id"] | null;
+
+  searchMatches: readonly SearchMatch[];
 }
+
+type SearchMatch = {
+  id: string;
+  focus: boolean;
+  matchedLines: {
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+  }[];
+};
 
 export type UIAppState = Omit<
   AppState,
@@ -615,6 +634,7 @@ export type AppProps = Merge<
  * in the app, eg Manager. Factored out into a separate type to keep DRY. */
 export type AppClassProperties = {
   props: AppProps;
+  state: AppState;
   interactiveCanvas: HTMLCanvasElement | null;
   /** static canvas */
   canvas: HTMLCanvasElement;
@@ -649,6 +669,12 @@ export type AppClassProperties = {
   getName: App["getName"];
   dismissLinearEditor: App["dismissLinearEditor"];
   flowChartCreator: App["flowChartCreator"];
+  getEffectiveGridSize: App["getEffectiveGridSize"];
+  setPlugins: App["setPlugins"];
+  plugins: App["plugins"];
+  getEditorUIOffsets: App["getEditorUIOffsets"];
+  visibleElements: App["visibleElements"];
+  excalidrawContainerValue: App["excalidrawContainerValue"];
 };
 
 export type PointerDownState = Readonly<{
@@ -831,3 +857,20 @@ export type EmbedsValidationStatus = Map<
 export type ElementsPendingErasure = Set<ExcalidrawElement["id"]>;
 
 export type PendingExcalidrawElements = ExcalidrawElement[];
+
+/** Runtime gridSize value. Null indicates disabled grid. */
+export type NullableGridSize =
+  | (AppState["gridSize"] & MakeBrand<"NullableGridSize">)
+  | null;
+
+export type GenerateDiagramToCode = (props: {
+  frame: ExcalidrawMagicFrameElement;
+  children: readonly ExcalidrawElement[];
+}) => MaybePromise<{ html: string }>;
+
+export type Offsets = Partial<{
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}>;

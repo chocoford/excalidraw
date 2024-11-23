@@ -19,7 +19,7 @@ describe("embedding scene data", () => {
         elements: sourceElements,
         appState: {
           viewBackgroundColor: "#ffffff",
-          gridSize: null,
+          gridModeEnabled: false,
           exportEmbedScene: true,
         },
         files: null,
@@ -27,7 +27,7 @@ describe("embedding scene data", () => {
 
       const svg = svgNode.outerHTML;
 
-      const parsedString = await decodeSvgMetadata({ svg });
+      const parsedString = decodeSvgMetadata({ svg });
       const importedData: ImportedDataState = JSON.parse(parsedString);
 
       expect(sourceElements.map((x) => x.id)).toEqual(
@@ -50,7 +50,7 @@ describe("embedding scene data", () => {
         elements: sourceElements,
         appState: {
           viewBackgroundColor: "#ffffff",
-          gridSize: null,
+          gridModeEnabled: false,
           exportEmbedScene: true,
         },
         files: null,

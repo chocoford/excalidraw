@@ -17,6 +17,7 @@ import {
   isArrowElement,
   hasBoundTextElement,
   isMagicFrameElement,
+  isImageElement,
 } from "../element/typeChecks";
 import { getElementAbsoluteCoords } from "../element/bounds";
 import type { RoughCanvas } from "roughjs/bin/canvas";
@@ -27,7 +28,6 @@ import type {
   InteractiveCanvasRenderConfig,
 } from "../scene/types";
 import { distance, getFontString, isRTL } from "../utils";
-import { getCornerRadius, isRightAngle } from "../math";
 import rough from "roughjs/bin/rough";
 import type {
   AppState,
@@ -60,6 +60,9 @@ import { LinearElementEditor } from "../element/linearElementEditor";
 import { getContainingFrame } from "../frame";
 import { ShapeCache } from "../scene/ShapeCache";
 import { getVerticalOffset } from "../fonts";
+import { isRightAngleRads } from "../../math";
+import { getCornerRadius } from "../shapes";
+import { getUncroppedImageElement } from "../element/cropElement";
 
 // using a stronger invert (100% vs our regular 93%) and saturate
 // as a temp hack to make images in dark theme look closer to original
@@ -134,6 +137,7 @@ export interface ExcalidrawElementWithCanvas {
   canvasOffsetX: number;
   canvasOffsetY: number;
   boundTextElementVersion: number | null;
+  imageCrop: ExcalidrawImageElement["crop"] | null;
   containingFrameOpacity: number;
   boundTextCanvas: HTMLCanvasElement;
 }
@@ -199,7 +203,7 @@ const generateElementCanvas = (
   zoom: Zoom,
   renderConfig: StaticCanvasRenderConfig,
   appState: StaticCanvasAppState,
-): ExcalidrawElementWithCanvas => {
+): ExcalidrawElementWithCanvas | null => {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d")!;
   const padding = getCanvasPadding(element);
@@ -209,6 +213,10 @@ const generateElementCanvas = (
     elementsMap,
     zoom,
   );
+
+  if (!width || !height) {
+    return null;
+  }
 
   canvas.width = width;
   canvas.height = height;
@@ -327,6 +335,7 @@ const generateElementCanvas = (
       getContainingFrame(element, elementsMap)?.opacity || 100,
     boundTextCanvas,
     angle: element.angle,
+    imageCrop: isImageElement(element) ? element.crop : null,
   };
 };
 
@@ -430,6 +439,15 @@ const drawElementOnCanvas = (
           context.clip();
         }
 
+        const { x, y, width, height } = element.crop
+          ? element.crop
+          : {
+              x: 0,
+              y: 0,
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+            };
+
         const excalidrawCanvas = document.querySelector(".excalidraw__canvas");
         const shouldInvert =
           (window as any).excalidrawZHelper.shouldPreventInvertImage &&
@@ -441,10 +459,24 @@ const drawElementOnCanvas = (
             element.width,
             element.height,
           );
-          context.drawImage(canvas, 0, 0, element.width, element.height);
+          context.drawImage(
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            0 /* hardcoded for the selection box*/,
+            0,
+            element.width,
+            element.height,
+          );
         } else {
           context.drawImage(
             img,
+            x,
+            y,
+            width,
+            height,
             0 /* hardcoded for the selection box*/,
             0,
             element.width,
@@ -529,6 +561,7 @@ const generateElementWithCanvas = (
     !appState?.shouldCacheIgnoreZoom;
   const boundTextElement = getBoundTextElement(element, elementsMap);
   const boundTextElementVersion = boundTextElement?.version || null;
+  const imageCrop = isImageElement(element) ? element.crop : null;
 
   const containingFrameOpacity =
     getContainingFrame(element, elementsMap)?.opacity || 100;
@@ -538,6 +571,7 @@ const generateElementWithCanvas = (
     shouldRegenerateBecauseZoom ||
     prevElementWithCanvas.theme !== appState.theme ||
     prevElementWithCanvas.boundTextElementVersion !== boundTextElementVersion ||
+    prevElementWithCanvas.imageCrop !== imageCrop ||
     prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity ||
     // since we rotate the canvas when copying from cached canvas, we don't
     // regenerate the cached canvas. But we need to in case of labels which are
@@ -554,6 +588,10 @@ const generateElementWithCanvas = (
       renderConfig,
       appState,
     );
+
+    if (!elementWithCanvas) {
+      return null;
+    }
 
     elementWithCanvasCache.set(element, elementWithCanvas);
 
@@ -757,6 +795,10 @@ export const renderElement = (
           renderConfig,
           appState,
         );
+        if (!elementWithCanvas) {
+          return;
+        }
+
         drawElementFromCanvas(
           elementWithCanvas,
           context,
@@ -896,6 +938,10 @@ export const renderElement = (
           appState,
         );
 
+        if (!elementWithCanvas) {
+          return;
+        }
+
         const currentImageSmoothingStatus = context.imageSmoothingEnabled;
 
         if (
@@ -906,7 +952,8 @@ export const renderElement = (
           (!element.angle ||
             // or check if angle is a right angle in which case we can still
             // disable smoothing without adversely affecting the result
-            isRightAngle(element.angle))
+            // We need less-than comparison because of FP artihmetic
+            isRightAngleRads(element.angle))
         ) {
           // Disabling smoothing makes output much sharper, especially for
           // text. Unless for non-right angles, where the aliasing is really
@@ -916,6 +963,35 @@ export const renderElement = (
           // zero effect.
           //
           context.imageSmoothingEnabled = false;
+        }
+
+        if (
+          element.id === appState.croppingElementId &&
+          isImageElement(elementWithCanvas.element) &&
+          elementWithCanvas.element.crop !== null
+        ) {
+          context.save();
+          context.globalAlpha = 0.1;
+
+          const uncroppedElementCanvas = generateElementCanvas(
+            getUncroppedImageElement(elementWithCanvas.element, elementsMap),
+            allElementsMap,
+            appState.zoom,
+            renderConfig,
+            appState,
+          );
+
+          if (uncroppedElementCanvas) {
+            drawElementFromCanvas(
+              uncroppedElementCanvas,
+              context,
+              renderConfig,
+              appState,
+              allElementsMap,
+            );
+          }
+
+          context.restore();
         }
 
         drawElementFromCanvas(
