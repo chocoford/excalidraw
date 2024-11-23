@@ -1,7 +1,7 @@
 # Excalidraw core for ExcalidrawZ
 
 
-## What's changed
+### What's changed
 
 * Hide App bottom bar at `packages/excalidraw/components/MobileMenu.tsx` line 164.
 * Prevent image invert at `packages/excalidraw/renderer/renderElement.ts` line 432.
@@ -11,3 +11,4 @@
 * Hide welcome screen actions at `packages/excalidraw/components/welcome-screen/WelcomeScreen.Center.tsx`.
 * Watch activeTool changes at `excalidraw-app/App.tsx` line 596-600.
 * Reset history after load file to canvas at `packages/excalidraw/components/App.tsx` line 9626.
+* Change the default font name at `/packages/excalidraw/components/FontPicker/FontPicker.tsx` line 23.
