@@ -58,7 +58,7 @@ describe("restoreElements", () => {
     const textElement = API.createElement({
       type: "text",
       fontSize: 14,
-      fontFamily: FONT_FAMILY["Excalifont, YRDZST, SetoFont"],
+      fontFamily: FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"],
       text: "text",
       textAlign: "center",
       verticalAlign: "middle",

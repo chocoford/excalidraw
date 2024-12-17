@@ -12,3 +12,5 @@
 * Watch activeTool changes at `excalidraw-app/App.tsx` line 596-600.
 * Reset history after load file to canvas at `packages/excalidraw/components/App.tsx` line 9626.
 * Change the default font name at `/packages/excalidraw/components/FontPicker/FontPicker.tsx` line 23.
+* Remove the handler of `⌘P` at `packages/excalidraw/components/App.tsx` line 4137~4152.
+* Disable the pen mode detecting at `packages/excalidraw/components/App.tsx` line 6231~6238.

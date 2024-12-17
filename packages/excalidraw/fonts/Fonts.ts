@@ -406,7 +406,7 @@ export class Fonts {
     init("Liberation Sans", ...LiberationFontFaces);
     init("Lilita One", ...LilitaFontFaces);
     init("Nunito", ...NunitoFontFaces);
-    init("Excalifont, YRDZST, SetoFont", ...VirgilFontFaces);
+    init("Excalifont, YRDZST, BinggraeSamanco, SetoFont", ...VirgilFontFaces);
 
     // fallback font faces
     init(CJK_HAND_DRAWN_FALLBACK_FONT, ...XiaolaiFontFaces);
@@ -489,7 +489,7 @@ export const getVerticalOffset = (
 ) => {
   const { unitsPerEm, ascender, descender } =
     Fonts.registered.get(fontFamily)?.metadata.metrics ||
-    FONT_METADATA[FONT_FAMILY["Excalifont, YRDZST, SetoFont"]].metrics;
+    FONT_METADATA[FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"]].metrics;
 
   const fontSizeEm = fontSize / unitsPerEm;
   const lineGap =

@@ -129,7 +129,7 @@ export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
  * - https://learn.microsoft.com/en-us/typography/opentype/spec/ibmfc
  */
 export const FONT_FAMILY = {
-  "Excalifont, YRDZST, SetoFont": 1,
+  "Excalifont, YRDZST, BinggraeSamanco, SetoFont": 1,
   Helvetica: 2,
   Cascadia: 3,
   // leave 4 unused as it was historically used for Assistant (which we don't use anymore) or custom font (Obsidian)
@@ -180,7 +180,7 @@ export const FRAME_STYLE = {
 export const MIN_FONT_SIZE = 1;
 export const DEFAULT_FONT_SIZE = 20;
 export const DEFAULT_FONT_FAMILY: FontFamilyValues =
-  FONT_FAMILY["Excalifont, YRDZST, SetoFont"];
+  FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"];
 export const DEFAULT_TEXT_ALIGN = "left";
 export const DEFAULT_VERTICAL_ALIGN = "top";
 export const DEFAULT_VERSION = "{version}";

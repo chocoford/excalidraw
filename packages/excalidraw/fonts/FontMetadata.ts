@@ -70,7 +70,7 @@ export const FONT_METADATA: Record<number, FontMetadata> = {
     },
     icon: FontFamilyCodeIcon,
   },
-  [FONT_FAMILY["Excalifont, YRDZST, SetoFont"]]: {
+  [FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"]]: {
     metrics: {
       unitsPerEm: 1000,
       ascender: 886,

@@ -4134,7 +4134,7 @@ class App extends React.Component<AppProps, AppState> {
           }
         }
       }
-
+      /* Remove the handler for cmd+P
       if (
         event[KEYS.CTRL_OR_CMD] &&
         event.key === KEYS.P &&
@@ -4149,7 +4149,7 @@ class App extends React.Component<AppProps, AppState> {
         event.preventDefault();
         return;
       }
-
+      */
       if (event[KEYS.CTRL_OR_CMD] && event.key.toLowerCase() === KEYS.V) {
         IS_PLAIN_PASTE = event.shiftKey;
         clearTimeout(IS_PLAIN_PASTE_TIMER);
@@ -6228,14 +6228,14 @@ class App extends React.Component<AppProps, AppState> {
 
     //fires only once, if pen is detected, penMode is enabled
     //the user can disable this by toggling the penMode button
-    if (!this.state.penDetected && event.pointerType === "pen") {
-      this.setState((prevState) => {
-        return {
-          penMode: true,
-          penDetected: true,
-        };
-      });
-    }
+    // if (!this.state.penDetected && event.pointerType === "pen") {
+    //   this.setState((prevState) => {
+    //     return {
+    //       penMode: true,
+    //       penDetected: true,
+    //     };
+    //   });
+    // }
 
     if (
       !this.device.isTouchScreen &&

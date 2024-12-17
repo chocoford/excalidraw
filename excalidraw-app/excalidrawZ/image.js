@@ -51,7 +51,9 @@ function applyHueRotation(r, g, b, degrees) {
   const [h, s, l] = rgbToHsl(r, g, b);
 
   let newHue = (h + degrees / 360) % 1;
-  if (newHue < 0) newHue += 1;
+  if (newHue < 0) {
+    newHue += 1;
+  }
 
   // HSL -> RGB
   return hslToRgb(newHue, s, l);
@@ -65,7 +67,8 @@ function rgbToHsl(r, g, b) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
-  let h, s;
+  let h;
+  let s;
 
   if (max === min) {
     h = s = 0; // achromatic
@@ -82,6 +85,8 @@ function rgbToHsl(r, g, b) {
       case b:
         h = (r - g) / d + 4;
         break;
+      default:
+        break;
     }
     h /= 6;
   }
@@ -90,17 +95,29 @@ function rgbToHsl(r, g, b) {
 }
 
 function hslToRgb(h, s, l) {
-  let r, g, b;
+  let r;
+  let g;
+  let b;
 
   if (s === 0) {
     r = g = b = l; // achromatic
   } else {
     const hue2rgb = (p, q, t) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      if (t < 0) {
+        t += 1;
+      }
+      if (t > 1) {
+        t -= 1;
+      }
+      if (t < 1 / 6) {
+        return p + (q - p) * 6 * t;
+      }
+      if (t < 1 / 2) {
+        return q;
+      }
+      if (t < 2 / 3) {
+        return p + (q - p) * (2 / 3 - t) * 6;
+      }
       return p;
     };
 

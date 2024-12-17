@@ -33,19 +33,3 @@
   style: normal;
   display: swap;
 }
-
-@font-face {
-  font-family: "YRDZST";
-  src: url(./YRDZST-Regular.ttf) format("ttf");
-  font-weight: 400;
-  style: normal;
-  display: swap;
-}
-
-@font-face {
-  font-family: "SetoFont";
-  src: url(./SetoFont.ttf) format("ttf");
-  font-weight: 400;
-  style: normal;
-  display: swap;
-}

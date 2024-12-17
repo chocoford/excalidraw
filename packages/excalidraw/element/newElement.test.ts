@@ -78,7 +78,7 @@ describe("duplicating single elements", () => {
       opacity: 100,
       text: "hello",
       fontSize: 20,
-      fontFamily: FONT_FAMILY["Excalifont, YRDZST, SetoFont"],
+      fontFamily: FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"],
       textAlign: "left",
       verticalAlign: "top",
     });

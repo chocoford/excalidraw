@@ -6,7 +6,7 @@ import { registerSW } from "virtual:pwa-register";
 import "../excalidraw-app/sentry";
 import "./excalidrawZ/tools.js";
 
-window.__EXCALIDRAW_SHA__ = process.env.REACT_APP_GIT_SHA;
+// window.__EXCALIDRAW_SHA__ = process.env.REACT_APP_GIT_SHA;
 const rootElement = document.getElementById("root")!;
 const root = createRoot(rootElement);
 registerSW();

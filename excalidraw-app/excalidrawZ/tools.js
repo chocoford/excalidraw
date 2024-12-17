@@ -1,6 +1,7 @@
 import "./clipboard";
 import { exportToBlob, exportToSvg } from "../../packages/utils/export";
 import { antiInvertImage } from "./image";
+import { keybardEvents } from "./keyboardEvent";
 const sendMessage = ({ event, data }) => {
   if (
     window.webkit &&
@@ -219,6 +220,60 @@ const exportImage = () => {
         cancelable: true,
       }),
     );
+  }, 100);
+};
+
+/**
+ *
+ * @param {'png' | 'svg'} type
+ */
+const exportImageData = () => {
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "e",
+      code: "KeyE",
+      metaKey: true,
+      shiftKey: true,
+      composed: true,
+      keyCode: 69,
+      which: 69,
+    }),
+  );
+  setTimeout(() => {
+    const modalContainer = document.querySelector(
+      ".excalidraw-modal-container",
+    );
+    const copyButton = modalContainer
+      .querySelectorAll('button[aria-label*="PNG"]')
+      .item(1);
+    copyButton.click();
+    // copyButton.classList.contains("ExcButton--status-null");
+    const observer = new MutationObserver((e) => {
+      const entry = e[0];
+      if (
+        entry &&
+        entry.target.classList.contains("ExcButton--status-success")
+      ) {
+        setTimeout(() => {
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Escape",
+              keyCode: 27, // Deprecated but still used in some older browsers
+              code: "Escape",
+              which: 27,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+
+          sendMessage({
+            event: "didFinishCopyPNGData",
+            data: {},
+          });
+        }, 100);
+      }
+    });
+    observer.observe(copyButton, { attributes: true });
   }, 100);
 };
 
@@ -525,46 +580,8 @@ const onload = () => {
 };
 
 const toggleToolbarAction = (key) => {
-  const eventInfo = {};
-  for (let i = 0; i <= 9; i++) {
-    const key = i.toString();
-    const keyCode = 48 + i; // '0' 对应的 keyCode 是 48，依次类推
-    eventInfo[i] = {
-      key,
-      code: `Digit${key}`,
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode,
-      which: keyCode,
-    };
-  }
-  for (let i = 0; i < 26; i++) {
-    const letter = String.fromCharCode(65 + i); // 'A' 对应的 ASCII 码是 65，依次类推
-    const keyCode = 65 + i; // 'A' 对应的 keyCode 是 65，依次类推
-    eventInfo[letter] = {
-      key: letter,
-      code: `Key${letter}`,
-      altKey: false,
-      shiftKey: false,
-      composed: true,
-      keyCode,
-      which: keyCode,
-    };
-  }
-
-  eventInfo.Escape = {
-    key: "Escape",
-    code: "Escape",
-    altKey: false,
-    shiftKey: false,
-    composed: true,
-    keyCode: 27, // ESC 对应的 keyCode 是 27
-    which: 27,
-  };
-
-  if (eventInfo[key]) {
-    document.dispatchEvent(new KeyboardEvent("keydown", eventInfo[key]));
+  if (keybardEvents[key]) {
+    document.dispatchEvent(new KeyboardEvent("keydown", keybardEvents[key]));
   }
 };
 
@@ -573,13 +590,20 @@ const toggleToolbarAction = (key) => {
  * @param {string} id The id used to map message from ExcalidrawZ.
  * @param {any[]} elements Excalidraw elements.
  * @param {boolean} exportEmbedScene
+ * @param {boolean} withBackground
  */
-const exportElementsToBlob = async (id, elements, exportEmbedScene = false) => {
+const exportElementsToBlob = async (
+  id,
+  elements,
+  exportEmbedScene = false,
+  withBackground = true,
+) => {
   const blob = await exportToBlob({
     elements,
     files: await getRelativeFiles(elements),
     appState: {
       exportEmbedScene,
+      exportBackground: withBackground,
     },
   });
 
@@ -596,12 +620,18 @@ const exportElementsToBlob = async (id, elements, exportEmbedScene = false) => {
   reader.readAsDataURL(blob);
 };
 
-const exportElementsToSvg = async (id, elements, exportEmbedScene = false) => {
+const exportElementsToSvg = async (
+  id,
+  elements,
+  exportEmbedScene = false,
+  withBackground = true,
+) => {
   const svg = await exportToSvg({
     elements,
     files: await getRelativeFiles(elements),
     appState: {
       exportEmbedScene,
+      exportBackground: withBackground,
     },
   });
   // 创建一个新的 XMLSerializer 实例
@@ -691,6 +721,75 @@ document.addEventListener(
   },
   true,
 );
+
+// Pen
+const togglePenMode = (flag) => {
+  window.excalidrawZHelper.inPencilMode = flag;
+};
+
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType === "pen") {
+      if (!window.excalidrawZHelper.inPencilMode) {
+        window.excalidrawZHelper.inPencilMode = true;
+      }
+      sendMessage({
+        event: "didPenDown",
+        data: {},
+      });
+    } else if (event.pointerType === "touch") {
+      if (window.excalidrawZHelper.inPencilMode) {
+        console.debug("dispatch space down event...");
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", keybardEvents.Space),
+        );
+      }
+    } else {
+    }
+  },
+  true,
+);
+
+document.addEventListener("pointerup", (event) => {
+  if (event.pointerType === "pen") {
+    if (!window.excalidrawZHelper.inPencilMode) {
+      window.excalidrawZHelper.inPencilMode = true;
+    }
+  } else if (event.pointerType === "touch") {
+    if (window.excalidrawZHelper.inPencilMode) {
+      document.dispatchEvent(new KeyboardEvent("keyup", keybardEvents.Space));
+    }
+  } else {
+  }
+});
+
+let followingActoin = null;
+// Redo & Undo with fingers
+document.addEventListener("touchstart", (event) => {
+  const touchCount = event.touches.length;
+  if (touchCount === 2) {
+    followingActoin = "undo";
+  } else if (touchCount === 3) {
+    followingActoin = "redo";
+  }
+  if (touchCount > 0) {
+    setTimeout(() => {
+      followingActoin = null;
+    }, 100);
+  }
+});
+document.addEventListener("touchmove", (event) => {
+  followingActoin = null;
+});
+document.addEventListener("touchend", (event) => {
+  if (followingActoin === "undo") {
+    window.excalidrawZHelper.undo();
+  } else if (followingActoin === "redo") {
+    window.excalidrawZHelper.redo();
+  }
+});
+
 window.excalidrawZHelper = {
   sendMessage,
 
@@ -710,6 +809,7 @@ window.excalidrawZHelper = {
 
   exportElementsToBlob,
   exportElementsToSvg,
+  // exportImageData,
 
   getAllMedias,
   insertMedias,
@@ -725,4 +825,8 @@ window.excalidrawZHelper = {
   redo: () => {
     document.querySelector('[data-testid="button-redo"]')?.click();
   },
+
+  // pencil
+  inPencilMode: false,
+  togglePenMode,
 };
