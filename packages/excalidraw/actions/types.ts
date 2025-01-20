@@ -135,7 +135,10 @@ export type ActionName =
   | "autoResize"
   | "elementStats"
   | "searchMenu"
-  | "cropEditor";
+  | "copyElementLink"
+  | "linkToElement"
+  | "cropEditor"
+  | "wrapSelectionInFrame";
 
 export type PanelComponentProps = {
   elements: readonly ExcalidrawElement[];

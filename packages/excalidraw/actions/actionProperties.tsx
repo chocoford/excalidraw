@@ -53,6 +53,9 @@ import {
   sharpArrowIcon,
   roundArrowIcon,
   elbowArrowIcon,
+  ArrowheadCrowfootIcon,
+  ArrowheadCrowfootOneIcon,
+  ArrowheadCrowfootOneOrManyIcon,
 } from "../components/icons";
 import {
   ARROW_TYPE,
@@ -113,10 +116,9 @@ import {
   calculateFixedPointForElbowArrowBinding,
   getHoveredElementForBinding,
 } from "../element/binding";
-import { mutateElbowArrow } from "../element/routing";
 import { LinearElementEditor } from "../element/linearElementEditor";
 import type { LocalPoint } from "../../math";
-import { pointFrom, vector } from "../../math";
+import { pointFrom } from "../../math";
 
 const FONT_SIZE_RELATIVE_INCREASE_STEP = 0.1;
 
@@ -1406,58 +1408,64 @@ const getArrowheadOptions = (flip: boolean) => {
       icon: <ArrowheadArrowIcon flip={flip} />,
     },
     {
-      value: "bar",
-      text: t("labels.arrowhead_bar"),
-      keyBinding: "e",
-      icon: <ArrowheadBarIcon flip={flip} />,
-    },
-    {
-      value: "dot",
-      text: t("labels.arrowhead_circle"),
-      keyBinding: null,
-      icon: <ArrowheadCircleIcon flip={flip} />,
-      showInPicker: false,
-    },
-    {
-      value: "circle",
-      text: t("labels.arrowhead_circle"),
-      keyBinding: "r",
-      icon: <ArrowheadCircleIcon flip={flip} />,
-      showInPicker: false,
-    },
-    {
-      value: "circle_outline",
-      text: t("labels.arrowhead_circle_outline"),
-      keyBinding: null,
-      icon: <ArrowheadCircleOutlineIcon flip={flip} />,
-      showInPicker: false,
-    },
-    {
       value: "triangle",
       text: t("labels.arrowhead_triangle"),
       icon: <ArrowheadTriangleIcon flip={flip} />,
-      keyBinding: "t",
+      keyBinding: "e",
     },
     {
       value: "triangle_outline",
       text: t("labels.arrowhead_triangle_outline"),
       icon: <ArrowheadTriangleOutlineIcon flip={flip} />,
-      keyBinding: null,
-      showInPicker: false,
+      keyBinding: "r",
+    },
+    {
+      value: "circle",
+      text: t("labels.arrowhead_circle"),
+      keyBinding: "a",
+      icon: <ArrowheadCircleIcon flip={flip} />,
+    },
+    {
+      value: "circle_outline",
+      text: t("labels.arrowhead_circle_outline"),
+      keyBinding: "s",
+      icon: <ArrowheadCircleOutlineIcon flip={flip} />,
     },
     {
       value: "diamond",
       text: t("labels.arrowhead_diamond"),
       icon: <ArrowheadDiamondIcon flip={flip} />,
-      keyBinding: null,
-      showInPicker: false,
+      keyBinding: "d",
     },
     {
       value: "diamond_outline",
       text: t("labels.arrowhead_diamond_outline"),
       icon: <ArrowheadDiamondOutlineIcon flip={flip} />,
-      keyBinding: null,
-      showInPicker: false,
+      keyBinding: "f",
+    },
+    {
+      value: "bar",
+      text: t("labels.arrowhead_bar"),
+      keyBinding: "z",
+      icon: <ArrowheadBarIcon flip={flip} />,
+    },
+    {
+      value: "crowfoot_one",
+      text: t("labels.arrowhead_crowfoot_one"),
+      icon: <ArrowheadCrowfootOneIcon flip={flip} />,
+      keyBinding: "c",
+    },
+    {
+      value: "crowfoot_many",
+      text: t("labels.arrowhead_crowfoot_many"),
+      icon: <ArrowheadCrowfootIcon flip={flip} />,
+      keyBinding: "x",
+    },
+    {
+      value: "crowfoot_one_or_many",
+      text: t("labels.arrowhead_crowfoot_one_or_many"),
+      icon: <ArrowheadCrowfootOneOrManyIcon flip={flip} />,
+      keyBinding: "v",
     },
   ] as const;
 };
@@ -1521,6 +1529,7 @@ export const actionChangeArrowhead = register({
               appState.currentItemStartArrowhead,
             )}
             onChange={(value) => updateData({ position: "start", type: value })}
+            numberOfOptionsToAlwaysShow={4}
           />
           <IconPicker
             label="arrowhead_end"
@@ -1537,6 +1546,7 @@ export const actionChangeArrowhead = register({
               appState.currentItemEndArrowhead,
             )}
             onChange={(value) => updateData({ position: "end", type: value })}
+            numberOfOptionsToAlwaysShow={4}
           />
         </div>
       </fieldset>
@@ -1549,150 +1559,162 @@ export const actionChangeArrowType = register({
   label: "Change arrow types",
   trackEvent: false,
   perform: (elements, appState, value, app) => {
-    return {
-      elements: changeProperty(elements, appState, (el) => {
-        if (!isArrowElement(el)) {
-          return el;
-        }
-        const newElement = newElementWith(el, {
-          roundness:
-            value === ARROW_TYPE.round
-              ? {
-                  type: ROUNDNESS.PROPORTIONAL_RADIUS,
-                }
-              : null,
-          elbowed: value === ARROW_TYPE.elbow,
-          points:
-            value === ARROW_TYPE.elbow || el.elbowed
-              ? [el.points[0], el.points[el.points.length - 1]]
-              : el.points,
+    const newElements = changeProperty(elements, appState, (el) => {
+      if (!isArrowElement(el)) {
+        return el;
+      }
+      const newElement = newElementWith(el, {
+        roundness:
+          value === ARROW_TYPE.round
+            ? {
+                type: ROUNDNESS.PROPORTIONAL_RADIUS,
+              }
+            : null,
+        elbowed: value === ARROW_TYPE.elbow,
+        points:
+          value === ARROW_TYPE.elbow || el.elbowed
+            ? [el.points[0], el.points[el.points.length - 1]]
+            : el.points,
+      });
+
+      if (isElbowArrow(newElement)) {
+        const elementsMap = app.scene.getNonDeletedElementsMap();
+
+        app.dismissLinearEditor();
+
+        const startGlobalPoint =
+          LinearElementEditor.getPointAtIndexGlobalCoordinates(
+            newElement,
+            0,
+            elementsMap,
+          );
+        const endGlobalPoint =
+          LinearElementEditor.getPointAtIndexGlobalCoordinates(
+            newElement,
+            -1,
+            elementsMap,
+          );
+        const startHoveredElement =
+          !newElement.startBinding &&
+          getHoveredElementForBinding(
+            tupleToCoors(startGlobalPoint),
+            elements,
+            elementsMap,
+            appState.zoom,
+          );
+        const endHoveredElement =
+          !newElement.endBinding &&
+          getHoveredElementForBinding(
+            tupleToCoors(endGlobalPoint),
+            elements,
+            elementsMap,
+            appState.zoom,
+          );
+        const startElement = startHoveredElement
+          ? startHoveredElement
+          : newElement.startBinding &&
+            (elementsMap.get(
+              newElement.startBinding.elementId,
+            ) as ExcalidrawBindableElement);
+        const endElement = endHoveredElement
+          ? endHoveredElement
+          : newElement.endBinding &&
+            (elementsMap.get(
+              newElement.endBinding.elementId,
+            ) as ExcalidrawBindableElement);
+
+        const finalStartPoint = startHoveredElement
+          ? bindPointToSnapToElementOutline(
+              startGlobalPoint,
+              endGlobalPoint,
+              startHoveredElement,
+              elementsMap,
+            )
+          : startGlobalPoint;
+        const finalEndPoint = endHoveredElement
+          ? bindPointToSnapToElementOutline(
+              endGlobalPoint,
+              startGlobalPoint,
+              endHoveredElement,
+              elementsMap,
+            )
+          : endGlobalPoint;
+
+        startHoveredElement &&
+          bindLinearElement(
+            newElement,
+            startHoveredElement,
+            "start",
+            elementsMap,
+          );
+        endHoveredElement &&
+          bindLinearElement(newElement, endHoveredElement, "end", elementsMap);
+
+        mutateElement(newElement, {
+          points: [finalStartPoint, finalEndPoint].map(
+            (p): LocalPoint =>
+              pointFrom(p[0] - newElement.x, p[1] - newElement.y),
+          ),
+          ...(startElement && newElement.startBinding
+            ? {
+                startBinding: {
+                  // @ts-ignore TS cannot discern check above
+                  ...newElement.startBinding!,
+                  ...calculateFixedPointForElbowArrowBinding(
+                    newElement,
+                    startElement,
+                    "start",
+                    elementsMap,
+                  ),
+                },
+              }
+            : {}),
+          ...(endElement && newElement.endBinding
+            ? {
+                endBinding: {
+                  // @ts-ignore TS cannot discern check above
+                  ...newElement.endBinding,
+                  ...calculateFixedPointForElbowArrowBinding(
+                    newElement,
+                    endElement,
+                    "end",
+                    elementsMap,
+                  ),
+                },
+              }
+            : {}),
         });
 
-        if (isElbowArrow(newElement)) {
-          const elementsMap = app.scene.getNonDeletedElementsMap();
+        LinearElementEditor.updateEditorMidPointsCache(
+          newElement,
+          elementsMap,
+          app.state,
+        );
+      }
 
-          app.dismissLinearEditor();
+      return newElement;
+    });
 
-          const startGlobalPoint =
-            LinearElementEditor.getPointAtIndexGlobalCoordinates(
-              newElement,
-              0,
-              elementsMap,
-            );
-          const endGlobalPoint =
-            LinearElementEditor.getPointAtIndexGlobalCoordinates(
-              newElement,
-              -1,
-              elementsMap,
-            );
-          const startHoveredElement =
-            !newElement.startBinding &&
-            getHoveredElementForBinding(
-              tupleToCoors(startGlobalPoint),
-              elements,
-              elementsMap,
-              true,
-            );
-          const endHoveredElement =
-            !newElement.endBinding &&
-            getHoveredElementForBinding(
-              tupleToCoors(endGlobalPoint),
-              elements,
-              elementsMap,
-              true,
-            );
-          const startElement = startHoveredElement
-            ? startHoveredElement
-            : newElement.startBinding &&
-              (elementsMap.get(
-                newElement.startBinding.elementId,
-              ) as ExcalidrawBindableElement);
-          const endElement = endHoveredElement
-            ? endHoveredElement
-            : newElement.endBinding &&
-              (elementsMap.get(
-                newElement.endBinding.elementId,
-              ) as ExcalidrawBindableElement);
+    const newState = {
+      ...appState,
+      currentItemArrowType: value,
+    };
 
-          const finalStartPoint = startHoveredElement
-            ? bindPointToSnapToElementOutline(
-                startGlobalPoint,
-                endGlobalPoint,
-                startHoveredElement,
-                elementsMap,
-              )
-            : startGlobalPoint;
-          const finalEndPoint = endHoveredElement
-            ? bindPointToSnapToElementOutline(
-                endGlobalPoint,
-                startGlobalPoint,
-                endHoveredElement,
-                elementsMap,
-              )
-            : endGlobalPoint;
+    // Change the arrow type and update any other state settings for
+    // the arrow.
+    const selectedId = appState.selectedLinearElement?.elementId;
+    if (selectedId) {
+      const selected = newElements.find((el) => el.id === selectedId);
+      if (selected) {
+        newState.selectedLinearElement = new LinearElementEditor(
+          selected as ExcalidrawLinearElement,
+        );
+      }
+    }
 
-          startHoveredElement &&
-            bindLinearElement(
-              newElement,
-              startHoveredElement,
-              "start",
-              elementsMap,
-            );
-          endHoveredElement &&
-            bindLinearElement(
-              newElement,
-              endHoveredElement,
-              "end",
-              elementsMap,
-            );
-
-          mutateElbowArrow(
-            newElement,
-            elementsMap,
-            [finalStartPoint, finalEndPoint].map(
-              (p): LocalPoint =>
-                pointFrom(p[0] - newElement.x, p[1] - newElement.y),
-            ),
-            vector(0, 0),
-            {
-              ...(startElement && newElement.startBinding
-                ? {
-                    startBinding: {
-                      // @ts-ignore TS cannot discern check above
-                      ...newElement.startBinding!,
-                      ...calculateFixedPointForElbowArrowBinding(
-                        newElement,
-                        startElement,
-                        "start",
-                        elementsMap,
-                      ),
-                    },
-                  }
-                : {}),
-              ...(endElement && newElement.endBinding
-                ? {
-                    endBinding: {
-                      // @ts-ignore TS cannot discern check above
-                      ...newElement.endBinding,
-                      ...calculateFixedPointForElbowArrowBinding(
-                        newElement,
-                        endElement,
-                        "end",
-                        elementsMap,
-                      ),
-                    },
-                  }
-                : {}),
-            },
-          );
-        }
-
-        return newElement;
-      }),
-      appState: {
-        ...appState,
-        currentItemArrowType: value,
-      },
+    return {
+      elements: newElements,
+      appState: newState,
       storeAction: StoreAction.CAPTURE,
     };
   },

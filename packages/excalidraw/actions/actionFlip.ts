@@ -12,7 +12,6 @@ import { resizeMultipleElements } from "../element/resizeElements";
 import type { AppClassProperties, AppState } from "../types";
 import { arrayToMap } from "../utils";
 import { CODES, KEYS } from "../keys";
-import { getCommonBoundingBox } from "../element/bounds";
 import {
   bindOrUnbindLinearElements,
   isBindingEnabled,
@@ -25,8 +24,9 @@ import {
   isElbowArrow,
   isLinearElement,
 } from "../element/typeChecks";
-import { mutateElbowArrow } from "../element/routing";
 import { mutateElement, newElementWith } from "../element/mutateElement";
+import { deepCopyElement } from "../element/newElement";
+import { getCommonBoundingBox } from "../element/bounds";
 
 export const actionFlipHorizontal = register({
   name: "flipHorizontal",
@@ -132,18 +132,25 @@ const flipElements = (
     });
   }
 
-  const { minX, minY, maxX, maxY, midX, midY } =
-    getCommonBoundingBox(selectedElements);
+  const { midX, midY } = getCommonBoundingBox(selectedElements);
 
   resizeMultipleElements(
-    elementsMap,
     selectedElements,
     elementsMap,
     "nw",
-    true,
-    true,
-    flipDirection === "horizontal" ? maxX : minX,
-    flipDirection === "horizontal" ? minY : maxY,
+    app.scene,
+    new Map(
+      Array.from(elementsMap.values()).map((element) => [
+        element.id,
+        deepCopyElement(element),
+      ]),
+    ),
+    {
+      flipByX: flipDirection === "horizontal",
+      flipByY: flipDirection === "vertical",
+      shouldResizeFromCenter: true,
+      shouldMaintainAspectRatio: true,
+    },
   );
 
   bindOrUnbindLinearElements(
@@ -153,6 +160,7 @@ const flipElements = (
     app.scene,
     isBindingEnabled(appState),
     [],
+    appState.zoom,
   );
 
   // ---------------------------------------------------------------------------
@@ -185,16 +193,10 @@ const flipElements = (
     }),
   );
   elbowArrows.forEach((element) =>
-    mutateElbowArrow(
-      element,
-      elementsMap,
-      element.points,
-      undefined,
-      undefined,
-      {
-        informMutation: false,
-      },
-    ),
+    mutateElement(element, {
+      x: element.x + diffX,
+      y: element.y + diffY,
+    }),
   );
   // ---------------------------------------------------------------------------
 

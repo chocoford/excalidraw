@@ -22,6 +22,7 @@ import { copiedStyles } from "../actions/actionStyles";
 import { API } from "./helpers/api";
 import { setDateTimeForTests } from "../utils";
 import { vi } from "vitest";
+import type { ActionName } from "../actions/types";
 
 const checkpoint = (name: string) => {
   expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
@@ -115,10 +116,11 @@ describe("contextMenu element", () => {
     const contextMenu = UI.queryContextMenu();
     const contextMenuOptions =
       contextMenu?.querySelectorAll(".context-menu li");
-    const expectedShortcutNames: ShortcutName[] = [
+    const expectedContextMenuItems: ActionName[] = [
       "cut",
       "copy",
       "paste",
+      "wrapSelectionInFrame",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
@@ -131,14 +133,15 @@ describe("contextMenu element", () => {
       "bringToFront",
       "duplicateSelection",
       "hyperlink",
+      "copyElementLink",
       "toggleElementLock",
     ];
 
     expect(contextMenu).not.toBeNull();
-    expect(contextMenuOptions?.length).toBe(expectedShortcutNames.length);
-    expectedShortcutNames.forEach((shortcutName) => {
+    expect(contextMenuOptions?.length).toBe(expectedContextMenuItems.length);
+    expectedContextMenuItems.forEach((item) => {
       expect(
-        contextMenu?.querySelector(`li[data-testid="${shortcutName}"]`),
+        contextMenu?.querySelector(`li[data-testid="${item}"]`),
       ).not.toBeNull();
     });
   });
@@ -211,6 +214,7 @@ describe("contextMenu element", () => {
       "cut",
       "copy",
       "paste",
+      "wrapSelectionInFrame",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
@@ -263,13 +267,15 @@ describe("contextMenu element", () => {
     const contextMenu = UI.queryContextMenu();
     const contextMenuOptions =
       contextMenu?.querySelectorAll(".context-menu li");
-    const expectedShortcutNames: ShortcutName[] = [
+    const expectedContextMenuItems: ActionName[] = [
       "cut",
       "copy",
       "paste",
+      "wrapSelectionInFrame",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
+      "copyElementLink",
       "ungroup",
       "addToLibrary",
       "flipHorizontal",
@@ -283,10 +289,10 @@ describe("contextMenu element", () => {
     ];
 
     expect(contextMenu).not.toBeNull();
-    expect(contextMenuOptions?.length).toBe(expectedShortcutNames.length);
-    expectedShortcutNames.forEach((shortcutName) => {
+    expect(contextMenuOptions?.length).toBe(expectedContextMenuItems.length);
+    expectedContextMenuItems.forEach((item) => {
       expect(
-        contextMenu?.querySelector(`li[data-testid="${shortcutName}"]`),
+        contextMenu?.querySelector(`li[data-testid="${item}"]`),
       ).not.toBeNull();
     });
   });

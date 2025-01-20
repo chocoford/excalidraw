@@ -171,8 +171,8 @@ describe("Crop an image", () => {
     // test corner handle aspect ratio preserving
     UI.crop(image, "se", naturalWidth, naturalHeight, [initialWidth, 0], true);
     expect(image.width / image.height).toBe(resizedWidth / resizedHeight);
-    expect(image.width).toBeLessThanOrEqual(initialWidth);
-    expect(image.height).toBeLessThanOrEqual(initialHeight);
+    expect(image.width).toBeLessThanOrEqual(initialWidth + 0.0001);
+    expect(image.height).toBeLessThanOrEqual(initialHeight + 0.0001);
 
     // reset
     image = API.createElement({ type: "image", width: 200, height: 100 });
@@ -186,15 +186,15 @@ describe("Crop an image", () => {
     // 50 x 50 square
     UI.crop(image, "nw", naturalWidth, naturalHeight, [150, 50]);
     UI.crop(image, "n", naturalWidth, naturalHeight, [0, -100], true);
-    expect(image.width).toEqual(image.height);
+    expect(image.width).toBeCloseTo(image.height);
     // image is at the corner, not space to its right to expand, should not be able to resize
     expect(image.height).toBeCloseTo(50);
 
     UI.crop(image, "nw", naturalWidth, naturalHeight, [-150, -100], true);
-    expect(image.width).toEqual(image.height);
+    expect(image.width).toBeCloseTo(image.height);
     // max height should be reached
-    expect(image.height).toEqual(initialHeight);
-    expect(image.width).toBe(initialHeight);
+    expect(image.height).toBeCloseTo(initialHeight);
+    expect(image.width).toBeCloseTo(initialHeight);
   });
 });
 

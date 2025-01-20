@@ -29,7 +29,7 @@ import {
   getOmitSidesForDevice,
   shouldShowBoundingBox,
 } from "../element/transformHandles";
-import { arrayToMap, throttleRAF } from "../utils";
+import { arrayToMap, invariant, throttleRAF } from "../utils";
 import {
   DEFAULT_TRANSFORM_HANDLE_SPACING,
   FRAME_STYLE,
@@ -43,7 +43,11 @@ import type {
   SuggestedBinding,
   SuggestedPointBinding,
 } from "../element/binding";
-import { maxBindingGap } from "../element/binding";
+import {
+  BINDING_HIGHLIGHT_OFFSET,
+  BINDING_HIGHLIGHT_THICKNESS,
+  maxBindingGap,
+} from "../element/binding";
 import { LinearElementEditor } from "../element/linearElementEditor";
 import {
   bootstrapCanvas,
@@ -74,8 +78,31 @@ import type {
   InteractiveSceneRenderConfig,
   RenderableElementsMap,
 } from "../scene/types";
-import type { GlobalPoint, LocalPoint, Radians } from "../../math";
+import {
+  pointFrom,
+  type GlobalPoint,
+  type LocalPoint,
+  type Radians,
+} from "../../math";
 import { getCornerRadius } from "../shapes";
+
+const renderElbowArrowMidPointHighlight = (
+  context: CanvasRenderingContext2D,
+  appState: InteractiveCanvasAppState,
+) => {
+  invariant(appState.selectedLinearElement, "selectedLinearElement is null");
+
+  const { segmentMidPointHoveredCoords } = appState.selectedLinearElement;
+
+  invariant(segmentMidPointHoveredCoords, "midPointCoords is null");
+
+  context.save();
+  context.translate(appState.scrollX, appState.scrollY);
+
+  highlightPoint(segmentMidPointHoveredCoords, context, appState);
+
+  context.restore();
+};
 
 const renderLinearElementPointHighlight = (
   context: CanvasRenderingContext2D,
@@ -217,17 +244,18 @@ const renderBindingHighlightForBindableElement = (
   context: CanvasRenderingContext2D,
   element: ExcalidrawBindableElement,
   elementsMap: ElementsMap,
+  zoom: InteractiveCanvasAppState["zoom"],
 ) => {
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
   const width = x2 - x1;
   const height = y2 - y1;
-  const thickness = 10;
 
-  // So that we don't overlap the element itself
-  const strokeOffset = 4;
   context.strokeStyle = "rgba(0,0,0,.05)";
-  context.lineWidth = thickness - strokeOffset;
-  const padding = strokeOffset / 2 + thickness / 2;
+  // When zooming out, make line width greater for visibility
+  const zoomValue = zoom.value < 1 ? zoom.value : 1;
+  context.lineWidth = BINDING_HIGHLIGHT_THICKNESS / zoomValue;
+  // To ensure the binding highlight doesn't overlap the element itself
+  const padding = context.lineWidth / 2 + BINDING_HIGHLIGHT_OFFSET;
 
   const radius = getCornerRadius(
     Math.min(element.width, element.height),
@@ -285,6 +313,7 @@ const renderBindingHighlightForSuggestedPointBinding = (
   context: CanvasRenderingContext2D,
   suggestedBinding: SuggestedPointBinding,
   elementsMap: ElementsMap,
+  zoom: InteractiveCanvasAppState["zoom"],
 ) => {
   const [element, startOrEnd, bindableElement] = suggestedBinding;
 
@@ -292,6 +321,7 @@ const renderBindingHighlightForSuggestedPointBinding = (
     bindableElement,
     bindableElement.width,
     bindableElement.height,
+    zoom,
   );
 
   context.strokeStyle = "rgba(0,0,0,0)";
@@ -390,7 +420,7 @@ const renderBindingHighlight = (
 
   context.save();
   context.translate(appState.scrollX, appState.scrollY);
-  renderHighlight(context, suggestedBinding as any, elementsMap);
+  renderHighlight(context, suggestedBinding as any, elementsMap, appState.zoom);
 
   context.restore();
 };
@@ -483,7 +513,7 @@ const renderLinearPointHandles = (
   context.save();
   context.translate(appState.scrollX, appState.scrollY);
   context.lineWidth = 1 / appState.zoom.value;
-  const points = LinearElementEditor.getPointsGlobalCoordinates(
+  const points: GlobalPoint[] = LinearElementEditor.getPointsGlobalCoordinates(
     element,
     elementsMap,
   );
@@ -503,55 +533,57 @@ const renderLinearPointHandles = (
     renderSingleLinearPoint(context, appState, point, radius, isSelected);
   });
 
-  //Rendering segment mid points
-  const midPoints = LinearElementEditor.getEditorMidPoints(
-    element,
-    elementsMap,
-    appState,
-  ).filter((midPoint): midPoint is GlobalPoint => midPoint !== null);
-
-  midPoints.forEach((segmentMidPoint) => {
-    if (
-      appState?.selectedLinearElement?.segmentMidPointHoveredCoords &&
-      LinearElementEditor.arePointsEqual(
-        segmentMidPoint,
-        appState.selectedLinearElement.segmentMidPointHoveredCoords,
-      )
-    ) {
-      // The order of renderingSingleLinearPoint and highLight points is different
-      // inside vs outside editor as hover states are different,
-      // in editor when hovered the original point is not visible as hover state fully covers it whereas outside the
-      // editor original point is visible and hover state is just an outer circle.
-      if (appState.editingLinearElement) {
+  // Rendering segment mid points
+  if (isElbowArrow(element)) {
+    const fixedSegments =
+      element.fixedSegments?.map((segment) => segment.index) || [];
+    points.slice(0, -1).forEach((p, idx) => {
+      if (
+        !LinearElementEditor.isSegmentTooShort(
+          element,
+          points[idx + 1],
+          points[idx],
+          idx,
+          appState.zoom,
+        )
+      ) {
         renderSingleLinearPoint(
           context,
           appState,
-          segmentMidPoint,
-          radius,
+          pointFrom<GlobalPoint>(
+            (p[0] + points[idx + 1][0]) / 2,
+            (p[1] + points[idx + 1][1]) / 2,
+          ),
+          POINT_HANDLE_SIZE / 2,
           false,
-        );
-        highlightPoint(segmentMidPoint, context, appState);
-      } else {
-        highlightPoint(segmentMidPoint, context, appState);
-        renderSingleLinearPoint(
-          context,
-          appState,
-          segmentMidPoint,
-          radius,
-          false,
+          !fixedSegments.includes(idx + 1),
         );
       }
-    } else if (appState.editingLinearElement || points.length === 2) {
-      renderSingleLinearPoint(
-        context,
-        appState,
-        segmentMidPoint,
-        POINT_HANDLE_SIZE / 2,
-        false,
-        true,
-      );
-    }
-  });
+    });
+  } else {
+    const midPoints = LinearElementEditor.getEditorMidPoints(
+      element,
+      elementsMap,
+      appState,
+    ).filter(
+      (midPoint, idx, midPoints): midPoint is GlobalPoint =>
+        midPoint !== null &&
+        !(isElbowArrow(element) && (idx === 0 || idx === midPoints.length - 1)),
+    );
+
+    midPoints.forEach((segmentMidPoint) => {
+      if (appState.editingLinearElement || points.length === 2) {
+        renderSingleLinearPoint(
+          context,
+          appState,
+          segmentMidPoint,
+          POINT_HANDLE_SIZE / 2,
+          false,
+          true,
+        );
+      }
+    });
+  }
 
   context.restore();
 };
@@ -857,6 +889,12 @@ const _renderInteractiveScene = ({
   }
 
   if (
+    isElbowArrow(selectedElements[0]) &&
+    appState.selectedLinearElement &&
+    appState.selectedLinearElement.segmentMidPointHoveredCoords
+  ) {
+    renderElbowArrowMidPointHighlight(context, appState);
+  } else if (
     appState.selectedLinearElement &&
     appState.selectedLinearElement.hoverPointIndex >= 0 &&
     !(
@@ -868,6 +906,7 @@ const _renderInteractiveScene = ({
   ) {
     renderLinearElementPointHighlight(context, appState, elementsMap);
   }
+
   // Paint selected elements
   if (!appState.multiElement && !appState.editingLinearElement) {
     const showBoundingBox = shouldShowBoundingBox(selectedElements, appState);
