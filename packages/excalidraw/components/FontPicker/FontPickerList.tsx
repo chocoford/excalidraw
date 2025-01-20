@@ -70,7 +70,12 @@ export const FontPickerList = React.memo(
             const fontDescriptor = {
               value: familyId,
               icon: metadata.icon ?? FontFamilyNormalIcon,
-              text: fontFaces[0]?.fontFace?.family ?? "Unknown",
+              text:
+                familyId === 5
+                  ? "ExcalidrawZ Font"
+                  : familyId === 1
+                  ? "ExcalidrawZ Mixed"
+                  : fontFaces[0]?.fontFace?.family ?? "Unknown",
             };
 
             if (metadata.deprecated) {

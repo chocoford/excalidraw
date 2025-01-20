@@ -20,7 +20,7 @@ export const DEFAULT_FONTS = [
   {
     value: FONT_FAMILY.Excalifont,
     icon: FreedrawIcon,
-    text: `ExcalidrawZ-${t("labels.handDrawn")}`,
+    text: `${t("labels.handDrawn")}`,
     testId: "font-family-hand-drawn",
   },
   {
@@ -85,8 +85,8 @@ export const FontPicker = React.memo(
           value={selectedFontFamily}
           onClick={onSelectCallback}
         />
-        {/* <ButtonSeparator /> */}
-        {/* <Popover.Root open={isOpened} onOpenChange={onPopupChange}>
+        <ButtonSeparator />
+        <Popover.Root open={isOpened} onOpenChange={onPopupChange}>
           <FontPickerTrigger selectedFontFamily={selectedFontFamily} />
           {isOpened && (
             <FontPickerList
@@ -99,7 +99,7 @@ export const FontPicker = React.memo(
               onClose={() => onPopupChange(false)}
             />
           )}
-        </Popover.Root> */}
+        </Popover.Root>
       </div>
     );
   },
