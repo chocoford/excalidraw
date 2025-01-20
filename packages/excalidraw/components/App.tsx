@@ -91,6 +91,7 @@ import {
   DEFAULT_REDUCED_GLOBAL_ALPHA,
   isSafari,
   type EXPORT_IMAGE_TYPES,
+  EXPORT_DATA_TYPES,
 } from "../constants";
 import type { ExportedElements } from "../data";
 import { exportCanvas, loadFromBlob } from "../data";
