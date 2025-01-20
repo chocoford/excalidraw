@@ -21,8 +21,7 @@ import { HelveticaFontFaces } from "./Helvetica";
 import { LiberationFontFaces } from "./Liberation";
 import { LilitaFontFaces } from "./Lilita";
 import { NunitoFontFaces } from "./Nunito";
-import { VirgilFontFaces } from "./Virgil";
-import { XiaolaiFontFaces } from "./Xiaolai";
+import { YRDZSTFontFaces } from "./YRDZST";
 
 import { FONT_METADATA, type FontMetadata } from "./FontMetadata";
 import type {
@@ -32,6 +31,7 @@ import type {
 } from "../element/types";
 import type Scene from "../scene/Scene";
 import type { ValueOf } from "../utility-types";
+import { ExcalidrawZFontFaces } from "./ExcalidrawZFont";
 
 export class Fonts {
   // it's ok to track fonts across multiple instances only once, so let's use
@@ -299,7 +299,6 @@ export class Fonts {
         );
         continue;
       }
-
       if (metadata?.local) {
         // don't inline local fonts
         continue;
@@ -406,10 +405,13 @@ export class Fonts {
     init("Liberation Sans", ...LiberationFontFaces);
     init("Lilita One", ...LilitaFontFaces);
     init("Nunito", ...NunitoFontFaces);
-    init("Excalifont, YRDZST, BinggraeSamanco, SetoFont", ...VirgilFontFaces);
+    init(
+      "Excalifont, YRDZST, BinggraeSamanco, SetoFont",
+      ...ExcalidrawZFontFaces,
+    );
 
     // fallback font faces
-    init(CJK_HAND_DRAWN_FALLBACK_FONT, ...XiaolaiFontFaces);
+    init(CJK_HAND_DRAWN_FALLBACK_FONT, ...YRDZSTFontFaces);
     init(WINDOWS_EMOJI_FALLBACK_FONT, ...EmojiFontFaces);
 
     Fonts._initialized = true;
@@ -489,7 +491,7 @@ export const getVerticalOffset = (
 ) => {
   const { unitsPerEm, ascender, descender } =
     Fonts.registered.get(fontFamily)?.metadata.metrics ||
-    FONT_METADATA[FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"]].metrics;
+    FONT_METADATA[FONT_FAMILY.Excalifont].metrics;
 
   const fontSizeEm = fontSize / unitsPerEm;
   const lineGap =

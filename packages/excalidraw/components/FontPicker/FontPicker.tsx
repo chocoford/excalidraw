@@ -18,7 +18,7 @@ import "./FontPicker.scss";
 
 export const DEFAULT_FONTS = [
   {
-    value: FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"],
+    value: FONT_FAMILY.Excalifont,
     icon: FreedrawIcon,
     text: `ExcalidrawZ-${t("labels.handDrawn")}`,
     testId: "font-family-hand-drawn",

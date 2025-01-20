@@ -117,7 +117,7 @@ export const CLASSES = {
   SEARCH_MENU_INPUT_WRAPPER: "layer-ui__search-inputWrapper",
 };
 
-export const CJK_HAND_DRAWN_FALLBACK_FONT = "Xiaolai";
+export const CJK_HAND_DRAWN_FALLBACK_FONT = "YRDZST";
 export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
 
 /**
@@ -179,8 +179,7 @@ export const FRAME_STYLE = {
 
 export const MIN_FONT_SIZE = 1;
 export const DEFAULT_FONT_SIZE = 20;
-export const DEFAULT_FONT_FAMILY: FontFamilyValues =
-  FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"];
+export const DEFAULT_FONT_FAMILY: FontFamilyValues = FONT_FAMILY.Excalifont;
 export const DEFAULT_TEXT_ALIGN = "left";
 export const DEFAULT_VERTICAL_ALIGN = "top";
 export const DEFAULT_VERSION = "{version}";

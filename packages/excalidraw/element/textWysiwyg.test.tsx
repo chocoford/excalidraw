@@ -895,7 +895,7 @@ describe("textWysiwyg", () => {
       });
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontFamily,
-      ).toEqual(FONT_FAMILY["Excalifont, YRDZST, BinggraeSamanco, SetoFont"]);
+      ).toEqual(FONT_FAMILY.Excalifont);
 
       //redo
       Keyboard.withModifierKeys({ ctrl: true, shift: true }, () => {
