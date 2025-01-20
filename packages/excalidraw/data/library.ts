@@ -8,8 +8,7 @@ import type {
 } from "../types";
 import { restoreLibraryItems } from "./restore";
 import type App from "../components/App";
-import { atom } from "jotai";
-import { jotaiStore } from "../jotai";
+import { atom, editorJotaiStore } from "../editor-jotai";
 import type { ExcalidrawElement } from "../element/types";
 import { getCommonBoundingBox } from "../element/bounds";
 import { AbortError } from "../errors";
@@ -35,6 +34,9 @@ import type { MaybePromise } from "../utility-types";
 import { Emitter } from "../emitter";
 import { Queue } from "../queue";
 import { hashElementsVersion, hashString } from "../element";
+import { toValidURL } from "./url";
+
+const ALLOWED_LIBRARY_HOSTNAMES = ["excalidraw.com"];
 
 type LibraryUpdate = {
   /** deleted library items since last onLibraryChange event */
@@ -188,13 +190,13 @@ class Library {
 
   private notifyListeners = () => {
     if (this.updateQueue.length > 0) {
-      jotaiStore.set(libraryItemsAtom, (s) => ({
+      editorJotaiStore.set(libraryItemsAtom, (s) => ({
         status: "loading",
         libraryItems: this.currLibraryItems,
         isInitialized: s.isInitialized,
       }));
     } else {
-      jotaiStore.set(libraryItemsAtom, {
+      editorJotaiStore.set(libraryItemsAtom, {
         status: "loaded",
         libraryItems: this.currLibraryItems,
         isInitialized: true,
@@ -222,7 +224,7 @@ class Library {
   destroy = () => {
     this.updateQueue = [];
     this.currLibraryItems = [];
-    jotaiStore.set(libraryItemSvgsCache, new Map());
+    editorJotaiStore.set(libraryItemSvgsCache, new Map());
     // TODO uncomment after/if we make jotai store scoped to each excal instance
     // jotaiStore.set(libraryItemsAtom, {
     //   status: "loading",
@@ -467,6 +469,28 @@ export const distributeLibraryItemsOnSquareGrid = (
   return resElements;
 };
 
+const validateLibraryUrl = (
+  libraryUrl: string,
+  /**
+   * If supplied, takes precedence over the default whitelist.
+   * Return `true` if the URL is valid.
+   */
+  validator?: (libraryUrl: string) => boolean,
+): boolean => {
+  if (
+    validator
+      ? validator(libraryUrl)
+      : ALLOWED_LIBRARY_HOSTNAMES.includes(
+          new URL(libraryUrl).hostname.split(".").slice(-2).join("."),
+        )
+  ) {
+    return true;
+  }
+
+  console.error(`Invalid or disallowed library URL: "${libraryUrl}"`);
+  throw new Error("Invalid or disallowed library URL");
+};
+
 export const parseLibraryTokensFromUrl = () => {
   const libraryUrl =
     // current
@@ -608,6 +632,11 @@ const persistLibraryUpdate = async (
 export const useHandleLibrary = (
   opts: {
     excalidrawAPI: ExcalidrawImperativeAPI | null;
+    /**
+     * Return `true` if the library install url should be allowed.
+     * If not supplied, only the excalidraw.com base domain is allowed.
+     */
+    validateLibraryUrl?: (libraryUrl: string) => boolean;
   } & (
     | {
         /** @deprecated we recommend using `opts.adapter` instead */
@@ -650,7 +679,13 @@ export const useHandleLibrary = (
     }) => {
       const libraryPromise = new Promise<Blob>(async (resolve, reject) => {
         try {
-          const request = await fetch(decodeURIComponent(libraryUrl));
+          libraryUrl = decodeURIComponent(libraryUrl);
+
+          libraryUrl = toValidURL(libraryUrl);
+
+          validateLibraryUrl(libraryUrl, optsRef.current.validateLibraryUrl);
+
+          const request = await fetch(libraryUrl);
           const blob = await request.blob();
           resolve(blob);
         } catch (error: any) {
@@ -678,7 +713,12 @@ export const useHandleLibrary = (
           defaultStatus: "published",
           openLibraryMenu: true,
         });
-      } catch (error) {
+      } catch (error: any) {
+        excalidrawAPI.updateScene({
+          appState: {
+            errorMessage: error.message,
+          },
+        });
         throw error;
       } finally {
         if (window.location.hash.includes(URL_HASH_KEYS.addLibrary)) {
