@@ -435,11 +435,12 @@ const hideEls = () => {
         // ) {
         //   mutation.target.style.display = "none";
         // }
+        
         // model container
-        if (mutation.target.classList.contains("excalidraw-modal-container")) {
-          mutation.target.style.opacity = 0;
-          mutation.target.style.pointerEvents = "none";
-        }
+        // if (mutation.target.classList.contains("excalidraw-modal-container")) {
+        //   mutation.target.style.opacity = 0;
+        //   mutation.target.style.pointerEvents = "none";
+        // }
       }
     }
   };
@@ -580,6 +581,45 @@ const onload = () => {
 };
 
 const toggleToolbarAction = (key) => {
+  const withDropdownMenu = (action) => {
+    if (!!document.querySelector("[data-testid=dropdown-menu]")) {
+      action(document.querySelector("[data-testid=dropdown-menu]"));
+    } else {
+      document.querySelector("[data-testId=dropdown-menu-button]")?.click();
+      setTimeout(() => {
+        action(document.querySelector("[data-testid=dropdown-menu]"));
+      }, 50);
+    }
+  };
+
+  if (key === "webEmbed") {
+    withDropdownMenu((container) => {
+      container.children[0]?.children[1]?.click();
+    });
+    return;
+  }
+
+  if (key === "text2diagram") {
+    withDropdownMenu((container) => {
+      container.children[0]?.children[4]?.click();
+    });
+    return;
+  }
+
+  if (key === "mermaid") {
+    withDropdownMenu((container) => {
+      container.children[0]?.children[5]?.click();
+    });
+    return;
+  }
+
+  if (key === "wireframe") {
+    withDropdownMenu((container) => {
+      container.children[0]?.children[6]?.click();
+    });
+    return;
+  }
+
   if (keybardEvents[key]) {
     document.dispatchEvent(new KeyboardEvent("keydown", keybardEvents[key]));
   }

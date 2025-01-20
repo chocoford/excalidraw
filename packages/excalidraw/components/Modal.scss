@@ -134,3 +134,13 @@
     }
   }
 }
+
+@media (max-width: 600px) {
+  .excalidraw {
+    .Modal {
+      .Island {
+        padding-bottom: 6rem;
+      }
+    }
+  }
+}

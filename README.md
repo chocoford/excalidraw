@@ -16,3 +16,6 @@
 - Chnage `CJK_HAND_DRAWN_FALLBACK_FONT` to `YDSZST`. Relavent files:
   - `packages/excalidraw/constants.ts` line 120.
   - `packages/excalidraw/Fonts.ts` line 414.
+- Remove Help&ImageExport keyboard shortcut in `packages/excalidraw/components/App.tsx` line 4184-4197. 
+- Modify css style of `Excalidraw Modal` in `packages/excalidraw/components/Modal.scss` line 138-146.
+- Modify css style of `Excalidraw TTD-Dialog` in `packages/excalidraw/components/TTDDialog/TTDDialog.scss` line 15.

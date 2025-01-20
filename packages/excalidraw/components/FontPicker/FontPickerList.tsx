@@ -110,8 +110,9 @@ export const FontPickerList = React.memo(
       () =>
         allFonts.filter(
           (font) =>
-            !sceneFamilies.has(font.value) &&
-            (showDeprecatedFonts || !font.deprecated), // skip deprecated fonts
+            font.value === 1 ||
+            (!sceneFamilies.has(font.value) &&
+              (showDeprecatedFonts || !font.deprecated)), // skip deprecated fonts
         ),
       [allFonts, sceneFamilies, showDeprecatedFonts],
     );

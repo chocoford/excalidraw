@@ -110,7 +110,7 @@ export const FONT_METADATA: Record<number, FontMetadata> = {
     },
     serverSide: true,
   },
-  [FONT_FAMILY_FALLBACKS.YRDZST]: {
+  [FONT_FAMILY_FALLBACKS.Xiaolai]: {
     metrics: {
       unitsPerEm: 1000,
       ascender: 880,

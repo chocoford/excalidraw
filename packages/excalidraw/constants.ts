@@ -117,7 +117,7 @@ export const CLASSES = {
   SEARCH_MENU_INPUT_WRAPPER: "layer-ui__search-inputWrapper",
 };
 
-export const CJK_HAND_DRAWN_FALLBACK_FONT = "YRDZST";
+export const CJK_HAND_DRAWN_FALLBACK_FONT = "Xiaolai";
 export const WINDOWS_EMOJI_FALLBACK_FONT = "Segoe UI Emoji";
 
 /**

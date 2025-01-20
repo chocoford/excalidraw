@@ -4181,20 +4181,20 @@ class App extends React.Component<AppProps, AppState> {
         return;
       }
 
-      if (event.key === KEYS.QUESTION_MARK) {
-        this.setState({
-          openDialog: { name: "help" },
-        });
-        return;
-      } else if (
-        event.key.toLowerCase() === KEYS.E &&
-        event.shiftKey &&
-        event[KEYS.CTRL_OR_CMD]
-      ) {
-        event.preventDefault();
-        this.setState({ openDialog: { name: "imageExport" } });
-        return;
-      }
+      // if (event.key === KEYS.QUESTION_MARK) {
+      //   this.setState({
+      //     openDialog: { name: "help" },
+      //   });
+      //   return;
+      // } else if (
+      //   event.key.toLowerCase() === KEYS.E &&
+      //   event.shiftKey &&
+      //   event[KEYS.CTRL_OR_CMD]
+      // ) {
+      //   event.preventDefault();
+      //   this.setState({ openDialog: { name: "imageExport" } });
+      //   return;
+      // }
 
       if (event.key === KEYS.PAGE_UP || event.key === KEYS.PAGE_DOWN) {
         let offset =
