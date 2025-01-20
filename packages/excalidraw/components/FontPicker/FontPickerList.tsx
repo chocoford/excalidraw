@@ -71,9 +71,7 @@ export const FontPickerList = React.memo(
               value: familyId,
               icon: metadata.icon ?? FontFamilyNormalIcon,
               text:
-                familyId === 5
-                  ? "ExcalidrawZ Font"
-                  : familyId === 1
+                familyId === 1
                   ? "ExcalidrawZ Mixed"
                   : fontFaces[0]?.fontFace?.family ?? "Unknown",
             };

@@ -21,7 +21,7 @@ import { HelveticaFontFaces } from "./Helvetica";
 import { LiberationFontFaces } from "./Liberation";
 import { LilitaFontFaces } from "./Lilita";
 import { NunitoFontFaces } from "./Nunito";
-import { YRDZSTFontFaces } from "./YRDZST";
+import { XiaolaiFontFaces } from "./Xiaolai";
 
 import { FONT_METADATA, type FontMetadata } from "./FontMetadata";
 import type {
@@ -411,7 +411,7 @@ export class Fonts {
     );
 
     // fallback font faces
-    init(CJK_HAND_DRAWN_FALLBACK_FONT, ...YRDZSTFontFaces);
+    init(CJK_HAND_DRAWN_FALLBACK_FONT, ...XiaolaiFontFaces);
     init(WINDOWS_EMOJI_FALLBACK_FONT, ...EmojiFontFaces);
 
     Fonts._initialized = true;
