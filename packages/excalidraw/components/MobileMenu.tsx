@@ -24,6 +24,7 @@ import { PenModeButton } from "./PenModeButton";
 import { HandButton } from "./HandButton";
 import { isHandToolActive } from "../appState";
 import { useTunnels } from "../context/tunnels";
+import { SubtypeToggles } from "./Subtypes";
 
 type MobileMenuProps = {
   appState: UIAppState;
@@ -93,6 +94,7 @@ export const MobileMenu = ({
                     />
                   </Stack.Row>
                 </Island>
+                <SubtypeToggles />
                 {renderTopRightUI && renderTopRightUI(true, appState)}
                 <div className="mobile-misc-tools-container">
                   {!appState.viewModeEnabled &&

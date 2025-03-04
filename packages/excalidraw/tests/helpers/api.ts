@@ -21,7 +21,18 @@ import fs from "fs";
 import util from "util";
 import path from "path";
 import { getMimeType } from "../../data/blob";
+import type {
+  SubtypeLoadedCb,
+  SubtypePrepFn,
+  SubtypeRecord,
+} from "../../element/subtypes";
 import {
+  checkRefreshOnSubtypeLoad,
+  prepareSubtype,
+  selectSubtype,
+} from "../../element/subtypes";
+import {
+  maybeGetSubtypeProps,
   newArrowElement,
   newEmbeddableElement,
   newFrameElement,
@@ -48,6 +59,19 @@ createTestHook();
 const { h } = window;
 
 export class API {
+  static addSubtype = (record: SubtypeRecord, subtypePrepFn: SubtypePrepFn) => {
+    const subtypeLoadedCb: SubtypeLoadedCb = (hasSubtype) => {
+      if (checkRefreshOnSubtypeLoad(hasSubtype, h.elements)) {
+        h.app.refresh();
+      }
+    };
+    const prep = prepareSubtype(record, subtypePrepFn, subtypeLoadedCb);
+    if (prep.actions) {
+      h.app.actionManager.registerAll(prep.actions);
+    }
+    return prep;
+  };
+
   static updateScene: InstanceType<typeof App>["updateScene"] = (...args) => {
     act(() => {
       h.app.updateScene(...args);
@@ -176,6 +200,8 @@ export class API {
     verticalAlign?: T extends "text"
       ? ExcalidrawTextElement["verticalAlign"]
       : never;
+    subtype?: ExcalidrawElement["subtype"];
+    customData?: ExcalidrawElement["customData"];
     boundElements?: ExcalidrawGenericElement["boundElements"];
     containerId?: T extends "text"
       ? ExcalidrawTextElement["containerId"]
@@ -216,6 +242,14 @@ export class API {
 
     const appState = h?.state || getDefaultAppState();
 
+    const custom = maybeGetSubtypeProps(
+      {
+        subtype: rest.subtype ?? selectSubtype(appState, type)?.subtype,
+        customData:
+          rest.customData ?? selectSubtype(appState, type)?.customData,
+      },
+      type,
+    );
     const base: Omit<
       ExcalidrawGenericElement,
       | "id"
@@ -230,6 +264,7 @@ export class API {
       | "updated"
     > = {
       seed: 1,
+      ...custom,
       x,
       y,
       frameId: rest.frameId ?? null,
