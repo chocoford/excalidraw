@@ -47,5 +47,15 @@ export const keybardEvents = (() => {
     which: 32,
   };
 
+  eventInfo.Backspace = {
+    key: "Backspace",
+    code: "Backspace",
+    altKey: false,
+    shiftKey: false,
+    composed: true,
+    keyCode: 8,
+    which: 8,
+  };
+
   return eventInfo;
 })();

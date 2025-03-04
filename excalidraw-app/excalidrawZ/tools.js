@@ -33,7 +33,7 @@ const loadFileBuffer = async (buffer) => {
   const content = JSON.parse(jsonString);
   console.info("loadFileBuffer", buffer, jsonString, content);
   const files = await getRelativeFiles(content.elements);
-  content.files = files;
+  content.files = { ...content.files, ...files };
   const blob = new Blob([JSON.stringify(content)], {
     type: "application/vnd.excalidraw+json",
   });
@@ -41,7 +41,7 @@ const loadFileBuffer = async (buffer) => {
   const file = new File([blob], "file.excalidraw", {
     type: "application/vnd.excalidraw+json",
   });
-  await loadFile(file);
+  await loadImage(file);
 };
 
 /**
@@ -51,7 +51,7 @@ const loadFileBuffer = async (buffer) => {
 const loadFileString = async (dataString) => {
   const content = JSON.parse(dataString);
   const files = await getRelativeFiles(content.elements);
-  content.files = files;
+  content.files = { ...content.files, ...files };
   console.info("loadFileString", content);
   // 创建一个 Blob 对象，并指定类型为 JSON 格式
   const blob = new Blob([JSON.stringify(content)], {
@@ -91,6 +91,63 @@ const loadFile = async (file) => {
 
   const node = document.querySelector(".excalidraw-container");
   node.dispatchEvent(fakeDropEvent);
+};
+
+const loadImageBuffer = async (buffer, type) => {
+  // 将传入的普通数组转换成 Uint8Array
+  const typedArray = new Uint8Array(buffer);
+  // 使用 typedArray 创建 Blob 对象
+  const blob = new Blob([typedArray], {
+    type: `image/${type}`,
+  });
+
+  // 使用 Blob 创建 File 对象
+  const file = new File([blob], `image.${type}`, {
+    type: `image/${type}`,
+  });
+
+  // 调用 loadImage 来模拟图片的拖拽事件
+  await loadImage(file);
+};
+/**
+ * @param {File} image
+ */
+const loadImage = async (image) => {
+  function FakeDataTransfer(image) {
+    this.dropEffect = "all";
+    this.effectAllowed = "all";
+    this.items = [{ getAsFileSystemHandle: async () => null }];
+    this.types = ["Images"];
+    this.getData = function () {
+      return image;
+    };
+    // 构造一个类似 FileList 的对象
+    this.files = {
+      0: image,
+      length: 1,
+      item: () => image,
+    };
+  }
+  const dataTransfer = new FakeDataTransfer(image);
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+  const fakeDropEvent = new DragEvent("drop", {
+    bubbles: true,
+    clientX: centerX,
+    clientY: centerY,
+  });
+  fakeDropEvent.simulated = true;
+  // 将 dataTransfer 对象挂载到事件上
+  Object.defineProperty(fakeDropEvent, "dataTransfer", {
+    value: dataTransfer,
+  });
+
+  const node = document.querySelector(".excalidraw-container");
+  if (node) {
+    node.dispatchEvent(fakeDropEvent);
+  } else {
+    console.warn("未找到 .excalidraw-container 元素");
+  }
 };
 
 const saveFile = () => {
@@ -225,63 +282,38 @@ const exportImage = () => {
 
 /**
  *
- * @param {'png' | 'svg'} type
+ * @param {{
+ *   lastActiveTool: ActiveTool | null;
+ *   locked: boolean;
+ *  } & ActiveTool} tool
+ *
  */
-const exportImageData = () => {
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "e",
-      code: "KeyE",
-      metaKey: true,
-      shiftKey: true,
-      composed: true,
-      keyCode: 69,
-      which: 69,
-    }),
-  );
-  setTimeout(() => {
-    const modalContainer = document.querySelector(
-      ".excalidraw-modal-container",
-    );
-    const copyButton = modalContainer
-      .querySelectorAll('button[aria-label*="PNG"]')
-      .item(1);
-    copyButton.click();
-    // copyButton.classList.contains("ExcButton--status-null");
-    const observer = new MutationObserver((e) => {
-      const entry = e[0];
-      if (
-        entry &&
-        entry.target.classList.contains("ExcButton--status-success")
-      ) {
-        setTimeout(() => {
-          document.dispatchEvent(
-            new KeyboardEvent("keydown", {
-              key: "Escape",
-              keyCode: 27, // Deprecated but still used in some older browsers
-              code: "Escape",
-              which: 27,
-              bubbles: true,
-              cancelable: true,
-            }),
-          );
-
-          sendMessage({
-            event: "didFinishCopyPNGData",
-            data: {},
-          });
-        }, 100);
-      }
-    });
-    observer.observe(copyButton, { attributes: true });
-  }, 100);
-};
-
 export const didSetActiveTool = (tool) => {
   sendMessage({
     event: "didSetActiveTool",
     data: tool,
   });
+  if (
+    (tool.type !== "selection" ||
+      window.excalidrawZHelper.pencilInterationMode === 1) &&
+    tool.type !== "eraser"
+  ) {
+    const keyMap = {
+      selection: "1",
+      rectangle: "2",
+      diamond: "3",
+      ellipse: "4",
+      arrow: "5",
+      line: "6",
+      freedraw: "7",
+      text: "8",
+      image: "9",
+      hand: "h",
+      frame: "f",
+      laser: "k",
+    };
+    window.excalidrawZHelper.lastToggleToolKey = keyMap[tool.type];
+  }
 };
 /** @type IDBDatabase */
 let filesStoreConnection = null;
@@ -407,40 +439,6 @@ const hideEls = () => {
     for (const mutation of mutationList) {
       // console.log(mutation);
       if (mutation.type === "childList") {
-        // mutation.addedNodes.forEach((node) => {
-        //   if (
-        //     node.classList.contains("dropdown-menu-button") ||
-        //     node.classList.contains("welcome-screen-decor-hint--menu")
-        //   ) {
-        //     node.style.display = "none";
-        //   }
-
-        //   if (node.classList.contains("welcome-screen-center")) {
-        //     node.querySelector(".welcome-screen-menu").style.display = "none";
-        //   }
-        // });
-
-        // if (
-        //   mutation.nextSibling &&
-        //   mutation.nextSibling.classList.contains(
-        //     "layer-ui__wrapper__footer-right",
-        //   )
-        // ) {
-        //   mutation.nextSibling.style.display = "none";
-        // }
-
-        // // top right
-        // if (
-        //   mutation.target.classList.contains("layer-ui__wrapper__top-right")
-        // ) {
-        //   mutation.target.style.display = "none";
-        // }
-        
-        // model container
-        // if (mutation.target.classList.contains("excalidraw-modal-container")) {
-        //   mutation.target.style.opacity = 0;
-        //   mutation.target.style.pointerEvents = "none";
-        // }
       }
     }
   };
@@ -709,6 +707,7 @@ const getAllMedias = async (id) => {
  */
 const insertMedias = async (filesJSONString) => {
   const files = JSON.parse(filesJSONString);
+  console.info("Start insertMedias");
   return await new Promise((resolve, reject) => {
     const transaction = filesStoreConnection.transaction(
       ["files-store"],
@@ -762,45 +761,103 @@ document.addEventListener(
   true,
 );
 
+const getExcalidrawState = () => {
+  try {
+    const state = JSON.parse(localStorage.getItem("excalidraw-state"));
+    return state;
+  } catch {
+    return null;
+  }
+};
+
 // Pen
+const connectPencil = (flag) => {
+  window.excalidrawZHelper.pencilConnected = flag;
+};
 const togglePenMode = (flag) => {
   window.excalidrawZHelper.inPencilMode = flag;
+  const state = getExcalidrawState();
+  if (!state) {
+    return;
+  }
+  if (!state.activeTool.locked && flag) {
+    toggleToolbarAction("Q");
+  } else if (state.activeTool.locked && !flag) {
+    toggleToolbarAction("Q");
+  }
+};
+const togglePencilInterationMode = (mode) => {
+  window.excalidrawZHelper.pencilInterationMode = mode;
 };
 
 document.addEventListener(
   "pointerdown",
   (event) => {
     if (event.pointerType === "pen") {
+      /**
+       * if pencil is already connected,
+       * current tool is cursor and pencil interation mode equals to 0,
+       * auto toggle to last selected tool.
+       * */
+      if (
+        window.excalidrawZHelper.pencilInterationMode === 0 &&
+        window.excalidrawZHelper.pencilConnected &&
+        window.excalidrawZHelper.inPencilMode
+      ) {
+        // ignore image
+        if (window.excalidrawZHelper.lastToggleToolKey === "9") {
+          window.excalidrawZHelper.lastToggleToolKey = "P";
+        } else if (getExcalidrawState().activeTool.type === "selection") {
+          toggleToolbarAction(
+            window.excalidrawZHelper.lastToggleToolKey || "V",
+          );
+        }
+        return;
+      }
+
+      /**
+       * if pencil is first connected, auto toggle to pen tool.
+       */
+      if (!window.excalidrawZHelper.pencilConnected) {
+        window.excalidrawZHelper.pencilConnected = true;
+        toggleToolbarAction("P");
+      }
+      // auto open pencil mode
       if (!window.excalidrawZHelper.inPencilMode) {
-        window.excalidrawZHelper.inPencilMode = true;
+        togglePenMode(true);
       }
       sendMessage({
         event: "didPenDown",
         data: {},
       });
     } else if (event.pointerType === "touch") {
-      if (window.excalidrawZHelper.inPencilMode) {
-        console.debug("dispatch space down event...");
-        document.dispatchEvent(
-          new KeyboardEvent("keydown", keybardEvents.Space),
-        );
+      if (
+        window.excalidrawZHelper.inPencilMode &&
+        window.excalidrawZHelper.pencilConnected
+      ) {
+        if (window.excalidrawZHelper.pencilInterationMode === 0) {
+          toggleToolbarAction("V");
+        } else {
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", keybardEvents.Space),
+          );
+        }
       }
-    } else {
+    } else if (event.pointerType === "mouse") {
+      // do nothing
     }
   },
   true,
 );
 
 document.addEventListener("pointerup", (event) => {
-  if (event.pointerType === "pen") {
-    if (!window.excalidrawZHelper.inPencilMode) {
-      window.excalidrawZHelper.inPencilMode = true;
-    }
-  } else if (event.pointerType === "touch") {
+  if (event.pointerType === "touch") {
     if (window.excalidrawZHelper.inPencilMode) {
-      document.dispatchEvent(new KeyboardEvent("keyup", keybardEvents.Space));
+      if (window.excalidrawZHelper.pencilInterationMode === 0) {
+      } else {
+        document.dispatchEvent(new KeyboardEvent("keyup", keybardEvents.Space));
+      }
     }
-  } else {
   }
 });
 
@@ -819,10 +876,10 @@ document.addEventListener("touchstart", (event) => {
     }, 100);
   }
 });
-document.addEventListener("touchmove", (event) => {
+document.addEventListener("touchmove", () => {
   followingActoin = null;
 });
-document.addEventListener("touchend", (event) => {
+document.addEventListener("touchend", () => {
   if (followingActoin === "undo") {
     window.excalidrawZHelper.undo();
   } else if (followingActoin === "redo") {
@@ -837,6 +894,9 @@ window.excalidrawZHelper = {
   loadFileString,
   saveFile,
 
+  loadImageBuffer,
+  loadImage,
+
   loadLibraryItem,
 
   toggleColorTheme,
@@ -844,12 +904,12 @@ window.excalidrawZHelper = {
   getIsDark,
 
   toggleToolbarAction,
+  lastToggleToolKey: null,
 
   didSetActiveTool,
 
   exportElementsToBlob,
   exportElementsToSvg,
-  // exportImageData,
 
   getAllMedias,
   insertMedias,
@@ -867,6 +927,22 @@ window.excalidrawZHelper = {
   },
 
   // pencil
+  pencilConnected: false,
+  pencilInterationMode: 0,
   inPencilMode: false,
+  connectPencil,
   togglePenMode,
+  togglePencilInterationMode,
+
+  toggleActionsMenu: (isPresented) => {
+    const el = document.querySelector(".selected-shape-actions");
+    if (!el) {
+      return;
+    }
+    if (!isPresented && !el.classList.contains("transition-left")) {
+      el.classList.add("transition-left");
+    } else {
+      el.classList.remove("transition-left");
+    }
+  },
 };

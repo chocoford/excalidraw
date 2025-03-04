@@ -1533,6 +1533,17 @@ class App extends React.Component<AppProps, AppState> {
 
     const firstSelectedElement = selectedElements[0];
 
+    if (!!firstSelectedElement) {
+      (window as any).excalidrawZHelper.sendMessage({
+        event: "didSelectElements",
+        data: selectedElements,
+      });
+    } else {
+      (window as any).excalidrawZHelper.sendMessage({
+        event: "didUnselectAllElements",
+      });
+    }
+
     return (
       <div
         className={clsx("excalidraw excalidraw-container", {

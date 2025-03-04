@@ -148,7 +148,9 @@ export const MobileMenu = ({
     return (
       <div className="App-toolbar-content">
         <MainMenuTunnel.Out />
-        {actionManager.renderAction("toggleEditMenu")}
+        <div style={{ opacity: "0", position: "absolute" }}>
+          {actionManager.renderAction("toggleEditMenu")}
+        </div>
         {actionManager.renderAction("undo")}
         {actionManager.renderAction("redo")}
         {actionManager.renderAction(
@@ -171,7 +173,6 @@ export const MobileMenu = ({
           marginBottom: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
           marginLeft: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
           marginRight: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN * 2,
-          opacity: 0,
         }}
       >
         <Island padding={0}>
