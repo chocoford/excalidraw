@@ -4,7 +4,7 @@ import ExcalidrawApp from "./App";
 import { registerSW } from "virtual:pwa-register";
 
 import "../excalidraw-app/sentry";
-import "./excalidrawZ/tools.js";
+import "./excalidrawZ/index.js";
 
 // window.__EXCALIDRAW_SHA__ = process.env.REACT_APP_GIT_SHA;
 const rootElement = document.getElementById("root")!;

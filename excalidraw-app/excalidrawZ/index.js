@@ -12,7 +12,7 @@ import {
 } from "./indexdb+";
 import { sendMessage } from "./message";
 import { toggleToolbarAction } from "./actions";
-import { antiInvertImage } from "./image";
+import { antiInvertImage, toggleAntiInvertImageSettings } from "./image";
 import {
   loadFileBuffer,
   loadFileString,
@@ -440,7 +440,9 @@ window.excalidrawZHelper = {
   insertMedias,
 
   shouldPreventInvertImage: true,
+  preventInvertImageFlags: {},
   toggleImageInvertSwitch,
+  toggleAntiInvertImageSettings,
 
   antiInvertImage,
 

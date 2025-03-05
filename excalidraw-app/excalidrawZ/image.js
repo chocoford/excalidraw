@@ -140,3 +140,10 @@ function hslToRgb(h, s, l) {
 function clamp(value) {
   return Math.min(255, Math.max(0, value));
 }
+
+export const toggleAntiInvertImageSettings = (payload) => {
+  window.excalidrawZHelper.preventInvertImageFlags = {
+    ...window.excalidrawZHelper.preventInvertImageFlags,
+    ...payload,
+  };
+};

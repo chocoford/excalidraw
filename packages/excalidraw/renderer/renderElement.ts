@@ -427,10 +427,12 @@ const drawElementOnCanvas = (
       break;
     }
     case "image": {
-      const img = isInitializedImageElement(element)
-        ? renderConfig.imageCache.get(element.fileId)?.image
+      const imgCache = isInitializedImageElement(element)
+        ? renderConfig.imageCache.get(element.fileId)
         : undefined;
-      if (img != null && !(img instanceof Promise)) {
+      const img = imgCache?.image;
+      const imgType = imgCache?.mimeType;
+      if (img != null && !(img instanceof Promise) && imgType !== undefined) {
         if (element.roundness && context.roundRect) {
           context.beginPath();
           context.roundRect(
@@ -455,8 +457,12 @@ const drawElementOnCanvas = (
         const excalidrawCanvas = document.querySelector(".excalidraw__canvas");
         const shouldInvert =
           (window as any).excalidrawZHelper.shouldPreventInvertImage &&
+          !!(window as any).excalidrawZHelper.preventInvertImageFlags[
+            imgType
+          ] &&
           !!excalidrawCanvas &&
           !!getComputedStyle(excalidrawCanvas).filter;
+
         if (shouldInvert) {
           const canvas = (window as any).excalidrawZHelper.antiInvertImage(
             img,
