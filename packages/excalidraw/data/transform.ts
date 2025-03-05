@@ -19,7 +19,6 @@ import {
   newMagicFrameElement,
   newTextElement,
 } from "../element/newElement";
-import { measureText, normalizeText } from "../element/textElement";
 import type {
   ElementsMap,
   ExcalidrawArrowElement,
@@ -54,7 +53,8 @@ import { randomId } from "../random";
 import { syncInvalidIndices } from "../fractionalIndex";
 import { getLineHeight } from "../fonts";
 import { isArrowElement } from "../element/typeChecks";
-import { pointFrom, type LocalPoint } from "../../math";
+import { pointFrom, type LocalPoint } from "@excalidraw/math";
+import { measureText, normalizeText } from "../element/textMeasurements";
 
 export type ValidLinearElement = {
   type: "arrow" | "line";

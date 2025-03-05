@@ -236,8 +236,8 @@ import {
   getElementShape,
   isPathALoop,
 } from "../shapes";
-import { getSelectionBoxShape } from "../../utils/geometry/shape";
-import { isPointInShape } from "../../utils/collision";
+import { getSelectionBoxShape } from "@excalidraw/utils/geometry/shape";
+import { isPointInShape } from "@excalidraw/utils/collision";
 import type {
   AppClassProperties,
   AppProps,
@@ -331,17 +331,10 @@ import type { FileSystemHandle } from "../data/filesystem";
 import { fileOpen } from "../data/filesystem";
 import {
   bindTextToShapeAfterDuplication,
-  getApproxMinLineHeight,
-  getApproxMinLineWidth,
   getBoundTextElement,
   getContainerCenter,
   getContainerElement,
-  getLineHeightInPx,
-  getMinTextElementWidth,
-  isMeasureTextSupported,
   isValidTextContainer,
-  measureText,
-  normalizeText,
 } from "../element/textElement";
 import {
   showHyperlinkTooltip,
@@ -419,7 +412,7 @@ import { COLOR_PALETTE } from "../colors";
 import { ElementCanvasButton } from "./MagicButton";
 import { MagicIcon, copyIcon, fullscreenIcon } from "./icons";
 import FollowMode from "./FollowMode/FollowMode";
-import { Store, StoreAction } from "../store";
+import { Store, CaptureUpdateAction } from "../store";
 import { AnimationFrameHandler } from "../animation-frame-handler";
 import { AnimatedTrail } from "../animated-trail";
 import { LaserTrails } from "../laser-trails";
@@ -448,7 +441,7 @@ import {
   getLinkDirectionFromKey,
 } from "../element/flowchart";
 import { searchItemInFocusAtom } from "./SearchMenu";
-import type { LocalPoint, Radians } from "../../math";
+import type { LocalPoint, Radians } from "@excalidraw/math";
 import {
   clamp,
   pointFrom,
@@ -460,11 +453,20 @@ import {
   vectorSubtract,
   vectorDot,
   vectorNormalize,
-} from "../../math";
+} from "@excalidraw/math";
 import { cropElement } from "../element/cropElement";
 import { wrapText } from "../element/textWrapping";
 import { actionCopyElementLink } from "../actions/actionElementLink";
 import { isElementLink, parseElementLinkFromURL } from "../element/elementLink";
+import {
+  isMeasureTextSupported,
+  normalizeText,
+  measureText,
+  getLineHeightInPx,
+  getApproxMinLineWidth,
+  getApproxMinLineHeight,
+  getMinTextElementWidth,
+} from "../element/textMeasurements";
 
 const AppContext = React.createContext<AppClassProperties>(null!);
 const AppPropsContext = React.createContext<AppProps>(null!);
@@ -1522,13 +1524,17 @@ class App extends React.Component<AppProps, AppState> {
     const allElementsMap = this.scene.getNonDeletedElementsMap();
 
     const shouldBlockPointerEvents =
-      this.state.selectionElement ||
-      this.state.newElement ||
-      this.state.selectedElementsAreBeingDragged ||
-      this.state.resizingElement ||
-      (this.state.activeTool.type === "laser" &&
-        // technically we can just test on this once we make it more safe
-        this.state.cursorButton === "down");
+      // default back to `--ui-pointerEvents` flow if setPointerCapture
+      // not supported
+      "setPointerCapture" in HTMLElement.prototype
+        ? false
+        : this.state.selectionElement ||
+          this.state.newElement ||
+          this.state.selectedElementsAreBeingDragged ||
+          this.state.resizingElement ||
+          (this.state.activeTool.type === "laser" &&
+            // technically we can just test on this once we make it more safe
+            this.state.cursorButton === "down");
 
     const firstSelectedElement = selectedElements[0];
 
@@ -1544,6 +1550,7 @@ class App extends React.Component<AppProps, AppState> {
           ["--ui-pointerEvents" as any]: shouldBlockPointerEvents
             ? POINTER_EVENTS.disabled
             : POINTER_EVENTS.enabled,
+          ["--right-sidebar-width" as any]: "302px",
         }}
         ref={this.excalidrawContainerRef}
         onDrop={this.handleAppOnDrop}
@@ -2091,12 +2098,12 @@ class App extends React.Component<AppProps, AppState> {
           if (shouldUpdateStrokeColor) {
             this.syncActionResult({
               appState: { ...this.state, currentItemStrokeColor: color },
-              storeAction: StoreAction.CAPTURE,
+              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
             });
           } else {
             this.syncActionResult({
               appState: { ...this.state, currentItemBackgroundColor: color },
-              storeAction: StoreAction.CAPTURE,
+              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
             });
           }
         } else {
@@ -2110,7 +2117,7 @@ class App extends React.Component<AppProps, AppState> {
               }
               return el;
             }),
-            storeAction: StoreAction.CAPTURE,
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
           });
         }
       },
@@ -2131,9 +2138,9 @@ class App extends React.Component<AppProps, AppState> {
       return;
     }
 
-    if (actionResult.storeAction === StoreAction.UPDATE) {
+    if (actionResult.captureUpdate === CaptureUpdateAction.NEVER) {
       this.store.shouldUpdateSnapshot();
-    } else if (actionResult.storeAction === StoreAction.CAPTURE) {
+    } else if (actionResult.captureUpdate === CaptureUpdateAction.IMMEDIATELY) {
       this.store.shouldCaptureIncrement();
     }
 
@@ -2208,7 +2215,10 @@ class App extends React.Component<AppProps, AppState> {
       didUpdate = true;
     }
 
-    if (!didUpdate && actionResult.storeAction !== StoreAction.NONE) {
+    if (
+      !didUpdate &&
+      actionResult.captureUpdate !== CaptureUpdateAction.EVENTUALLY
+    ) {
       this.scene.triggerUpdate();
     }
   });
@@ -2336,7 +2346,7 @@ class App extends React.Component<AppProps, AppState> {
     this.resetHistory();
     this.syncActionResult({
       ...scene,
-      storeAction: StoreAction.UPDATE,
+      captureUpdate: CaptureUpdateAction.NEVER,
     });
 
     // clear the shape and image cache so that any images in initialData
@@ -2816,7 +2826,7 @@ class App extends React.Component<AppProps, AppState> {
       this.state.editingLinearElement &&
       !this.state.selectedElementIds[this.state.editingLinearElement.elementId]
     ) {
-      // defer so that the storeAction flag isn't reset via current update
+      // defer so that the shouldCaptureIncrement flag isn't reset via current update
       setTimeout(() => {
         // execute only if the condition still holds when the deferred callback
         // executes (it can be scheduled multiple times depending on how
@@ -3224,7 +3234,14 @@ class App extends React.Component<AppProps, AppState> {
     );
 
     const prevElements = this.scene.getElementsIncludingDeleted();
-    const nextElements = [...prevElements, ...newElements];
+    let nextElements = [...prevElements, ...newElements];
+
+    const mappedNewSceneElements = this.props.onDuplicate?.(
+      nextElements,
+      prevElements,
+    );
+
+    nextElements = mappedNewSceneElements || nextElements;
 
     syncMovedIndices(nextElements, arrayToMap(newElements));
 
@@ -3235,7 +3252,12 @@ class App extends React.Component<AppProps, AppState> {
         newElements,
         topLayerFrame,
       );
-      addElementsToFrame(nextElements, eligibleElements, topLayerFrame);
+      addElementsToFrame(
+        nextElements,
+        eligibleElements,
+        topLayerFrame,
+        this.state,
+      );
     }
 
     this.scene.replaceAllElements(nextElements);
@@ -3865,12 +3887,25 @@ class App extends React.Component<AppProps, AppState> {
       elements?: SceneData["elements"];
       appState?: Pick<AppState, K> | null;
       collaborators?: SceneData["collaborators"];
-      /** @default StoreAction.NONE */
-      storeAction?: SceneData["storeAction"];
+      /**
+       *  Controls which updates should be captured by the `Store`. Captured updates are emmitted and listened to by other components, such as `History` for undo / redo purposes.
+       *
+       *  - `CaptureUpdateAction.IMMEDIATELY`: Updates are immediately undoable. Use for most local updates.
+       *  - `CaptureUpdateAction.NEVER`: Updates never make it to undo/redo stack. Use for remote updates or scene initialization.
+       *  - `CaptureUpdateAction.EVENTUALLY`: Updates will be eventually be captured as part of a future increment.
+       *
+       * Check [API docs](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/props/excalidraw-api#captureUpdate) for more details.
+       *
+       * @default CaptureUpdateAction.EVENTUALLY
+       */
+      captureUpdate?: SceneData["captureUpdate"];
     }) => {
       const nextElements = syncInvalidIndices(sceneData.elements ?? []);
 
-      if (sceneData.storeAction && sceneData.storeAction !== StoreAction.NONE) {
+      if (
+        sceneData.captureUpdate &&
+        sceneData.captureUpdate !== CaptureUpdateAction.EVENTUALLY
+      ) {
         const prevCommittedAppState = this.store.snapshot.appState;
         const prevCommittedElements = this.store.snapshot.elements;
 
@@ -3887,12 +3922,12 @@ class App extends React.Component<AppProps, AppState> {
 
         // WARN: store action always performs deep clone of changed elements, for ephemeral remote updates (i.e. remote dragging, resizing, drawing) we might consider doing something smarter
         // do NOT schedule store actions (execute after re-render), as it might cause unexpected concurrency issues if not handled well
-        if (sceneData.storeAction === StoreAction.CAPTURE) {
+        if (sceneData.captureUpdate === CaptureUpdateAction.IMMEDIATELY) {
           this.store.captureIncrement(
             nextCommittedElements,
             nextCommittedAppState,
           );
-        } else if (sceneData.storeAction === StoreAction.UPDATE) {
+        } else if (sceneData.captureUpdate === CaptureUpdateAction.NEVER) {
           this.store.updateSnapshot(
             nextCommittedElements,
             nextCommittedAppState,
@@ -4326,10 +4361,14 @@ class App extends React.Component<AppProps, AppState> {
         }
 
         selectedElements.forEach((element) => {
-          mutateElement(element, {
-            x: element.x + offsetX,
-            y: element.y + offsetY,
-          });
+          mutateElement(
+            element,
+            {
+              x: element.x + offsetX,
+              y: element.y + offsetY,
+            },
+            false,
+          );
 
           updateBoundElements(element, this.scene.getNonDeletedElementsMap(), {
             simultaneouslyUpdated: selectedElements,
@@ -4345,6 +4384,8 @@ class App extends React.Component<AppProps, AppState> {
             this.state.zoom,
           ),
         });
+
+        this.scene.triggerUpdate();
 
         event.preventDefault();
       } else if (event.key === KEYS.ENTER) {
@@ -4566,7 +4607,9 @@ class App extends React.Component<AppProps, AppState> {
     if (!event.altKey) {
       if (this.flowChartNavigator.isExploring) {
         this.flowChartNavigator.clear();
-        this.syncActionResult({ storeAction: StoreAction.CAPTURE });
+        this.syncActionResult({
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
       }
     }
 
@@ -4613,7 +4656,9 @@ class App extends React.Component<AppProps, AppState> {
         }
 
         this.flowChartCreator.clear();
-        this.syncActionResult({ storeAction: StoreAction.CAPTURE });
+        this.syncActionResult({
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
       }
     }
   });
@@ -5759,7 +5804,10 @@ class App extends React.Component<AppProps, AppState> {
         });
       }
       if (editingLinearElement?.lastUncommittedPoint != null) {
-        this.maybeSuggestBindingAtCursor(scenePointer);
+        this.maybeSuggestBindingAtCursor(
+          scenePointer,
+          editingLinearElement.elbowed,
+        );
       } else {
         // causes stack overflow if not sync
         flushSync(() => {
@@ -5779,7 +5827,7 @@ class App extends React.Component<AppProps, AppState> {
           this.state.startBoundElement,
         );
       } else {
-        this.maybeSuggestBindingAtCursor(scenePointer);
+        this.maybeSuggestBindingAtCursor(scenePointer, false);
       }
     }
 
@@ -6281,6 +6329,13 @@ class App extends React.Component<AppProps, AppState> {
   private handleCanvasPointerDown = (
     event: React.PointerEvent<HTMLElement>,
   ) => {
+    const target = event.target as HTMLElement;
+    // capture subsequent pointer events to the canvas
+    // this makes other elements non-interactive until pointer up
+    if (target.setPointerCapture) {
+      target.setPointerCapture(event.pointerId);
+    }
+
     this.maybeCleanupAfterMissingPointerUp(event.nativeEvent);
     this.maybeUnfollowRemoteUser();
 
@@ -6342,10 +6397,10 @@ class App extends React.Component<AppProps, AppState> {
             this.state,
           ),
         },
-        storeAction:
+        captureUpdate:
           this.state.openDialog?.name === "elementLinkSelector"
-            ? StoreAction.NONE
-            : StoreAction.UPDATE,
+            ? CaptureUpdateAction.EVENTUALLY
+            : CaptureUpdateAction.NEVER,
       });
       return;
     }
@@ -7717,6 +7772,7 @@ class App extends React.Component<AppProps, AppState> {
         this.scene.getNonDeletedElementsMap(),
         this.state.zoom,
         isElbowArrow(element),
+        isElbowArrow(element),
       );
 
       this.scene.insertElement(element);
@@ -8320,9 +8376,7 @@ class App extends React.Component<AppProps, AppState> {
             this.scene.getNonDeletedElementsMap(),
           );
 
-          flushSync(() => {
-            this.setState({ snapLines });
-          });
+          this.setState({ snapLines });
 
           // when we're editing the name of a frame, we want the user to be
           // able to select and interact with the text input
@@ -8418,7 +8472,17 @@ class App extends React.Component<AppProps, AppState> {
               }
             }
 
-            const nextSceneElements = [...nextElements, ...elementsToAppend];
+            let nextSceneElements: ExcalidrawElement[] = [
+              ...nextElements,
+              ...elementsToAppend,
+            ];
+
+            const mappedNewSceneElements = this.props.onDuplicate?.(
+              nextSceneElements,
+              elements,
+            );
+
+            nextSceneElements = mappedNewSceneElements || nextSceneElements;
 
             syncMovedIndices(nextSceneElements, arrayToMap(elementsToAppend));
 
@@ -8588,6 +8652,7 @@ class App extends React.Component<AppProps, AppState> {
                 elements,
                 this.state.selectionElement,
                 this.scene.getNonDeletedElementsMap(),
+                false,
               )
             : [];
 
@@ -8998,7 +9063,7 @@ class App extends React.Component<AppProps, AppState> {
           appState: {
             newElement: null,
           },
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         return;
@@ -9016,6 +9081,7 @@ class App extends React.Component<AppProps, AppState> {
             this.scene.getElementsMapIncludingDeleted(),
             elementsInsideFrame,
             newElement,
+            this.state,
           ),
         );
       }
@@ -9133,6 +9199,7 @@ class App extends React.Component<AppProps, AppState> {
               nextElements,
               elementsToAdd,
               topLayerFrame,
+              this.state,
             );
           } else if (!topLayerFrame) {
             if (this.state.editingGroupId) {
@@ -9166,7 +9233,7 @@ class App extends React.Component<AppProps, AppState> {
           elements: this.scene
             .getElementsIncludingDeleted()
             .filter((el) => el.id !== resizingElement.id),
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
       }
 
@@ -9993,15 +10060,20 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  private maybeSuggestBindingAtCursor = (pointerCoords: {
-    x: number;
-    y: number;
-  }): void => {
+  private maybeSuggestBindingAtCursor = (
+    pointerCoords: {
+      x: number;
+      y: number;
+    },
+    considerAll: boolean,
+  ): void => {
     const hoveredBindableElement = getHoveredElementForBinding(
       pointerCoords,
       this.scene.getNonDeletedElements(),
       this.scene.getNonDeletedElementsMap(),
       this.state.zoom,
+      false,
+      considerAll,
     );
     this.setState({
       suggestedBindings:
@@ -10031,7 +10103,8 @@ class App extends React.Component<AppProps, AppState> {
           this.scene.getNonDeletedElements(),
           this.scene.getNonDeletedElementsMap(),
           this.state.zoom,
-          isArrowElement(linearElement) && isElbowArrow(linearElement),
+          isElbowArrow(linearElement),
+          isElbowArrow(linearElement),
         );
         if (
           hoveredBindableElement != null &&
@@ -10131,7 +10204,7 @@ class App extends React.Component<AppProps, AppState> {
                 isLoading: false,
               },
               replaceFiles: true,
-              storeAction: StoreAction.CAPTURE,
+              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
             });
             return;
           } catch (error: any) {
@@ -10260,7 +10333,7 @@ class App extends React.Component<AppProps, AppState> {
             isLoading: false,
           },
           replaceFiles: true,
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         await this.library

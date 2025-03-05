@@ -1,11 +1,15 @@
 import React from "react";
 import { vi } from "vitest";
-import ReactDOM from "react-dom";
-import { render, waitFor, GlobalTestState } from "./test-utils";
+import {
+  render,
+  waitFor,
+  GlobalTestState,
+  unmountComponent,
+} from "./test-utils";
 import { Pointer, Keyboard } from "./helpers/ui";
 import { Excalidraw } from "../index";
 import { KEYS } from "../keys";
-import { getLineHeightInPx } from "../element/textElement";
+import { getLineHeightInPx } from "../element/textMeasurements";
 import { getElementBounds } from "../element";
 import type { NormalizedZoomValue } from "../types";
 import { API } from "./helpers/api";
@@ -63,7 +67,7 @@ const sleep = (ms: number) => {
 };
 
 beforeEach(async () => {
-  ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
+  unmountComponent();
 
   localStorage.clear();
 

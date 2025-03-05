@@ -17,7 +17,9 @@ import {
 } from "../element/typeChecks";
 import { updateActiveTool } from "../utils";
 import { TrashIcon } from "../components/icons";
-import { StoreAction } from "../store";
+import { CaptureUpdateAction } from "../store";
+import { getContainerElement } from "../element/textElement";
+import { getFrameChildren } from "../frame";
 
 const deleteSelectedElements = (
   elements: readonly ExcalidrawElement[],
@@ -33,10 +35,50 @@ const deleteSelectedElements = (
 
   const selectedElementIds: Record<ExcalidrawElement["id"], true> = {};
 
+  const elementsMap = app.scene.getNonDeletedElementsMap();
+
+  const processedElements = new Set<ExcalidrawElement["id"]>();
+
+  for (const frameId of framesToBeDeleted) {
+    const frameChildren = getFrameChildren(elements, frameId);
+    for (const el of frameChildren) {
+      if (processedElements.has(el.id)) {
+        continue;
+      }
+
+      if (isBoundToContainer(el)) {
+        const containerElement = getContainerElement(el, elementsMap);
+        if (containerElement) {
+          selectedElementIds[containerElement.id] = true;
+        }
+      } else {
+        selectedElementIds[el.id] = true;
+      }
+      processedElements.add(el.id);
+    }
+  }
+
   let shouldSelectEditingGroup = true;
 
   const nextElements = elements.map((el) => {
     if (appState.selectedElementIds[el.id]) {
+      const boundElement = isBoundToContainer(el)
+        ? getContainerElement(el, elementsMap)
+        : null;
+
+      if (el.frameId && framesToBeDeleted.has(el.frameId)) {
+        shouldSelectEditingGroup = false;
+        selectedElementIds[el.id] = true;
+        return el;
+      }
+
+      if (
+        boundElement?.frameId &&
+        framesToBeDeleted.has(boundElement?.frameId)
+      ) {
+        return el;
+      }
+
       if (el.boundElements) {
         el.boundElements.forEach((candidate) => {
           const bound = app.scene.getNonDeletedElementsMap().get(candidate.id);
@@ -59,7 +101,9 @@ const deleteSelectedElements = (
     // if deleting a frame, remove the children from it and select them
     if (el.frameId && framesToBeDeleted.has(el.frameId)) {
       shouldSelectEditingGroup = false;
-      selectedElementIds[el.id] = true;
+      if (!isBoundToContainer(el)) {
+        selectedElementIds[el.id] = true;
+      }
       return newElementWith(el, { frameId: null });
     }
 
@@ -189,7 +233,7 @@ export const actionDeleteSelected = register({
             ...nextAppState,
             editingLinearElement: null,
           },
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         };
       }
 
@@ -221,14 +265,16 @@ export const actionDeleteSelected = register({
                 : [0],
           },
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       };
     }
+
     let { elements: nextElements, appState: nextAppState } =
       deleteSelectedElements(elements, appState, app);
+
     fixBindingsAfterDeletion(
       nextElements,
-      elements.filter(({ id }) => appState.selectedElementIds[id]),
+      nextElements.filter((el) => el.isDeleted),
     );
 
     nextAppState = handleGroupEditingState(nextAppState, nextElements);
@@ -241,12 +287,12 @@ export const actionDeleteSelected = register({
         multiElement: null,
         activeEmbeddable: null,
       },
-      storeAction: isSomeElementSelected(
+      captureUpdate: isSomeElementSelected(
         getNonDeletedElements(elements),
         appState,
       )
-        ? StoreAction.CAPTURE
-        : StoreAction.NONE,
+        ? CaptureUpdateAction.IMMEDIATELY
+        : CaptureUpdateAction.EVENTUALLY,
     };
   },
   keyTest: (event, appState, elements) =>

@@ -9,7 +9,7 @@ import type {
 } from "../../types";
 import { CloseIcon } from "../icons";
 import { Island } from "../Island";
-import { throttle } from "lodash";
+import throttle from "lodash.throttle";
 import Dimension from "./Dimension";
 import Angle from "./Angle";
 import FontSize from "./FontSize";
@@ -30,7 +30,8 @@ import clsx from "clsx";
 import "./Stats.scss";
 import { isGridModeEnabled } from "../../snapping";
 import { getUncroppedWidthAndHeight } from "../../element/cropElement";
-import { round } from "../../../math";
+import { round } from "@excalidraw/math";
+import { frameAndChildrenSelectedTogether } from "../../frame";
 
 interface StatsProps {
   app: AppClassProperties;
@@ -170,6 +171,10 @@ export const StatsInner = memo(
       return getAtomicUnits(selectedElements, appState);
     }, [selectedElements, appState]);
 
+    const _frameAndChildrenSelectedTogether = useMemo(() => {
+      return frameAndChildrenSelectedTogether(selectedElements);
+    }, [selectedElements]);
+
     return (
       <div className="exc-stats">
         <Island padding={3}>
@@ -226,7 +231,7 @@ export const StatsInner = memo(
             {renderCustomStats?.(elements, appState)}
           </Collapsible>
 
-          {selectedElements.length > 0 && (
+          {!_frameAndChildrenSelectedTogether && selectedElements.length > 0 && (
             <div
               id="elementStats"
               style={{

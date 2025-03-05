@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import React from "react";
 import type {
   AppClassProperties,
@@ -145,12 +146,14 @@ export const MobileMenu = ({
       <div className="App-toolbar-content">
         <MainMenuTunnel.Out />
         {actionManager.renderAction("toggleEditMenu")}
-        {actionManager.renderAction("undo")}
-        {actionManager.renderAction("redo")}
         {actionManager.renderAction(
           appState.multiElement ? "finalize" : "duplicateSelection",
         )}
         {actionManager.renderAction("deleteSelectedElements")}
+        <div>
+          {actionManager.renderAction("undo")}
+          {actionManager.renderAction("redo")}
+        </div>
       </div>
     );
   };
@@ -179,6 +182,7 @@ export const MobileMenu = ({
                 appState={appState}
                 elementsMap={app.scene.getNonDeletedElementsMap()}
                 renderAction={actionManager.renderAction}
+                app={app}
               />
             </Section>
           ) : null}

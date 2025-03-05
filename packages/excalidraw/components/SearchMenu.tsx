@@ -3,11 +3,10 @@ import { collapseDownIcon, upIcon, searchIcon } from "./icons";
 import { TextField } from "./TextField";
 import { Button } from "./Button";
 import { useApp, useExcalidrawSetAppState } from "./App";
-import { debounce } from "lodash";
+import debounce from "lodash.debounce";
 import type { AppClassProperties } from "../types";
 import { isTextElement, newTextElement } from "../element";
 import type { ExcalidrawTextElement } from "../element/types";
-import { measureText } from "../element/textElement";
 import { addEventListener, getFontString } from "../utils";
 import { KEYS } from "../keys";
 import clsx from "clsx";
@@ -19,7 +18,8 @@ import { CLASSES, EVENT } from "../constants";
 import { useStable } from "../hooks/useStable";
 
 import "./SearchMenu.scss";
-import { round } from "../../math";
+import { round } from "@excalidraw/math";
+import { measureText } from "../element/textMeasurements";
 
 const searchQueryAtom = atom<string>("");
 export const searchItemInFocusAtom = atom<number | null>(null);
@@ -607,7 +607,6 @@ const getMatchedLines = (
         textToStart,
         getFontString(textElement),
         textElement.lineHeight,
-        true,
       );
 
       // measureText returns a non-zero width for the empty string
@@ -621,7 +620,6 @@ const getMatchedLines = (
           lineIndexRange.line,
           getFontString(textElement),
           textElement.lineHeight,
-          true,
         );
 
         const spaceToStart =

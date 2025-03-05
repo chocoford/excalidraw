@@ -47,7 +47,7 @@ import type { Mutable } from "../utility-types";
 import { ShapeCache } from "../scene/ShapeCache";
 import type { Store } from "../store";
 import type Scene from "../scene/Scene";
-import type { Radians } from "../../math";
+import type { Radians } from "@excalidraw/math";
 import {
   pointCenter,
   pointFrom,
@@ -59,7 +59,7 @@ import {
   pointDistance,
   pointTranslate,
   vectorFromPoint,
-} from "../../math";
+} from "@excalidraw/math";
 import {
   getBezierCurveLength,
   getBezierXY,
@@ -219,7 +219,9 @@ export class LinearElementEditor {
     });
   }
 
-  /** @returns whether point was dragged */
+  /**
+   * @returns whether point was dragged
+   */
   static handlePointDragging(
     event: PointerEvent,
     app: AppClassProperties,
@@ -444,6 +446,8 @@ export class LinearElementEditor {
                 elements,
                 elementsMap,
                 appState.zoom,
+                isElbowArrow(element),
+                isElbowArrow(element),
               )
             : null;
 
@@ -796,6 +800,7 @@ export class LinearElementEditor {
           elements,
           elementsMap,
           app.state.zoom,
+          linearElementEditor.elbowed,
         ),
       };
 

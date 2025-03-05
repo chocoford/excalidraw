@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type React from "react";
 import type {
   PointerType,
@@ -40,7 +41,8 @@ import type { IMAGE_MIME_TYPES, MIME_TYPES } from "./constants";
 import type { ContextMenuItems } from "./components/ContextMenu";
 import type { SnapLine } from "./snapping";
 import type { Merge, MaybePromise, ValueOf, MakeBrand } from "./utility-types";
-import type { StoreActionType } from "./store";
+import type { CaptureUpdateActionType } from "./store";
+import type { UserIdleState } from "./constants";
 
 export type SocketId = string & { _brand: "SocketId" };
 
@@ -512,6 +514,22 @@ export interface ExcalidrawProps {
     data: ClipboardData,
     event: ClipboardEvent | null,
   ) => Promise<boolean> | boolean;
+  /**
+   * Called when element(s) are duplicated so you can listen or modify as
+   * needed.
+   *
+   * Called when duplicating via mouse-drag, keyboard, paste, library insert
+   * etc.
+   *
+   * Returned elements will be used in place of the next elements
+   * (you should return all elements, including deleted, and not mutate
+   * the element if changes are made)
+   */
+  onDuplicate?: (
+    nextElements: readonly ExcalidrawElement[],
+    /** excludes the duplicated elements */
+    prevElements: readonly ExcalidrawElement[],
+  ) => ExcalidrawElement[] | void;
   renderTopRightUI?: (
     isMobile: boolean,
     appState: UIAppState,
@@ -571,14 +589,8 @@ export type SceneData = {
   elements?: ImportedDataState["elements"];
   appState?: ImportedDataState["appState"];
   collaborators?: Map<SocketId, Collaborator>;
-  storeAction?: StoreActionType;
+  captureUpdate?: CaptureUpdateActionType;
 };
-
-export enum UserIdleState {
-  ACTIVE = "active",
-  AWAY = "away",
-  IDLE = "idle",
-}
 
 export type ExportOpts = {
   saveFileToDisk?: boolean;
@@ -681,6 +693,8 @@ export type AppClassProperties = {
   getEditorUIOffsets: App["getEditorUIOffsets"];
   visibleElements: App["visibleElements"];
   excalidrawContainerValue: App["excalidrawContainerValue"];
+
+  onPointerUpEmitter: App["onPointerUpEmitter"];
 };
 
 export type PointerDownState = Readonly<{

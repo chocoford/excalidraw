@@ -7,7 +7,9 @@ import {
   assertSelectedElements,
   render,
   togglePopover,
+  getCloneByOrigId,
 } from "./test-utils";
+import "../../utils/test-utils";
 import { Excalidraw } from "../index";
 import { Keyboard, Pointer, UI } from "./helpers/ui";
 import { API } from "./helpers/api";
@@ -15,7 +17,7 @@ import { getDefaultAppState } from "../appState";
 import { fireEvent, queryByTestId, waitFor } from "@testing-library/react";
 import { createUndoAction, createRedoAction } from "../actions/actionHistory";
 import { actionToggleViewMode } from "../actions/actionToggleViewMode";
-import { EXPORT_DATA_TYPES, MIME_TYPES } from "../constants";
+import { EXPORT_DATA_TYPES, MIME_TYPES, ORIG_ID } from "../constants";
 import type { AppState } from "../types";
 import { arrayToMap } from "../utils";
 import {
@@ -44,9 +46,9 @@ import { vi } from "vitest";
 import { queryByText } from "@testing-library/react";
 import { HistoryEntry } from "../history";
 import { AppStateChange, ElementsChange } from "../change";
-import { Snapshot, StoreAction } from "../store";
-import type { LocalPoint, Radians } from "../../math";
-import { pointFrom } from "../../math";
+import { Snapshot, CaptureUpdateAction } from "../store";
+import type { LocalPoint, Radians } from "@excalidraw/math";
+import { pointFrom } from "@excalidraw/math";
 
 const { h } = window;
 
@@ -180,7 +182,7 @@ describe("history", () => {
 
       API.updateScene({
         elements: [rect1, rect2],
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
 
       expect(API.getUndoStack().length).toBe(1);
@@ -192,7 +194,7 @@ describe("history", () => {
 
       API.updateScene({
         elements: [rect1, rect2],
-        storeAction: StoreAction.CAPTURE, // even though the flag is on, same elements are passed, nothing to commit
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY, // even though the flag is on, same elements are passed, nothing to commit
       });
       expect(API.getUndoStack().length).toBe(1);
       expect(API.getRedoStack().length).toBe(0);
@@ -560,7 +562,7 @@ describe("history", () => {
         appState: {
           name: "New name",
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
 
       expect(API.getUndoStack().length).toBe(1);
@@ -571,7 +573,7 @@ describe("history", () => {
         appState: {
           viewBackgroundColor: "#000",
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
       expect(API.getUndoStack().length).toBe(2);
       expect(API.getRedoStack().length).toBe(0);
@@ -584,7 +586,7 @@ describe("history", () => {
           name: "New name",
           viewBackgroundColor: "#000",
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
       expect(API.getUndoStack().length).toBe(2);
       expect(API.getRedoStack().length).toBe(0);
@@ -1138,8 +1140,8 @@ describe("history", () => {
       expect(h.elements).toEqual([
         expect.objectContaining({ id: rect1.id, isDeleted: false }),
         expect.objectContaining({ id: rect2.id, isDeleted: false }),
-        expect.objectContaining({ id: `${rect1.id}_copy`, isDeleted: true }),
-        expect.objectContaining({ id: `${rect2.id}_copy`, isDeleted: true }),
+        expect.objectContaining({ [ORIG_ID]: rect1.id, isDeleted: true }),
+        expect.objectContaining({ [ORIG_ID]: rect2.id, isDeleted: true }),
       ]);
       expect(h.state.editingGroupId).toBeNull();
       expect(h.state.selectedGroupIds).toEqual({ A: true });
@@ -1151,8 +1153,8 @@ describe("history", () => {
       expect(h.elements).toEqual([
         expect.objectContaining({ id: rect1.id, isDeleted: false }),
         expect.objectContaining({ id: rect2.id, isDeleted: false }),
-        expect.objectContaining({ id: `${rect1.id}_copy`, isDeleted: false }),
-        expect.objectContaining({ id: `${rect2.id}_copy`, isDeleted: false }),
+        expect.objectContaining({ [ORIG_ID]: rect1.id, isDeleted: false }),
+        expect.objectContaining({ [ORIG_ID]: rect2.id, isDeleted: false }),
       ]);
       expect(h.state.editingGroupId).toBeNull();
       expect(h.state.selectedGroupIds).not.toEqual(
@@ -1171,14 +1173,14 @@ describe("history", () => {
         expect.arrayContaining([
           expect.objectContaining({ id: rect1.id, isDeleted: false }),
           expect.objectContaining({ id: rect2.id, isDeleted: false }),
-          expect.objectContaining({ id: `${rect1.id}_copy`, isDeleted: true }),
-          expect.objectContaining({ id: `${rect2.id}_copy`, isDeleted: true }),
+          expect.objectContaining({ [ORIG_ID]: rect1.id, isDeleted: true }),
+          expect.objectContaining({ [ORIG_ID]: rect2.id, isDeleted: true }),
           expect.objectContaining({
-            id: `${rect1.id}_copy_copy`,
+            [ORIG_ID]: getCloneByOrigId(rect1.id)?.id,
             isDeleted: false,
           }),
           expect.objectContaining({
-            id: `${rect2.id}_copy_copy`,
+            [ORIG_ID]: getCloneByOrigId(rect2.id)?.id,
             isDeleted: false,
           }),
         ]),
@@ -1291,7 +1293,7 @@ describe("history", () => {
 
         API.updateScene({
           elements: [rect1, text, rect2],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // bind text1 to rect1
@@ -1320,13 +1322,11 @@ describe("history", () => {
         expect(API.getUndoStack().length).toBe(5);
         expect(arrow.startBinding).toEqual({
           elementId: rect1.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
         expect(arrow.endBinding).toEqual({
           elementId: rect2.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
@@ -1345,13 +1345,11 @@ describe("history", () => {
         expect(API.getRedoStack().length).toBe(1);
         expect(arrow.startBinding).toEqual({
           elementId: rect1.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
         expect(arrow.endBinding).toEqual({
           elementId: rect2.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
@@ -1370,13 +1368,11 @@ describe("history", () => {
         expect(API.getRedoStack().length).toBe(0);
         expect(arrow.startBinding).toEqual({
           elementId: rect1.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
         expect(arrow.endBinding).toEqual({
           elementId: rect2.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
@@ -1403,13 +1399,11 @@ describe("history", () => {
         expect(API.getRedoStack().length).toBe(0);
         expect(arrow.startBinding).toEqual({
           elementId: rect1.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
         expect(arrow.endBinding).toEqual({
           elementId: rect2.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
@@ -1428,13 +1422,11 @@ describe("history", () => {
         expect(API.getRedoStack().length).toBe(1);
         expect(arrow.startBinding).toEqual({
           elementId: rect1.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
         expect(arrow.endBinding).toEqual({
           elementId: rect2.id,
-          fixedPoint: null,
           focus: expect.toBeNonNaNNumber(),
           gap: expect.toBeNonNaNNumber(),
         });
@@ -1485,13 +1477,11 @@ describe("history", () => {
               id: arrow.id,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -1532,13 +1522,11 @@ describe("history", () => {
               id: arrow.id,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -1613,13 +1601,11 @@ describe("history", () => {
               id: arrow.id,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -1688,13 +1674,11 @@ describe("history", () => {
               id: arrow.id,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -1863,7 +1847,7 @@ describe("history", () => {
             strokeColor: blue,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -1901,7 +1885,7 @@ describe("history", () => {
             strokeColor: yellow,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -1949,7 +1933,7 @@ describe("history", () => {
             backgroundColor: yellow,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       // At this point our entry gets updated from `red` -> `blue` into `red` -> `yellow`
@@ -1965,7 +1949,7 @@ describe("history", () => {
             backgroundColor: violet,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       // At this point our (inversed) entry gets updated from `red` -> `yellow` into `violet` -> `yellow`
@@ -2010,7 +1994,7 @@ describe("history", () => {
 
       API.updateScene({
         elements: [rect, diamond],
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
 
       // Connect the arrow
@@ -2059,7 +2043,7 @@ describe("history", () => {
             } as FixedPointBinding,
           },
         ],
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
 
       Keyboard.undo();
@@ -2074,19 +2058,18 @@ describe("history", () => {
               }
             : el,
         ),
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
-      Keyboard.redo();
+      Keyboard.undo();
 
       const modifiedArrow = h.elements.filter(
         (el) => el.type === "arrow",
       )[0] as ExcalidrawElbowArrowElement;
-      expect(modifiedArrow.points).toEqual([
+      expect(modifiedArrow.points).toCloselyEqualPoints([
         [0, 0],
-        [225.95000000000005, 0],
-        [225.95000000000005, 448.10100010002003],
-        [451.9000000000001, 448.10100010002003],
+        [178.9, 0],
+        [178.9, 236.1],
       ]);
     });
 
@@ -2099,7 +2082,7 @@ describe("history", () => {
       // Initialize scene
       API.updateScene({
         elements: [rect1, rect2],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       // Simulate local update
@@ -2108,7 +2091,7 @@ describe("history", () => {
           newElementWith(h.elements[0], { groupIds: ["A"] }),
           newElementWith(h.elements[1], { groupIds: ["A"] }),
         ],
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
 
       const rect3 = API.createElement({ type: "rectangle", groupIds: ["B"] });
@@ -2122,7 +2105,7 @@ describe("history", () => {
           rect3,
           rect4,
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2168,7 +2151,7 @@ describe("history", () => {
             ] as LocalPoint[],
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo(); // undo `actionFinalize`
@@ -2263,7 +2246,7 @@ describe("history", () => {
             isDeleted: false, // undeletion might happen due to concurrency between clients
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       expect(API.getSelectedElements()).toEqual([]);
@@ -2340,7 +2323,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       expect(h.elements).toEqual([
@@ -2402,7 +2385,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2478,7 +2461,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2517,7 +2500,7 @@ describe("history", () => {
             isDeleted: false,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.redo();
@@ -2563,7 +2546,7 @@ describe("history", () => {
       // Simulate remote update
       API.updateScene({
         elements: [rect1, rect2],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.withModifierKeys({ ctrl: true }, () => {
@@ -2573,7 +2556,7 @@ describe("history", () => {
       // Simulate remote update
       API.updateScene({
         elements: [h.elements[0], h.elements[1], rect3, rect4],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.withModifierKeys({ ctrl: true }, () => {
@@ -2594,7 +2577,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2619,7 +2602,7 @@ describe("history", () => {
             isDeleted: false,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.redo();
@@ -2630,7 +2613,7 @@ describe("history", () => {
       // Simulate remote update
       API.updateScene({
         elements: [h.elements[0], h.elements[1], rect3, rect4],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.redo();
@@ -2676,7 +2659,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2697,7 +2680,7 @@ describe("history", () => {
           }),
           h.elements[1],
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2740,7 +2723,7 @@ describe("history", () => {
             isDeleted: true,
           }),
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2783,7 +2766,7 @@ describe("history", () => {
           h.elements[0],
           h.elements[1],
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       expect(API.getUndoStack().length).toBe(2);
@@ -2822,7 +2805,7 @@ describe("history", () => {
           h.elements[0],
           h.elements[1],
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       expect(API.getUndoStack().length).toBe(2);
@@ -2873,7 +2856,7 @@ describe("history", () => {
           h.elements[0], // rect2
           h.elements[1], // rect1
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2903,7 +2886,7 @@ describe("history", () => {
           h.elements[0], // rect3
           h.elements[2], // rect1
         ],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       Keyboard.undo();
@@ -2933,7 +2916,7 @@ describe("history", () => {
       // Simulate remote update
       API.updateScene({
         elements: [...h.elements, rect],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       mouse.moveTo(60, 60);
@@ -2985,7 +2968,7 @@ describe("history", () => {
       // // Simulate remote update
       API.updateScene({
         elements: [...h.elements, rect3],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       mouse.moveTo(100, 100);
@@ -3075,7 +3058,7 @@ describe("history", () => {
       // Simulate remote update
       API.updateScene({
         elements: [...h.elements, rect3],
-        storeAction: StoreAction.UPDATE,
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
 
       mouse.moveTo(100, 100);
@@ -3252,7 +3235,7 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [container, text],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
@@ -3265,7 +3248,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -3296,7 +3279,7 @@ describe("history", () => {
               x: h.elements[1].x + 10,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3339,7 +3322,7 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [container, text],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
@@ -3352,7 +3335,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -3386,7 +3369,7 @@ describe("history", () => {
             remoteText,
             h.elements[1],
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3442,7 +3425,7 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [container, text],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
@@ -3455,7 +3438,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -3492,7 +3475,7 @@ describe("history", () => {
               containerId: remoteContainer.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3550,7 +3533,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [container],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3561,7 +3544,7 @@ describe("history", () => {
             }),
             newElementWith(text, { containerId: container.id }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3611,7 +3594,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [text],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3622,7 +3605,7 @@ describe("history", () => {
             }),
             newElementWith(text, { containerId: container.id }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3671,7 +3654,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [container],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3684,7 +3667,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         Keyboard.undo();
@@ -3721,7 +3704,7 @@ describe("history", () => {
             // rebinding the container with a new text element!
             remoteText,
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3778,7 +3761,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [text],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3791,7 +3774,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         Keyboard.undo();
@@ -3828,7 +3811,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3884,7 +3867,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [container],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3898,7 +3881,7 @@ describe("history", () => {
               isDeleted: true,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3941,7 +3924,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [text],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -3955,7 +3938,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -3998,7 +3981,7 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [container],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
@@ -4010,7 +3993,7 @@ describe("history", () => {
               angle: 90 as Radians,
             }),
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -4023,7 +4006,7 @@ describe("history", () => {
             }),
             newElementWith(text, { containerId: container.id }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         expect(h.elements).toEqual([
@@ -4116,7 +4099,7 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [text],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
@@ -4128,7 +4111,7 @@ describe("history", () => {
               angle: 90 as Radians,
             }),
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -4143,7 +4126,7 @@ describe("history", () => {
               containerId: container.id,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         expect(API.getUndoStack().length).toBe(0);
@@ -4234,7 +4217,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [rect1, rect2],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         mouse.reset();
@@ -4276,13 +4259,11 @@ describe("history", () => {
               id: arrowId,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -4323,7 +4304,7 @@ describe("history", () => {
               x: h.elements[1].x + 50,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -4347,13 +4328,11 @@ describe("history", () => {
                 id: arrowId,
                 startBinding: expect.objectContaining({
                   elementId: rect1.id,
-                  fixedPoint: null,
                   focus: expect.toBeNonNaNNumber(),
                   gap: expect.toBeNonNaNNumber(),
                 }),
                 endBinding: expect.objectContaining({
                   elementId: rect2.id,
-                  fixedPoint: null,
                   focus: expect.toBeNonNaNNumber(),
                   gap: expect.toBeNonNaNNumber(),
                 }),
@@ -4414,13 +4393,11 @@ describe("history", () => {
               id: arrowId,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -4467,7 +4444,7 @@ describe("history", () => {
             }),
             remoteContainer,
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -4489,14 +4466,12 @@ describe("history", () => {
                 id: arrowId,
                 startBinding: expect.objectContaining({
                   elementId: rect1.id,
-                  fixedPoint: null,
                   focus: expect.toBeNonNaNNumber(),
                   gap: expect.toBeNonNaNNumber(),
                 }),
                 // rebound with previous rectangle
                 endBinding: expect.objectContaining({
                   elementId: rect2.id,
-                  fixedPoint: null,
                   focus: expect.toBeNonNaNNumber(),
                   gap: expect.toBeNonNaNNumber(),
                 }),
@@ -4574,7 +4549,7 @@ describe("history", () => {
               boundElements: [{ id: arrow.id, type: "arrow" }],
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -4651,7 +4626,7 @@ describe("history", () => {
         // Simulate local update
         API.updateScene({
           elements: [arrow],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate remote update
@@ -4678,7 +4653,7 @@ describe("history", () => {
               boundElements: [{ id: arrow.id, type: "arrow" }],
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         runTwice(() => {
@@ -4788,14 +4763,12 @@ describe("history", () => {
               id: arrowId,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: 0,
                 gap: 1,
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
-                focus: 0,
+                focus: -0,
                 gap: 1,
               }),
               isDeleted: true,
@@ -4810,7 +4783,7 @@ describe("history", () => {
             newElementWith(h.elements[1], { x: 500, y: -500 }),
             h.elements[2],
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         Keyboard.redo();
@@ -4838,13 +4811,11 @@ describe("history", () => {
               id: arrowId,
               startBinding: expect.objectContaining({
                 elementId: rect1.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
               endBinding: expect.objectContaining({
                 elementId: rect2.id,
-                fixedPoint: null,
                 focus: expect.toBeNonNaNNumber(),
                 gap: expect.toBeNonNaNNumber(),
               }),
@@ -4882,13 +4853,13 @@ describe("history", () => {
         // Initialize the scene
         API.updateScene({
           elements: [frame],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         // Simulate local update
         API.updateScene({
           elements: [rect, h.elements[0]],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         // Simulate local update
@@ -4899,7 +4870,7 @@ describe("history", () => {
             }),
             h.elements[1],
           ],
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
 
         Keyboard.undo();
@@ -4943,7 +4914,7 @@ describe("history", () => {
               isDeleted: true,
             }),
           ],
-          storeAction: StoreAction.UPDATE,
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
 
         Keyboard.redo();

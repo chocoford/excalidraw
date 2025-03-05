@@ -16,15 +16,13 @@ import { updateFrameMembershipOfSelectedElements } from "../frame";
 import { t } from "../i18n";
 import { KEYS } from "../keys";
 import { isSomeElementSelected } from "../scene";
-import { StoreAction } from "../store";
+import { CaptureUpdateAction } from "../store";
 import type { AppClassProperties, AppState, UIAppState } from "../types";
 import { arrayToMap, getShortcutKey } from "../utils";
 import { register } from "./register";
 
-const alignActionsPredicate = (
-  elements: readonly ExcalidrawElement[],
+export const alignActionsPredicate = (
   appState: UIAppState,
-  _: unknown,
   app: AppClassProperties,
 ) => {
   const selectedElements = app.scene.getSelectedElements(appState);
@@ -48,6 +46,7 @@ const alignSelectedElements = (
     selectedElements,
     elementsMap,
     alignment,
+    app.scene,
   );
 
   const updatedElementsMap = arrayToMap(updatedElements);
@@ -64,7 +63,8 @@ export const actionAlignTop = register({
   label: "labels.alignTop",
   icon: AlignTopIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -72,14 +72,14 @@ export const actionAlignTop = register({
         position: "start",
         axis: "y",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_UP,
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={AlignTopIcon}
       onClick={() => updateData(null)}
@@ -97,7 +97,8 @@ export const actionAlignBottom = register({
   label: "labels.alignBottom",
   icon: AlignBottomIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -105,14 +106,14 @@ export const actionAlignBottom = register({
         position: "end",
         axis: "y",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_DOWN,
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={AlignBottomIcon}
       onClick={() => updateData(null)}
@@ -130,7 +131,8 @@ export const actionAlignLeft = register({
   label: "labels.alignLeft",
   icon: AlignLeftIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -138,14 +140,14 @@ export const actionAlignLeft = register({
         position: "start",
         axis: "x",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_LEFT,
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={AlignLeftIcon}
       onClick={() => updateData(null)}
@@ -163,7 +165,8 @@ export const actionAlignRight = register({
   label: "labels.alignRight",
   icon: AlignRightIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -171,14 +174,14 @@ export const actionAlignRight = register({
         position: "end",
         axis: "x",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_RIGHT,
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={AlignRightIcon}
       onClick={() => updateData(null)}
@@ -196,7 +199,8 @@ export const actionAlignVerticallyCentered = register({
   label: "labels.centerVertically",
   icon: CenterVerticallyIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -204,12 +208,12 @@ export const actionAlignVerticallyCentered = register({
         position: "center",
         axis: "y",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={CenterVerticallyIcon}
       onClick={() => updateData(null)}
@@ -225,7 +229,8 @@ export const actionAlignHorizontallyCentered = register({
   label: "labels.centerHorizontally",
   icon: CenterHorizontallyIcon,
   trackEvent: { category: "element" },
-  predicate: alignActionsPredicate,
+  predicate: (elements, appState, appProps, app) =>
+    alignActionsPredicate(appState, app),
   perform: (elements, appState, _, app) => {
     return {
       appState,
@@ -233,12 +238,12 @@ export const actionAlignHorizontallyCentered = register({
         position: "center",
         axis: "x",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!alignActionsPredicate(elements, appState, null, app)}
+      hidden={!alignActionsPredicate(appState, app)}
       type="button"
       icon={CenterHorizontallyIcon}
       onClick={() => updateData(null)}

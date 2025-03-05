@@ -52,7 +52,6 @@ import {
   getBoundTextElement,
   getContainerCoords,
   getContainerElement,
-  getLineHeightInPx,
   getBoundTextMaxHeight,
   getBoundTextMaxWidth,
 } from "../element/textElement";
@@ -61,9 +60,10 @@ import { LinearElementEditor } from "../element/linearElementEditor";
 import { getContainingFrame } from "../frame";
 import { ShapeCache } from "../scene/ShapeCache";
 import { getVerticalOffset } from "../fonts";
-import { isRightAngleRads } from "../../math";
+import { isRightAngleRads } from "@excalidraw/math";
 import { getCornerRadius } from "../shapes";
 import { getUncroppedImageElement } from "../element/cropElement";
+import { getLineHeightInPx } from "../element/textMeasurements";
 
 // using a stronger invert (100% vs our regular 93%) and saturate
 // as a temp hack to make images in dark theme look closer to original

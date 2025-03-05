@@ -39,7 +39,8 @@ import type App from "../../components/App";
 import { createTestHook } from "../../components/App";
 import type { Action } from "../../actions/types";
 import { mutateElement } from "../../element/mutateElement";
-import { pointFrom, type LocalPoint, type Radians } from "../../../math";
+import { pointFrom, type LocalPoint, type Radians } from "@excalidraw/math";
+import { selectGroupsForSelectedElements } from "../../groups";
 
 const readFile = util.promisify(fs.readFile);
 // so that window.h is available when App.tsx is not imported as well.
@@ -68,13 +69,21 @@ export class API {
     });
   };
 
-  static setSelectedElements = (elements: ExcalidrawElement[]) => {
+  static setSelectedElements = (elements: ExcalidrawElement[], editingGroupId?: string | null) => {
     act(() => {
       h.setState({
-        selectedElementIds: elements.reduce((acc, element) => {
-          acc[element.id] = true;
-          return acc;
-        }, {} as Record<ExcalidrawElement["id"], true>),
+        ...selectGroupsForSelectedElements(
+        {
+          editingGroupId: editingGroupId ?? null,
+          selectedElementIds: elements.reduce((acc, element) => {
+            acc[element.id] = true;
+            return acc;
+          }, {} as Record<ExcalidrawElement["id"], true>),
+        },
+        elements,
+        h.state,
+        h.app,
+        )
       });
     });
   };
@@ -158,7 +167,7 @@ export class API {
     isDeleted?: boolean;
     frameId?: ExcalidrawElement["id"] | null;
     index?: ExcalidrawElement["index"];
-    groupIds?: string[];
+    groupIds?: ExcalidrawElement["groupIds"];
     // generic element props
     strokeColor?: ExcalidrawGenericElement["strokeColor"];
     backgroundColor?: ExcalidrawGenericElement["backgroundColor"];
@@ -180,7 +189,7 @@ export class API {
     containerId?: T extends "text"
       ? ExcalidrawTextElement["containerId"]
       : never;
-    points?: T extends "arrow" | "line" ? readonly LocalPoint[] : never;
+    points?: T extends "arrow" | "line" | "freedraw" ? readonly LocalPoint[] : never;
     locked?: boolean;
     fileId?: T extends "image" ? string : never;
     scale?: T extends "image" ? ExcalidrawImageElement["scale"] : never;
@@ -219,8 +228,6 @@ export class API {
     const base: Omit<
       ExcalidrawGenericElement,
       | "id"
-      | "width"
-      | "height"
       | "type"
       | "version"
       | "versionNonce"
@@ -232,6 +239,8 @@ export class API {
       seed: 1,
       x,
       y,
+      width,
+      height,
       frameId: rest.frameId ?? null,
       index: rest.index ?? null,
       angle: (rest.angle ?? 0) as Radians,
@@ -263,8 +272,6 @@ export class API {
       case "ellipse":
         element = newElement({
           type: type as "rectangle" | "diamond" | "ellipse",
-          width,
-          height,
           ...base,
         });
         break;
@@ -299,6 +306,7 @@ export class API {
         element = newFreeDrawElement({
           type: type as "freedraw",
           simulatePressure: true,
+          points: rest.points,
           ...base,
         });
         break;
@@ -367,6 +375,84 @@ export class API {
       element.groupIds = groupIds;
     }
     return element as any;
+  };
+
+  static createTextContainer = (opts?: {
+    frameId?: ExcalidrawElement["id"];
+    groupIds?: ExcalidrawElement["groupIds"];
+    label?: {
+      text?: string;
+      frameId?: ExcalidrawElement["id"] | null;
+      groupIds?: ExcalidrawElement["groupIds"];
+    };
+  }) => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      frameId: opts?.frameId || null,
+      groupIds: opts?.groupIds,
+    });
+
+    const text = API.createElement({
+      type: "text",
+      text: opts?.label?.text || "sample-text",
+      width: 50,
+      height: 20,
+      fontSize: 16,
+      containerId: rectangle.id,
+      frameId:
+        opts?.label?.frameId === undefined
+          ? opts?.frameId ?? null
+          : opts?.label?.frameId ?? null,
+      groupIds: opts?.label?.groupIds === undefined
+      ? opts?.groupIds
+      : opts?.label?.groupIds ,
+
+    });
+
+    mutateElement(
+      rectangle,
+      {
+        boundElements: [{ type: "text", id: text.id }],
+      },
+      false,
+    );
+
+    return [rectangle, text];
+  };
+
+  static createLabeledArrow = (opts?: {
+    frameId?: ExcalidrawElement["id"];
+    label?: {
+      text?: string;
+      frameId?: ExcalidrawElement["id"] | null;
+    };
+  }) => {
+    const arrow = API.createElement({
+      type: "arrow",
+      frameId: opts?.frameId || null,
+    });
+
+    const text = API.createElement({
+      type: "text",
+      id: "text2",
+      width: 50,
+      height: 20,
+      containerId: arrow.id,
+      frameId:
+        opts?.label?.frameId === undefined
+          ? opts?.frameId ?? null
+          : opts?.label?.frameId ?? null,
+    });
+
+    mutateElement(
+      arrow,
+      {
+        boundElements: [{ type: "text", id: text.id }],
+      },
+      false,
+    );
+
+    return [arrow, text];
   };
 
   static readFile = async <T extends "utf8" | null>(
