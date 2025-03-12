@@ -125,3 +125,18 @@ document.addEventListener("touchend", () => {
     window.excalidrawZHelper.redo();
   }
 });
+
+export const toggleActionsMenu = (isPresented) => {
+  const el = document.querySelector(".selected-shape-actions");
+  if (!el) {
+    return;
+  }
+  if (!isPresented && !el.classList.contains("transition-left")) {
+    el.classList.add("transition-left");
+  } else {
+    el.classList.remove("transition-left");
+  }
+  setTimeout(() => {
+    window.excalidrawZHelper.shouldHideActionsMenu = !isPresented;
+  }, 200);
+};

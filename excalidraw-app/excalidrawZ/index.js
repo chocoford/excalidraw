@@ -1,6 +1,7 @@
 import "./clipboard";
 import {
   connectPencil,
+  toggleActionsMenu,
   togglePenMode,
   togglePencilInterationMode,
 } from "./interaction";
@@ -461,15 +462,6 @@ window.excalidrawZHelper = {
   togglePenMode,
   togglePencilInterationMode,
 
-  toggleActionsMenu: (isPresented) => {
-    const el = document.querySelector(".selected-shape-actions");
-    if (!el) {
-      return;
-    }
-    if (!isPresented && !el.classList.contains("transition-left")) {
-      el.classList.add("transition-left");
-    } else {
-      el.classList.remove("transition-left");
-    }
-  },
+  shouldHideActionsMenu: false,
+  toggleActionsMenu,
 };
