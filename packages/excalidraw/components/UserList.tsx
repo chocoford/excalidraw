@@ -131,6 +131,9 @@ export const UserList = React.memo(
     useEffect(() => {
       (window as any).excalidrawZHelper.collaborators =
         uniqueCollaboratorsArray;
+      (window as any).excalidrawZHelper.reportCollaborators(
+        uniqueCollaboratorsArray,
+      );
     }, [uniqueCollaboratorsArray]);
 
     const [searchTerm, setSearchTerm] = React.useState("");

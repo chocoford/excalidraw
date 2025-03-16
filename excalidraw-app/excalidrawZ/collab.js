@@ -68,3 +68,14 @@ export const openCollabMode = async () => {
   await wait();
   modalContainer.querySelector(".Modal__background")?.click();
 };
+
+export const reportCollaborators = (collaborators) => {
+  sendMessage({
+    event: "onCollaboratorsChanged",
+    data: collaborators,
+  });
+};
+
+// export const watchCollabUserCounts = () => {
+
+// }

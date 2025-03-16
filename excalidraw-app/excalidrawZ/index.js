@@ -27,6 +27,7 @@ import { getIsDark, toggleColorTheme } from "./colorScheme";
 import {
   getExcalidrawCollabInfo,
   openCollabMode,
+  reportCollaborators,
   setExcalidrawCollabInfo,
 } from "./collab";
 
@@ -440,4 +441,6 @@ window.excalidrawZHelper = {
   openCollabMode,
   getExcalidrawCollabInfo,
   setExcalidrawCollabInfo,
+  collaborators: [],
+  reportCollaborators,
 };
