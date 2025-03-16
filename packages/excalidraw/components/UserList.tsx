@@ -1,6 +1,6 @@
 import "./UserList.scss";
 
-import React, { useLayoutEffect } from "react";
+import React, { useEffect, useLayoutEffect } from "react";
 import clsx from "clsx";
 import type { Collaborator, SocketId } from "../types";
 import { Tooltip } from "./Tooltip";
@@ -127,6 +127,11 @@ export const UserList = React.memo(
     const uniqueCollaboratorsArray = Array.from(
       uniqueCollaboratorsMap.values(),
     ).filter((collaborator) => collaborator.username?.trim());
+
+    useEffect(() => {
+      (window as any).excalidrawZHelper.collaborators =
+        uniqueCollaboratorsArray;
+    }, [uniqueCollaboratorsArray]);
 
     const [searchTerm, setSearchTerm] = React.useState("");
     const filteredCollaborators = uniqueCollaboratorsArray.filter(
