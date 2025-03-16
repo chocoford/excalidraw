@@ -845,9 +845,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
     this.collaborators = collaborators;
     this.excalidrawAPI.updateScene({ collaborators });
-    (window as any).excalidrawZHelper.updateCollaborators(
+    (window as any).excalidrawZHelper.updateCollaborators([
       ...collaborators.values(),
-    );
+    ]);
   }
 
   updateCollaborator = (socketId: SocketId, updates: Partial<Collaborator>) => {
@@ -866,9 +866,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.excalidrawAPI.updateScene({
       collaborators,
     });
-    (window as any).excalidrawZHelper.updateCollaborators(
+    (window as any).excalidrawZHelper.updateCollaborators([
       ...collaborators.values(),
-    );
+    ]);
   };
 
   public setLastBroadcastedOrReceivedSceneVersion = (version: number) => {
