@@ -129,9 +129,13 @@ export const UserList = React.memo(
     ).filter((collaborator) => collaborator.username?.trim());
 
     useEffect(() => {
-      const collabs = collaborators
-        .entries()
-        .map(([socketId, e]) => ({...e, socketId }));
+      const collabs: MarkRequired<Collaborator, "socketId">[] = [];
+      collaborators.forEach((collaborator, socketId) => {
+        collabs.push({
+          ...collaborator,
+          socketId,
+        });
+      });
       (window as any).excalidrawZHelper.collaborators = collabs;
       (window as any).excalidrawZHelper.reportCollaborators(collabs);
     }, [collaborators]);
