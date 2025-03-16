@@ -76,6 +76,11 @@ export const reportCollaborators = (collaborators) => {
   });
 };
 
+export const updateCollaborators = (collaborators) => {
+  window.excalidrawZHelper.collaborators = collaborators;
+  reportCollaborators(collaborators);
+};
+
 // export const watchCollabUserCounts = () => {
 
 // }

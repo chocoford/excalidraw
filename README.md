@@ -21,4 +21,4 @@
 - Modify css style of `Excalidraw TTD-Dialog` in `packages/excalidraw/components/TTDDialog/TTDDialog.scss` line 15.
 - Add elements selection message in `packages/excalidraw/components/App.tsx` line 1536-1546.
 
-- Add useEffect in `packages/excalidraw/components/UserList.tsx` to listen collaborators changes at line 113-121.
+- Add codes in `excalidraw-app/collab/Collab.tsx` to listen collaborators changes at line 848-871.

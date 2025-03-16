@@ -29,6 +29,7 @@ import {
   openCollabMode,
   reportCollaborators,
   setExcalidrawCollabInfo,
+  updateCollaborators,
 } from "./collab";
 
 const toggleImageInvertSwitch = (flag) => {
@@ -443,4 +444,5 @@ window.excalidrawZHelper = {
   setExcalidrawCollabInfo,
   collaborators: [],
   reportCollaborators,
+  updateCollaborators,
 };

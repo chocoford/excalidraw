@@ -110,15 +110,6 @@ export const UserList = React.memo(
   ({ className, mobile, collaborators, userToFollow }: UserListProps) => {
     const actionManager = useExcalidrawActionManager();
 
-    React.useEffect(() => {
-      const collabs: Collaborator[] = [];
-      collaborators.forEach((collaborator, socketId) => {
-        collabs.push(collaborator);
-      });
-      (window as any).excalidrawZHelper.collaborators = collabs;
-      (window as any).excalidrawZHelper.reportCollaborators(collabs);
-    }, [collaborators]);
-
     const uniqueCollaboratorsMap = new Map<
       ClientId,
       MarkRequired<Collaborator, "socketId">
