@@ -846,7 +846,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.collaborators = collaborators;
     this.excalidrawAPI.updateScene({ collaborators });
     (window as any).excalidrawZHelper.updateCollaborators(
-      collaborators.values(),
+      ...collaborators.values(),
     );
   }
 
@@ -867,7 +867,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       collaborators,
     });
     (window as any).excalidrawZHelper.updateCollaborators(
-      collaborators.values(),
+      ...collaborators.values(),
     );
   };
 
