@@ -129,12 +129,12 @@ export const UserList = React.memo(
     ).filter((collaborator) => collaborator.username?.trim());
 
     useEffect(() => {
-      (window as any).excalidrawZHelper.collaborators =
-        uniqueCollaboratorsArray;
-      (window as any).excalidrawZHelper.reportCollaborators(
-        uniqueCollaboratorsArray,
-      );
-    }, [uniqueCollaboratorsArray]);
+      const collabs = collaborators
+        .entries()
+        .map(([socketId, e]) => ({...e, socketId }));
+      (window as any).excalidrawZHelper.collaborators = collabs;
+      (window as any).excalidrawZHelper.reportCollaborators(collabs);
+    }, [collaborators]);
 
     const [searchTerm, setSearchTerm] = React.useState("");
     const filteredCollaborators = uniqueCollaboratorsArray.filter(
