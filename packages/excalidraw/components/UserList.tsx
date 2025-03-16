@@ -1,6 +1,6 @@
 import "./UserList.scss";
 
-import React, { useEffect, useLayoutEffect } from "react";
+import React, { useLayoutEffect } from "react";
 import clsx from "clsx";
 import type { Collaborator, SocketId } from "../types";
 import { Tooltip } from "./Tooltip";
@@ -110,6 +110,15 @@ export const UserList = React.memo(
   ({ className, mobile, collaborators, userToFollow }: UserListProps) => {
     const actionManager = useExcalidrawActionManager();
 
+    React.useEffect(() => {
+      const collabs: Collaborator[] = [];
+      collaborators.forEach((collaborator, socketId) => {
+        collabs.push(collaborator);
+      });
+      (window as any).excalidrawZHelper.collaborators = collabs;
+      (window as any).excalidrawZHelper.reportCollaborators(collabs);
+    }, [collaborators]);
+
     const uniqueCollaboratorsMap = new Map<
       ClientId,
       MarkRequired<Collaborator, "socketId">
@@ -127,18 +136,6 @@ export const UserList = React.memo(
     const uniqueCollaboratorsArray = Array.from(
       uniqueCollaboratorsMap.values(),
     ).filter((collaborator) => collaborator.username?.trim());
-
-    useEffect(() => {
-      const collabs: MarkRequired<Collaborator, "socketId">[] = [];
-      collaborators.forEach((collaborator, socketId) => {
-        collabs.push({
-          ...collaborator,
-          socketId,
-        });
-      });
-      (window as any).excalidrawZHelper.collaborators = collabs;
-      (window as any).excalidrawZHelper.reportCollaborators(collabs);
-    }, [collaborators]);
 
     const [searchTerm, setSearchTerm] = React.useState("");
     const filteredCollaborators = uniqueCollaboratorsArray.filter(
