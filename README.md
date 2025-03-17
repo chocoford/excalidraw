@@ -22,3 +22,5 @@
 - Add elements selection message in `packages/excalidraw/components/App.tsx` line 1536-1546.
 
 - Add codes in `excalidraw-app/collab/Collab.tsx` to listen collaborators changes at line 848-871.
+
+- Add codes in `excalidraw-app/collab/Collab.tsx` to trigger `onStateChanged`.

@@ -89,6 +89,8 @@ import type {
   ReconciledExcalidrawElement,
   RemoteExcalidrawElement,
 } from "../../packages/excalidraw/data/reconcile";
+import { sendMessage } from "../excalidrawZ/message";
+import { getRelativeFiles } from "../excalidrawZ/indexdb+";
 
 export const collabAPIAtom = atom<CollabAPI | null>(null);
 export const isCollaboratingAtom = atom(false);
@@ -600,6 +602,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             this.handleRemoteSceneUpdate(
               this._reconcileElements(decryptedData.payload.elements),
             );
+            // trigger onStateChanged
+            this.reportStateChanged();
             break;
           case WS_SUBTYPES.MOUSE_LOCATION: {
             const { pointer, button, username, selectedElementIds } =
@@ -944,6 +948,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.portal.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
       this.lastBroadcastedOrReceivedSceneVersion = getSceneVersion(elements);
       this.queueBroadcastAllElements();
+      // trigger onStateChanged
+      this.reportStateChanged();
     }
   };
 
@@ -1029,6 +1035,26 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       </>
     );
   }
+
+  // ExcalidrawZ
+  private reportStateChanged = throttle(async () => {
+    const state = this.excalidrawAPI.getAppState();
+    const elements = this.excalidrawAPI.getSceneElements();
+    const filesDict = await getRelativeFiles(elements);
+    sendMessage({
+      event: "onStateChanged",
+      data: {
+        state,
+        data: {
+          dataString: JSON.stringify({
+            elements,
+          }),
+          elements,
+          files: filesDict,
+        },
+      },
+    });
+  }, 1000);
 }
 
 declare global {
