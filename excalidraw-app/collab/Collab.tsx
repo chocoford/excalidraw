@@ -4,6 +4,7 @@ import type {
   BinaryFileData,
   ExcalidrawImperativeAPI,
   SocketId,
+  UserToFollow,
 } from "../../packages/excalidraw/types";
 import { ErrorDialog } from "../../packages/excalidraw/components/ErrorDialog";
 import { APP_NAME, ENV, EVENT } from "../../packages/excalidraw/constants";
@@ -194,6 +195,22 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
     this.idleTimeoutId = null;
+
+    (window as any).excalidrawZHelper.followCollaborator = (
+      collaborator: UserToFollow | null,
+    ) => {
+      this.excalidrawAPI.updateScene({
+        appState: {
+          ...this.excalidrawAPI.getAppState(),
+          userToFollow: !!collaborator
+            ? {
+                socketId: collaborator.socketId,
+                username: collaborator.username,
+              }
+            : null,
+        },
+      });
+    };
   }
 
   private onUmmount: (() => void) | null = null;
@@ -845,9 +862,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
     this.collaborators = collaborators;
     this.excalidrawAPI.updateScene({ collaborators });
-    (window as any).excalidrawZHelper.updateCollaborators([
-      ...collaborators.values(),
-    ]);
+    (window as any).excalidrawZHelper.updateCollaborators(
+      [...collaborators.entries()].map(([socketId, collaborator]) => ({
+        ...collaborator,
+        socketId,
+      })),
+    );
   }
 
   updateCollaborator = (socketId: SocketId, updates: Partial<Collaborator>) => {
@@ -866,9 +886,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.excalidrawAPI.updateScene({
       collaborators,
     });
-    (window as any).excalidrawZHelper.updateCollaborators([
-      ...collaborators.values(),
-    ]);
+    (window as any).excalidrawZHelper.updateCollaborators(
+      [...collaborators.entries()].map(([socketId, collaborator]) => ({
+        ...collaborator,
+        socketId,
+      })),
+    );
   };
 
   public setLastBroadcastedOrReceivedSceneVersion = (version: number) => {
