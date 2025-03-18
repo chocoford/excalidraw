@@ -9,7 +9,8 @@ export const getExcalidrawCollabInfo = () => {
 };
 
 export const setExcalidrawCollabInfo = (payload) => {
-  localStorage.setItem("excalidraw-collab", JSON.stringify(payload));
+  window.excalidrawZHelper.setCollabName?.(payload.username);
+  // localStorage.setItem("excalidraw-collab", JSON.stringify(payload));
 };
 
 export const openCollabMode = async () => {
@@ -81,6 +82,6 @@ export const updateCollaborators = (collaborators) => {
   reportCollaborators(collaborators);
 };
 
-// export const watchCollabUserCounts = () => {
+// export const followCollborator = (socketId: string) => {
 
 // }

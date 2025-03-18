@@ -213,6 +213,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         },
       });
     };
+    (window as any).excalidrawZHelper.setCollabName = (name: string) => {
+      this.setUsername(name);
+    };
   }
 
   private onUmmount: (() => void) | null = null;
