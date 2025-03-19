@@ -24,3 +24,7 @@
 - Add codes in `excalidraw-app/collab/Collab.tsx` to listen collaborators changes at line 848-871.
 
 - Add codes in `excalidraw-app/collab/Collab.tsx` to trigger `onStateChanged`.
+
+- Move codes out of hidden in `packages/excalidraw/components/LayerUI.tsx` in line 365-366.
+
+- Hide `LiveCollaborationTrigger` in `excalidraw-app/App.tsx` at line 857.

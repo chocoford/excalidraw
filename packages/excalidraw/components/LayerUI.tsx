@@ -345,7 +345,6 @@ const LayerUI = ({
                 userToFollow={appState.userToFollow?.socketId || null}
               />
             )}
-            {renderTopRightUI?.(device.editor.isMobile, appState)}
             {!appState.viewModeEnabled &&
               appState.openDialog?.name !== "elementLinkSelector" &&
               // hide button when sidebar docked
@@ -363,6 +362,8 @@ const LayerUI = ({
               />
             )}
           </div>
+          {/* Move out */}
+          {renderTopRightUI?.(device.editor.isMobile, appState)}
         </div>
       </FixedSideContainer>
     );
