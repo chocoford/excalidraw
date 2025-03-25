@@ -246,24 +246,24 @@ export const SearchMenu = () => {
         return;
       }
 
-      if (event[KEYS.CTRL_OR_CMD] && event.key === KEYS.F) {
-        event.preventDefault();
-        event.stopPropagation();
+      // if (event[KEYS.CTRL_OR_CMD] && event.key === KEYS.F) {
+      //   event.preventDefault();
+      //   event.stopPropagation();
 
-        if (!searchInputRef.current?.matches(":focus")) {
-          if (app.state.openDialog) {
-            setAppState({
-              openDialog: null,
-            });
-          }
-          searchInputRef.current?.focus();
-          searchInputRef.current?.select();
-        } else {
-          setAppState({
-            openSidebar: null,
-          });
-        }
-      }
+      //   if (!searchInputRef.current?.matches(":focus")) {
+      //     if (app.state.openDialog) {
+      //       setAppState({
+      //         openDialog: null,
+      //       });
+      //     }
+      //     searchInputRef.current?.focus();
+      //     searchInputRef.current?.select();
+      //   } else {
+      //     setAppState({
+      //       openSidebar: null,
+      //     });
+      //   }
+      // }
 
       if (
         event.target instanceof HTMLElement &&
