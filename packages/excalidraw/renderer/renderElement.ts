@@ -43,6 +43,7 @@ import {
   DEFAULT_REDUCED_GLOBAL_ALPHA,
   ELEMENT_READY_TO_ERASE_OPACITY,
   FRAME_STYLE,
+  IMAGE_MIME_TYPES,
   MIME_TYPES,
   THEME,
 } from "../constants";
@@ -454,14 +455,17 @@ const drawElementOnCanvas = (
               height: img.naturalHeight,
             };
 
-        const excalidrawCanvas = document.querySelector(".excalidraw__canvas");
         const shouldInvert =
           (window as any).excalidrawZHelper.shouldPreventInvertImage &&
-          !!(window as any).excalidrawZHelper.preventInvertImageFlags[
-            imgType
-          ] &&
-          !!excalidrawCanvas &&
-          !!getComputedStyle(excalidrawCanvas).filter;
+          !!Object.entries(
+            (window as any).excalidrawZHelper.preventInvertImageFlags,
+          ).find(
+            ([key, value]) =>
+              !!value &&
+              IMAGE_MIME_TYPES[key as keyof typeof IMAGE_MIME_TYPES] ===
+                imgType,
+          ) &&
+          appState.theme === THEME.DARK;
 
         if (shouldInvert) {
           const canvas = (window as any).excalidrawZHelper.antiInvertImage(
@@ -473,8 +477,8 @@ const drawElementOnCanvas = (
             canvas,
             x,
             y,
-            width,
-            height,
+            canvas.width,
+            canvas.height,
             0 /* hardcoded for the selection box*/,
             0,
             element.width,

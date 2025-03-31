@@ -21,7 +21,6 @@ import { useCallbackRefState } from "../packages/excalidraw/hooks/useCallbackRef
 import { t } from "../packages/excalidraw/i18n";
 import {
   Excalidraw,
-  LiveCollaborationTrigger,
   TTDDialogTrigger,
   StoreAction,
   reconcileElements,

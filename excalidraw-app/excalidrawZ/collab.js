@@ -54,9 +54,9 @@ export const openCollabMode = async () => {
       nameField.blur();
     }
 
-    const linkField = modalContainer
-      .querySelector(".ShareDialog__active__linkRow")
-      ?.querySelector("input");
+    // const linkField = modalContainer
+    //   .querySelector(".ShareDialog__active__linkRow")
+    //   ?.querySelector("input");
 
     sendMessage({
       event: "didOpenLiveCollaboration",

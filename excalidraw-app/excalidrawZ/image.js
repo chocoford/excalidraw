@@ -24,9 +24,9 @@ export const antiInvertImage = (img, width, height) => {
   // 处理像素数据
   for (let i = 0; i < data.length; i += 4) {
     // 反转 invert
-    data[i] = 255 * invertFactor - data[i]; // R
-    data[i + 1] = 255 * invertFactor - data[i + 1]; // G
-    data[i + 2] = 255 * invertFactor - data[i + 2]; // B
+    data[i] = clamp(data[i] + invertFactor * (255 - 2 * data[i])); // R
+    data[i + 1] = clamp(data[i + 1] + invertFactor * (255 - 2 * data[i + 1])); // G
+    data[i + 2] = clamp(data[i + 2] + invertFactor * (255 - 2 * data[i + 2]));
 
     // 反转 hue-rotate
     const [r, g, b] = applyHueRotation(
@@ -48,30 +48,26 @@ export const antiInvertImage = (img, width, height) => {
 // 色相旋转函数
 function applyHueRotation(r, g, b, degrees) {
   // RGB -> HSL
-  const [h, s, l] = rgbToHsl(r, g, b);
-
-  let newHue = (h + degrees / 360) % 1;
-  if (newHue < 0) {
-    newHue += 1;
+  let [h, s, l] = rgbToHsl(r, g, b);
+  h = (h + degrees) % 360;
+  if (h < 0) {
+    h += 360;
   }
-
   // HSL -> RGB
-  return hslToRgb(newHue, s, l);
+  return hslToRgb(h, s, l);
 }
 
 function rgbToHsl(r, g, b) {
   r /= 255;
   g /= 255;
   b /= 255;
-
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
   let h;
   let s;
-
+  const l = (max + min) / 2;
   if (max === min) {
-    h = s = 0; // achromatic
+    h = s = 0; // 无色
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -88,9 +84,8 @@ function rgbToHsl(r, g, b) {
       default:
         break;
     }
-    h /= 6;
+    h *= 60;
   }
-
   return [h, s, l];
 }
 
@@ -98,11 +93,10 @@ function hslToRgb(h, s, l) {
   let r;
   let g;
   let b;
-
   if (s === 0) {
-    r = g = b = l; // achromatic
+    r = g = b = l; // 无色
   } else {
-    const hue2rgb = (p, q, t) => {
+    const hue2rgb = function (p, q, t) {
       if (t < 0) {
         t += 1;
       }
@@ -120,25 +114,17 @@ function hslToRgb(h, s, l) {
       }
       return p;
     };
-
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
+    r = hue2rgb(p, q, h / 360 + 1 / 3);
+    g = hue2rgb(p, q, h / 360);
+    b = hue2rgb(p, q, h / 360 - 1 / 3);
   }
-
-  // adjust brightness
-  const brightnessAdjust = 1.2;
-  return [
-    r * 255 * brightnessAdjust,
-    g * 255 * brightnessAdjust,
-    b * 255 * brightnessAdjust,
-  ];
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
 function clamp(value) {
-  return Math.min(255, Math.max(0, value));
+  return Math.max(0, Math.min(255, value));
 }
 
 export const toggleAntiInvertImageSettings = (payload) => {

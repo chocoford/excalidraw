@@ -14,6 +14,7 @@ export const exportElementsToBlob = async (
   elements,
   exportEmbedScene = false,
   withBackground = true,
+  theme = "light",
 ) => {
   const blob = await exportToBlob({
     elements,
@@ -21,6 +22,7 @@ export const exportElementsToBlob = async (
     appState: {
       exportEmbedScene,
       exportBackground: withBackground,
+      theme,
     },
   });
 
@@ -42,6 +44,7 @@ export const exportElementsToSvg = async (
   elements,
   exportEmbedScene = false,
   withBackground = true,
+  theme = "light",
 ) => {
   const svg = await exportToSvg({
     elements,
@@ -49,6 +52,7 @@ export const exportElementsToSvg = async (
     appState: {
       exportEmbedScene,
       exportBackground: withBackground,
+      theme,
     },
   });
   // 创建一个新的 XMLSerializer 实例
