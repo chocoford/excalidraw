@@ -28,3 +28,7 @@
 - Move codes out of hidden in `packages/excalidraw/components/LayerUI.tsx` in line 365-366.
 
 - Hide `LiveCollaborationTrigger` in `excalidraw-app/App.tsx` at line 857.
+
+- Use local fonts in `scripts/woff2/woff2-vite-plugins.js` line 1.
+
+- Disable `Sitemap` plugin in `excalidraw-app/vite.config.mts` at line 57-63.

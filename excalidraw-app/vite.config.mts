@@ -54,13 +54,13 @@ export default defineConfig(({ mode }) => {
       assetsInlineLimit: 0,
     },
     plugins: [
-      Sitemap({
-        hostname: "https://excalidraw.com",
-        outDir: "build",
-        changefreq: "monthly",
-        // its static in public folder
-        generateRobotsTxt: false,
-      }),
+      // Sitemap({
+      //   hostname: "https://excalidraw.com",
+      //   outDir: "build",
+      //   changefreq: "monthly",
+      //   // its static in public folder
+      //   generateRobotsTxt: false,
+      // }),
       woff2BrowserPlugin(),
       react(),
       checker({
