@@ -135,6 +135,13 @@ export const didSetActiveTool = (tool) => {
   }
 };
 
+export const didToggleToolLock = (isLocked) => {
+  sendMessage({
+    event: "didToggleToolLock",
+    data: isLocked,
+  });
+};
+
 const watchExcalidrawState = async () => {
   try {
     console.info("Connect files store done.");

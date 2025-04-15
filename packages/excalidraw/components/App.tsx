@@ -467,6 +467,9 @@ import { wrapText } from "../element/textWrapping";
 import { actionCopyElementLink } from "../actions/actionElementLink";
 import { isElementLink, parseElementLinkFromURL } from "../element/elementLink";
 
+// @ts-ignore
+import { didToggleToolLock } from "../../../excalidraw-app/excalidrawZ/index";
+
 const AppContext = React.createContext<AppClassProperties>(null!);
 const AppPropsContext = React.createContext<AppProps>(null!);
 
@@ -3574,6 +3577,7 @@ class App extends React.Component<AppProps, AppState> {
         },
       };
     });
+    didToggleToolLock(this.state.activeTool.locked);
   };
 
   updateFrameRendering = (

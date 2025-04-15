@@ -1,5 +1,6 @@
 export const keybardEvents = (() => {
   const eventInfo = {};
+  // 0-9
   for (let i = 0; i <= 9; i++) {
     const key = i.toString();
     const keyCode = 48 + i; // '0' 对应的 keyCode 是 48，依次类推
@@ -13,6 +14,7 @@ export const keybardEvents = (() => {
       which: keyCode,
     };
   }
+  // A-Z
   for (let i = 0; i < 26; i++) {
     const letter = String.fromCharCode(65 + i); // 'A' 对应的 ASCII 码是 65，依次类推
     const keyCode = 65 + i; // 'A' 对应的 keyCode 是 65，依次类推
