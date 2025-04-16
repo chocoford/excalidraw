@@ -5583,12 +5583,12 @@ class App extends React.Component<AppProps, AppState> {
         }
         if (!customEvent?.defaultPrevented) {
           const target = isLocalLink(url) ? "_self" : "_blank";
-          const newWindow = window.open(undefined, target);
-          // https://mathiasbynens.github.io/rel-noopener/
-          if (newWindow) {
-            newWindow.opener = null;
-            newWindow.location = url;
-          }
+          window.open(url, target);
+          // // https://mathiasbynens.github.io/rel-noopener/
+          // if (newWindow) {
+          //   newWindow.opener = null;
+          //   newWindow.location = url;
+          // }
         }
       }
     }

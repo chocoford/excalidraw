@@ -6,7 +6,13 @@ export const normalizeLink = (link: string) => {
   if (!link) {
     return link;
   }
-  return sanitizeUrl(sanitizeHTMLAttribute(link));
+  const url = sanitizeUrl(sanitizeHTMLAttribute(link));
+
+  if (!url.match(/^(?:[a-zA-Z]+:\/\/|\/|data:|mailto:)/i)) {
+    return `https://${url}`;
+  }
+
+  return url;
 };
 
 export const isLocalLink = (link: string | null) => {

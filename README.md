@@ -32,3 +32,5 @@
 - Use local fonts in `scripts/woff2/woff2-vite-plugins.js` line 1.
 
 - Disable `Sitemap` plugin in `excalidraw-app/vite.config.mts` at line 57-63.
+
+- Directly open url on click icon: `packages/excalidraw/components/App.tsx` line 5586-5591
