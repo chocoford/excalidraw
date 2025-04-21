@@ -34,3 +34,5 @@
 - Disable `Sitemap` plugin in `excalidraw-app/vite.config.mts` at line 57-63.
 
 - Directly open url on click icon: `packages/excalidraw/components/App.tsx` line 5586-5591
+
+- Support dark `exportToBlob`: `packages/utils/export.ts` line 126-134.

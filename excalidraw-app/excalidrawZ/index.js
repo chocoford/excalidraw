@@ -329,8 +329,8 @@ const onload = () => {
     textarea.focus();
     setTimeout(() => {
       textarea.remove();
-    }, 50);
-  }, 20);
+    }, 150);
+  }, 50);
 };
 
 /**

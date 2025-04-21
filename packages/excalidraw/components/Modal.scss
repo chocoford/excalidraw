@@ -141,6 +141,10 @@
       .Island {
         padding-bottom: 6rem;
       }
+
+      .Modal__content {
+        max-height: calc(100% - 5rem) !important;
+      }
     }
   }
 }
