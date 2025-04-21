@@ -3564,6 +3564,7 @@ class App extends React.Component<AppProps, AppState> {
       );
     }
     this.setState((prevState) => {
+      didToggleToolLock(!prevState.activeTool.locked);
       return {
         activeTool: {
           ...prevState.activeTool,
@@ -3577,7 +3578,6 @@ class App extends React.Component<AppProps, AppState> {
         },
       };
     });
-    didToggleToolLock(this.state.activeTool.locked);
   };
 
   updateFrameRendering = (
