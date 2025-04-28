@@ -36,3 +36,12 @@
 - Directly open url on click icon: `packages/excalidraw/components/App.tsx` line 5586-5591
 
 - Support dark `exportToBlob`: `packages/utils/export.ts` line 126-134.
+
+- Adjust the rendering thickness of freedraw to enhance the writing experience with the Apple Pencil. The code is located in `packages/excalidraw/renderer/renderElement.ts` line 1063. 
+
+  - ```
+    - size: element.strokeWidth * 4.25,
+    + size: element.strokeWidth * 1.8,
+    ```
+
+    
