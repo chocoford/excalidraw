@@ -8,7 +8,7 @@ export const normalizeLink = (link: string) => {
   }
   const url = sanitizeUrl(sanitizeHTMLAttribute(link));
 
-  if (!url.match(/^(?:[a-zA-Z]+:\/\/|\/|data:|mailto:)/i)) {
+  if (!url.match(/^(?:[a-zA-Z0-9_.+-]+:\/\/|\/|data:|mailto:)/i)) {
     return `https://${url}`;
   }
 
