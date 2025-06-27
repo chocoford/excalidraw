@@ -1,23 +1,34 @@
-import { getSelectedElements, isSomeElementSelected } from "../scene";
-import { KEYS } from "../keys";
-import { ToolButton } from "../components/ToolButton";
-import { t } from "../i18n";
-import { register } from "./register";
-import { getNonDeletedElements } from "../element";
-import type { ExcalidrawElement } from "../element/types";
-import type { AppClassProperties, AppState } from "../types";
-import { mutateElement, newElementWith } from "../element/mutateElement";
-import { getElementsInGroup, selectGroupsForSelectedElements } from "../groups";
-import { LinearElementEditor } from "../element/linearElementEditor";
-import { fixBindingsAfterDeletion } from "../element/binding";
+import { KEYS, updateActiveTool } from "@excalidraw/common";
+
+import { getNonDeletedElements } from "@excalidraw/element";
+import { fixBindingsAfterDeletion } from "@excalidraw/element";
+import { LinearElementEditor } from "@excalidraw/element";
+import { newElementWith } from "@excalidraw/element";
+import { getContainerElement } from "@excalidraw/element";
 import {
   isBoundToContainer,
   isElbowArrow,
   isFrameLikeElement,
-} from "../element/typeChecks";
-import { updateActiveTool } from "../utils";
+} from "@excalidraw/element";
+import { getFrameChildren } from "@excalidraw/element";
+
+import {
+  getElementsInGroup,
+  selectGroupsForSelectedElements,
+} from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
+import { t } from "../i18n";
+import { getSelectedElements, isSomeElementSelected } from "../scene";
 import { TrashIcon } from "../components/icons";
-import { StoreAction } from "../store";
+import { ToolButton } from "../components/ToolButton";
+
+import { register } from "./register";
+
+import type { AppClassProperties, AppState } from "../types";
 
 const deleteSelectedElements = (
   elements: readonly ExcalidrawElement[],
@@ -33,15 +44,55 @@ const deleteSelectedElements = (
 
   const selectedElementIds: Record<ExcalidrawElement["id"], true> = {};
 
+  const elementsMap = app.scene.getNonDeletedElementsMap();
+
+  const processedElements = new Set<ExcalidrawElement["id"]>();
+
+  for (const frameId of framesToBeDeleted) {
+    const frameChildren = getFrameChildren(elements, frameId);
+    for (const el of frameChildren) {
+      if (processedElements.has(el.id)) {
+        continue;
+      }
+
+      if (isBoundToContainer(el)) {
+        const containerElement = getContainerElement(el, elementsMap);
+        if (containerElement) {
+          selectedElementIds[containerElement.id] = true;
+        }
+      } else {
+        selectedElementIds[el.id] = true;
+      }
+      processedElements.add(el.id);
+    }
+  }
+
   let shouldSelectEditingGroup = true;
 
   const nextElements = elements.map((el) => {
     if (appState.selectedElementIds[el.id]) {
+      const boundElement = isBoundToContainer(el)
+        ? getContainerElement(el, elementsMap)
+        : null;
+
+      if (el.frameId && framesToBeDeleted.has(el.frameId)) {
+        shouldSelectEditingGroup = false;
+        selectedElementIds[el.id] = true;
+        return el;
+      }
+
+      if (
+        boundElement?.frameId &&
+        framesToBeDeleted.has(boundElement?.frameId)
+      ) {
+        return el;
+      }
+
       if (el.boundElements) {
         el.boundElements.forEach((candidate) => {
           const bound = app.scene.getNonDeletedElementsMap().get(candidate.id);
           if (bound && isElbowArrow(bound)) {
-            mutateElement(bound, {
+            app.scene.mutateElement(bound, {
               startBinding:
                 el.id === bound.startBinding?.elementId
                   ? null
@@ -49,7 +100,6 @@ const deleteSelectedElements = (
               endBinding:
                 el.id === bound.endBinding?.elementId ? null : bound.endBinding,
             });
-            mutateElement(bound, { points: bound.points });
           }
         });
       }
@@ -59,7 +109,9 @@ const deleteSelectedElements = (
     // if deleting a frame, remove the children from it and select them
     if (el.frameId && framesToBeDeleted.has(el.frameId)) {
       shouldSelectEditingGroup = false;
-      selectedElementIds[el.id] = true;
+      if (!isBoundToContainer(el)) {
+        selectedElementIds[el.id] = true;
+      }
       return newElementWith(el, { frameId: null });
     }
 
@@ -189,7 +241,7 @@ export const actionDeleteSelected = register({
             ...nextAppState,
             editingLinearElement: null,
           },
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         };
       }
 
@@ -206,7 +258,7 @@ export const actionDeleteSelected = register({
           : endBindingElement,
       };
 
-      LinearElementEditor.deletePoints(element, selectedPointsIndices);
+      LinearElementEditor.deletePoints(element, app, selectedPointsIndices);
 
       return {
         elements,
@@ -221,14 +273,16 @@ export const actionDeleteSelected = register({
                 : [0],
           },
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       };
     }
+
     let { elements: nextElements, appState: nextAppState } =
       deleteSelectedElements(elements, appState, app);
+
     fixBindingsAfterDeletion(
       nextElements,
-      elements.filter(({ id }) => appState.selectedElementIds[id]),
+      nextElements.filter((el) => el.isDeleted),
     );
 
     nextAppState = handleGroupEditingState(nextAppState, nextElements);
@@ -240,13 +294,14 @@ export const actionDeleteSelected = register({
         activeTool: updateActiveTool(appState, { type: "selection" }),
         multiElement: null,
         activeEmbeddable: null,
+        selectedLinearElement: null,
       },
-      storeAction: isSomeElementSelected(
+      captureUpdate: isSomeElementSelected(
         getNonDeletedElements(elements),
         appState,
       )
-        ? StoreAction.CAPTURE
-        : StoreAction.NONE,
+        ? CaptureUpdateAction.IMMEDIATELY
+        : CaptureUpdateAction.EVENTUALLY,
     };
   },
   keyTest: (event, appState, elements) =>
