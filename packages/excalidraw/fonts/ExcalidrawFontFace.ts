@@ -1,5 +1,5 @@
-import { promiseTry } from "../utils";
-import { LOCAL_FONT_PROTOCOL } from "./FontMetadata";
+import { promiseTry, LOCAL_FONT_PROTOCOL } from "@excalidraw/common";
+
 import { subsetWoff2GlyphsByCodepoints } from "../subset/subset-main";
 
 type DataURL = string;
@@ -9,9 +9,9 @@ export class ExcalidrawFontFace {
   public readonly fontFace: FontFace;
 
   private static readonly ASSETS_FALLBACK_URL = `https://esm.sh/${
-    import.meta.env.VITE_PKG_NAME
-      ? `${import.meta.env.VITE_PKG_NAME}@${import.meta.env.VITE_PKG_VERSION}` // should be provided by vite during package build
-      : "@excalidraw/excalidraw" // fallback to latest package version (i.e. for app)
+    import.meta.env.PKG_NAME
+      ? `${import.meta.env.PKG_NAME}@${import.meta.env.PKG_VERSION}` // is provided during package build
+      : "@excalidraw/excalidraw" // fallback to the latest package version (i.e. for app)
   }/dist/prod/`;
 
   constructor(family: string, uri: string, descriptors?: FontFaceDescriptors) {
