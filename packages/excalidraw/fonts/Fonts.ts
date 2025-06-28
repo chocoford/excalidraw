@@ -24,13 +24,13 @@ import { isTextElement } from "@excalidraw/element";
 import type {
   ExcalidrawElement,
   ExcalidrawTextElement,
-  FontFamilyValues,
 } from "@excalidraw/element/types";
-import { ExcalidrawZFontFaces } from "./ExcalidrawZFont";
 
 import type { ValueOf } from "@excalidraw/common/utility-types";
 
 import type { Scene } from "@excalidraw/element";
+
+import { ExcalidrawZFontFaces } from "./ExcalidrawZFont";
 
 import { CascadiaFontFaces } from "./Cascadia";
 import { ComicShannsFontFaces } from "./ComicShanns";

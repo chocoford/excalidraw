@@ -1,5 +1,5 @@
 import { sendMessage } from "./message";
-import { exportToBlob, exportToSvg } from "../../packages/utils/export";
+import { exportToBlob, exportToSvg } from "../../packages/utils/src";
 import { getRelativeFiles } from "./indexdb+";
 
 /**

@@ -195,8 +195,8 @@ export const actionSaveToActiveFile = register({
       return { captureUpdate: CaptureUpdateAction.EVENTUALLY };
     }
   },
-  // keyTest: (event) =>
-  //   event.key === KEYS.S && event[KEYS.CTRL_OR_CMD] && !event.shiftKey,
+  keyTest: (event) => false,
+  // event.key === KEYS.S && event[KEYS.CTRL_OR_CMD] && !event.shiftKey,
 });
 
 export const actionSaveFileToDisk = register({
