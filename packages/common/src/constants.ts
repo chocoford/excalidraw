@@ -164,7 +164,7 @@ export const FONT_FAMILY_FALLBACKS = {
 };
 
 export function getGenericFontFamilyFallback(
-  fontFamily: number,
+  fontFamily: FontFamilyValues,
 ): keyof typeof FONT_FAMILY_GENERIC_FALLBACKS {
   switch (fontFamily) {
     case FONT_FAMILY.Cascadia:
@@ -177,7 +177,7 @@ export function getGenericFontFamilyFallback(
 }
 
 export const getFontFamilyFallbacks = (
-  fontFamily: number,
+  fontFamily: FontFamilyValues,
 ): Array<keyof typeof FONT_FAMILY_FALLBACKS> => {
   const genericFallbackFont = getGenericFontFamilyFallback(fontFamily);
 

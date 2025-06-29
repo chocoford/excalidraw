@@ -24,6 +24,7 @@ import { isTextElement } from "@excalidraw/element";
 import type {
   ExcalidrawElement,
   ExcalidrawTextElement,
+  FontFamilyValues,
 } from "@excalidraw/element/types";
 
 import type { ValueOf } from "@excalidraw/common/utility-types";
@@ -50,7 +51,7 @@ export class Fonts {
 
   private static _registered:
     | Map<
-        number,
+        FontFamilyValues,
         {
           metadata: FontMetadata;
           fontFaces: ExcalidrawFontFace[];
@@ -271,8 +272,8 @@ export class Fonts {
   }
 
   private static *fontFacesStylesGenerator(
-    families: Array<number>,
-    charsPerFamily: Record<number, Set<string>>,
+    families: Array<FontFamilyValues>,
+    charsPerFamily: Record<FontFamilyValues, Set<string>>,
   ): Generator<Promise<void | readonly [number, string]>> {
     for (const [familyIndex, family] of families.entries()) {
       const { fontFaces, metadata } = Fonts.registered.get(family) ?? {};
@@ -416,7 +417,7 @@ export class Fonts {
           families.add(element.fontFamily);
         }
         return families;
-      }, new Set<number>()),
+      }, new Set<FontFamilyValues>()),
     );
   }
 
@@ -425,8 +426,8 @@ export class Fonts {
    */
   private static getCharsPerFamily(
     elements: ReadonlyArray<ExcalidrawElement>,
-  ): Record<number, Set<string>> {
-    const charsPerFamily: Record<number, Set<string>> = {};
+  ): Record<FontFamilyValues, Set<string>> {
+    const charsPerFamily: Record<FontFamilyValues, Set<string>> = {};
 
     for (const element of elements) {
       if (!isTextElement(element)) {
@@ -450,8 +451,8 @@ export class Fonts {
    * Get characters for a given family.
    */
   private static getCharacters(
-    charsPerFamily: Record<number, Set<string>>,
-    family: number,
+    charsPerFamily: Record<FontFamilyValues, Set<string>>,
+    family: FontFamilyValues,
   ) {
     return charsPerFamily[family]
       ? Array.from(charsPerFamily[family]).join("")

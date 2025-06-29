@@ -977,9 +977,9 @@ export const actionChangeFontFamily = register({
       });
 
       // size is irrelevant, but necessary
-      const fontString = `10px ${getFontFamilyString({
+      const fontString = `10px '${getFontFamilyString({
         fontFamily: nextFontFamily,
-      })}`;
+      })}'`;
       const chars = Array.from(uniqueChars.values()).join();
 
       if (skipFontFaceCheck || window.document.fonts.check(fontString, chars)) {
@@ -1018,7 +1018,7 @@ export const actionChangeFontFamily = register({
   },
   PanelComponent: ({ elements, appState, app, updateData }) => {
     const cachedElementsRef = useRef<ElementsMap>(new Map());
-    const prevSelectedFontFamilyRef = useRef<number | null>(null);
+    const prevSelectedFontFamilyRef = useRef<FontFamilyValues | null>(null);
     // relying on state batching as multiple `FontPicker` handlers could be called in rapid succession and we want to combine them
     const [batchedData, setBatchedData] = useState<ChangeFontFamilyData>({});
     const isUnmounted = useRef(true);

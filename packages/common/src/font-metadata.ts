@@ -32,7 +32,7 @@ export interface FontMetadata {
   fallback?: true;
 }
 
-export const FONT_METADATA: Record<number, FontMetadata> = {
+export const FONT_METADATA: Record<FontFamilyValues, FontMetadata> = {
   [FONT_FAMILY.Excalifont]: {
     metrics: {
       unitsPerEm: 1000,

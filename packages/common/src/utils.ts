@@ -105,6 +105,9 @@ export const getFontFamilyString = ({
         .join("")}`;
     }
   }
+  if (typeof fontFamily === "string") {
+    return fontFamily;
+  }
   return WINDOWS_EMOJI_FALLBACK_FONT;
 };
 

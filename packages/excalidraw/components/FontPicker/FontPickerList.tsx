@@ -41,7 +41,7 @@ import { fontPickerKeyHandler } from "./keyboardNavHandlers";
 import type { JSX } from "react";
 
 export interface FontDescriptor {
-  value: number;
+  value: FontFamilyValues;
   icon: JSX.Element;
   text: string;
   deprecated?: true;
@@ -54,8 +54,8 @@ export interface FontDescriptor {
 interface FontPickerListProps {
   selectedFontFamily: FontFamilyValues | null;
   hoveredFontFamily: FontFamilyValues | null;
-  onSelect: (value: number) => void;
-  onHover: (value: number) => void;
+  onSelect: (value: FontFamilyValues) => void;
+  onHover: (value: FontFamilyValues) => void;
   onLeave: () => void;
   onOpen: () => void;
   onClose: () => void;
@@ -141,14 +141,22 @@ export const FontPickerList = React.memo(
       [allFonts, sceneFamilies],
     );
 
-    const availableFonts = useMemo(
-      () =>
-        allFonts.filter(
+    const availableFonts = useMemo<FontDescriptor[]>(
+      () => [
+        ...allFonts.filter(
           (font) =>
             font.value === 1 ||
             (!sceneFamilies.has(font.value) &&
               (showDeprecatedFonts || !font.deprecated)), // skip deprecated fonts
         ),
+        ...(window as any).excalidrawZHelper.availableFonts.map(
+          (font: string) => ({
+            value: font,
+            icon: FontFamilyNormalIcon,
+            text: font,
+          }),
+        ),
+      ],
       [allFonts, sceneFamilies, showDeprecatedFonts],
     );
 
@@ -244,7 +252,7 @@ export const FontPickerList = React.memo(
         // allow to tab between search and selected font
         tabIndex={font.value === selectedFontFamily ? 0 : -1}
         onClick={(e) => {
-          onSelect(Number(e.currentTarget.value));
+          onSelect(font.value);
         }}
         onMouseMove={() => {
           if (hoveredFont?.value !== font.value) {

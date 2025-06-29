@@ -24,6 +24,7 @@ import {
 } from "./load+save";
 import { exportElementsToBlob, exportElementsToSvg } from "./export";
 import { getIsDark, toggleColorTheme } from "./colorScheme";
+import { setAvailableFonts } from "./font";
 import {
   getExcalidrawCollabInfo,
   openCollabMode,
@@ -444,6 +445,10 @@ window.excalidrawZHelper = {
 
   shouldHideActionsMenu: false,
   toggleActionsMenu,
+
+  // font
+  availableFonts: [],
+  setAvailableFonts,
 
   // collab
   openCollabMode,
