@@ -106,7 +106,7 @@ export const getFontFamilyString = ({
     }
   }
   if (typeof fontFamily === "string") {
-    return fontFamily;
+    return `'${fontFamily}'`;
   }
   return WINDOWS_EMOJI_FALLBACK_FONT;
 };
@@ -119,7 +119,10 @@ export const getFontString = ({
   fontSize: number;
   fontFamily: FontFamilyValues;
 }) => {
-  return `${fontSize}px ${getFontFamilyString({ fontFamily })}` as FontString;
+  const fontString = `${fontSize}px ${getFontFamilyString({
+    fontFamily 
+  })}` as FontString;
+  return fontString;
 };
 
 export const debounce = <T extends any[]>(

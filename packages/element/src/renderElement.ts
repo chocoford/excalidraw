@@ -71,7 +71,6 @@ import type {
   ElementsMap,
 } from "./types";
 
-
 import type { StrokeOptions } from "perfect-freehand";
 import type { RoughCanvas } from "roughjs/bin/canvas";
 
@@ -520,7 +519,9 @@ const drawElementOnCanvas = (
     default: {
       if (isTextElement(element)) {
         const rtl = isRTL(element.text);
-        const shouldTemporarilyAttach = rtl && !context.canvas.isConnected;
+        const shouldTemporarilyAttach =
+          (rtl || typeof element.fontFamily === "string") &&
+          !context.canvas.isConnected;
         if (shouldTemporarilyAttach) {
           // to correctly render RTL text mixed with LTR, we have to append it
           // to the DOM
@@ -598,7 +599,6 @@ const generateElementWithCanvas = (
 
   const containingFrameOpacity =
     getContainingFrame(element, elementsMap)?.opacity || 100;
-
   if (
     !prevElementWithCanvas ||
     shouldRegenerateBecauseZoom ||

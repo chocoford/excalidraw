@@ -21,6 +21,7 @@ import {
   getLineHeight,
   isTransparent,
   reduceToCommonValue,
+  getFontString,
 } from "@excalidraw/common";
 
 import { canBecomePolygon, getNonDeletedElements } from "@excalidraw/element";
@@ -977,9 +978,10 @@ export const actionChangeFontFamily = register({
       });
 
       // size is irrelevant, but necessary
-      const fontString = `10px '${getFontFamilyString({
+      const fontString = getFontString({
+        fontSize: 10,
         fontFamily: nextFontFamily,
-      })}'`;
+      });
       const chars = Array.from(uniqueChars.values()).join();
 
       if (skipFontFaceCheck || window.document.fonts.check(fontString, chars)) {
