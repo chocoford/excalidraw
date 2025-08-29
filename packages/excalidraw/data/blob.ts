@@ -173,11 +173,11 @@ export const loadSceneOrLibraryFromBlob = async (
           { repairBindings: true, refreshDimensions: false },
         ),
       };
-      // } else if (isValidLibrary(data)) {
-      //   return {
-      //     type: MIME_TYPES.excalidrawlib,
-      //     data,
-      //   };
+    } else if (isValidLibrary(data)) {
+      return {
+        type: MIME_TYPES.excalidrawlib,
+        data,
+      };
     }
     throw new Error("Error: invalid file");
   } catch (error: any) {

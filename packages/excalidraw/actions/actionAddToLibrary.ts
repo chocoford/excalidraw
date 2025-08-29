@@ -36,7 +36,7 @@ export const actionAddToLibrary = register({
       created: Date.now(),
     };
     (window as any).excalidrawZHelper.sendMessage({
-      event: "addLibrary",
+      event: "addToLibrary",
       data: theAddedLibraryItem,
     });
     // prevent default...

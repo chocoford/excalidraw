@@ -44,4 +44,5 @@
     + size: element.strokeWidth * 1.8,
     ```
 
-    
+- Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 10397.
+- Return process while user drops `library file` in `packages/excalidraw/components/App.tsx` line 10423.

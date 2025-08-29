@@ -21,6 +21,7 @@ import {
   loadImage,
   saveFile,
   loadLibraryItem,
+  onLoadLibrary,
 } from "./load+save";
 import { exportElementsToBlob, exportElementsToSvg } from "./export";
 import { getIsDark, toggleColorTheme } from "./colorScheme";
@@ -405,6 +406,7 @@ window.excalidrawZHelper = {
   loadImage,
 
   loadLibraryItem,
+  onLoadLibrary,
 
   toggleColorTheme,
   exportImage,
@@ -457,4 +459,5 @@ window.excalidrawZHelper = {
   collaborators: [],
   reportCollaborators,
   updateCollaborators,
+
 };

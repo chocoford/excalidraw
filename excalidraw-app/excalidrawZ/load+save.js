@@ -19,7 +19,7 @@ export const loadFileBuffer = async (buffer) => {
   const file = new File([blob], "file.excalidraw", {
     type: "application/vnd.excalidraw+json",
   });
-  await loadImage(file);
+  await loadFile(file);
 };
 
 /**
@@ -154,4 +154,11 @@ export const loadLibraryItem = (json) => {
   });
   const node = document.querySelector(".excalidraw-container");
   node.dispatchEvent(dropEvent);
+};
+
+export const onLoadLibrary = (libraryData) => {
+  sendMessage({
+    event: "onLoadLibrary",
+    data: libraryData,
+  });
 };

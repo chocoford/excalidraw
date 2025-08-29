@@ -10295,6 +10295,7 @@ class App extends React.Component<AppProps, AppState> {
 
     const libraryJSON = event.dataTransfer.getData(MIME_TYPES.excalidrawlib);
     if (libraryJSON && typeof libraryJSON === "string") {
+      return; // [ExcalidrawZ] Disable loading library from drop.
       try {
         const libraryItems = parseLibraryJSON(libraryJSON);
         this.addElementsFromPasteOrLibrary({
@@ -10309,6 +10310,7 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     if (file) {
+      // [ExcalidrawZ] handle drop libJson from library.
       if (file.name.endsWith("excalidrawlibjson")) {
         const reader = new FileReader();
         reader.onload = () => {
@@ -10324,8 +10326,6 @@ class App extends React.Component<AppProps, AppState> {
         reader.readAsText(file);
         return;
       }
-      // load excalidrawlibJson
-      // if (file.type)
 
       // Attempt to parse an excalidraw/excalidrawlib file
       await this.loadFileToCanvas(file, fileHandle);
@@ -10393,6 +10393,7 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (ret.type === MIME_TYPES.excalidraw) {
+        this.resetScene();
         // restore the fractional indices by mutating elements
         syncInvalidIndices(elements.concat(ret.data.elements));
 
@@ -10418,6 +10419,8 @@ class App extends React.Component<AppProps, AppState> {
           this.resetHistory();
         }, 200);
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
+        (window as any).excalidrawZHelper.onLoadLibrary(ret.data);
+        return; // [ExcalidrawZ] Disable loading library from drop.
         await this.library
           .updateLibrary({
             libraryItems: file,
