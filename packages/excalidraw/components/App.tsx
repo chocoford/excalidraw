@@ -10295,7 +10295,8 @@ class App extends React.Component<AppProps, AppState> {
 
     const libraryJSON = event.dataTransfer.getData(MIME_TYPES.excalidrawlib);
     if (libraryJSON && typeof libraryJSON === "string") {
-      return; // [ExcalidrawZ] Disable loading library from drop.
+      // No need to return. This is drop the library items.
+      // return; // [ExcalidrawZ] Disable loading library from drop.
       try {
         const libraryItems = parseLibraryJSON(libraryJSON);
         this.addElementsFromPasteOrLibrary({

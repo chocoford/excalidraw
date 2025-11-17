@@ -21,21 +21,21 @@ export const toggleToolbarAction = (key) => {
 
   if (key === "text2diagram") {
     withDropdownMenu((container) => {
-      container.children[0]?.children[4]?.click();
+      container.children[0]?.children[5]?.click();
     });
     return;
   }
 
   if (key === "mermaid") {
     withDropdownMenu((container) => {
-      container.children[0]?.children[5]?.click();
+      container.children[0]?.children[6]?.click();
     });
     return;
   }
 
   if (key === "wireframe") {
     withDropdownMenu((container) => {
-      container.children[0]?.children[6]?.click();
+      container.children[0]?.children[7]?.click();
     });
     return;
   }

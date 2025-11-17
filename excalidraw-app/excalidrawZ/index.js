@@ -10,6 +10,7 @@ import {
   connectFileStore,
   getRelativeFiles,
   getAllMedias,
+  insertMedias,
 } from "./indexdb+";
 import { sendMessage } from "./message";
 import { toggleToolbarAction } from "./actions";
@@ -322,46 +323,12 @@ const onload = () => {
   // connect file store
   connectFileStore();
 
-  // pre focus - remove annoying sounds
-  const textarea = document.createElement("textarea");
-  textarea.style.position = "absolute";
-  textarea.style.opacity = "0";
-  document.body.append(textarea);
+  // remove annoying sounds
   setTimeout(() => {
-    textarea.focus();
-    setTimeout(() => {
-      textarea.remove();
-    }, 150);
-  }, 50);
-};
-
-/**
- * Insert files to IndexedDB.
- * @param {string} filesJSONString The files to be inseted in the form fo json stringified string.
- */
-const insertMedias = async (filesJSONString) => {
-  const files = JSON.parse(filesJSONString);
-  console.info("Start insertMedias");
-  return await new Promise((resolve, reject) => {
-    const transaction = filesStoreConnection.transaction(
-      ["files-store"],
-      "readwrite",
-    );
-    const objectStore = transaction.objectStore("files-store");
-    for (const file of files) {
-      objectStore.put(file, file.id);
-    }
-
-    transaction.oncomplete = function () {
-      console.info("All records added successfully!");
-      resolve();
-    };
-
-    transaction.onerror = function (event) {
-      console.error("Transaction error:", event.target.error);
-      reject(event.target.error);
-    };
-  });
+    sendMessage({
+      event: "onBlur",
+    });
+  }, 300);
 };
 
 window.addEventListener("DOMContentLoaded", onload);
@@ -459,5 +426,4 @@ window.excalidrawZHelper = {
   collaborators: [],
   reportCollaborators,
   updateCollaborators,
-
 };

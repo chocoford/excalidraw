@@ -6,19 +6,21 @@ import { getRelativeFiles } from "./indexdb+";
  * Export elements to blob(png).
  * @param {string} id The id used to map message from ExcalidrawZ.
  * @param {any[]} elements Excalidraw elements.
+ * @param {{[id: string]: any} | undefined} files Excalidraw files.
  * @param {boolean} exportEmbedScene
  * @param {boolean} withBackground
  */
 export const exportElementsToBlob = async (
   id,
   elements,
+  files,
   exportEmbedScene = false,
   withBackground = true,
   exportWithDarkMode = false,
 ) => {
   const blob = await exportToBlob({
     elements,
-    files: await getRelativeFiles(elements),
+    files: files || (await getRelativeFiles(elements)),
     appState: {
       exportEmbedScene,
       exportBackground: withBackground,
@@ -42,13 +44,14 @@ export const exportElementsToBlob = async (
 export const exportElementsToSvg = async (
   id,
   elements,
+  files,
   exportEmbedScene = false,
   withBackground = true,
   exportWithDarkMode = false,
 ) => {
   const svg = await exportToSvg({
     elements,
-    files: await getRelativeFiles(elements),
+    files: files || (await getRelativeFiles(elements)),
     appState: {
       exportEmbedScene,
       exportBackground: withBackground,

@@ -15,6 +15,35 @@ export const connectFileStore = async () => {
   });
 };
 
+/**
+ * Insert files to IndexedDB.
+ * @param {string} filesJSONString The files to be inseted in the form fo json stringified string.
+ */
+export const insertMedias = async (filesJSONString) => {
+  const files = JSON.parse(filesJSONString);
+  console.info("Start insertMedias");
+  return await new Promise((resolve, reject) => {
+    const transaction = filesStoreConnection.transaction(
+      ["files-store"],
+      "readwrite",
+    );
+    const objectStore = transaction.objectStore("files-store");
+    for (const file of files) {
+      objectStore.put(file, file.id);
+    }
+
+    transaction.oncomplete = function () {
+      console.info("All records added successfully!");
+      resolve();
+    };
+
+    transaction.onerror = function (event) {
+      console.error("Transaction error:", event.target.error);
+      reject(event.target.error);
+    };
+  });
+};
+
 export const getAllFiles = async () => {
   /**
    * @type {{
