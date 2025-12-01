@@ -42,6 +42,7 @@ import {
   isIframeLikeElement,
   isImageElement,
   isLinearElement,
+  isPdfElement,
   isTextElement,
 } from "./typeChecks";
 import {
@@ -85,7 +86,8 @@ export const shouldTestInside = (element: ExcalidrawElement) => {
     return isDraggableFromInside && isPathALoop(element.points);
   }
 
-  return isDraggableFromInside || isImageElement(element);
+  // PDF and image elements are always draggable from inside
+  return isDraggableFromInside || isImageElement(element) || isPdfElement(element);
 };
 
 export type HitTestArgs = {
@@ -226,6 +228,7 @@ export const intersectElementWithLineSegment = (
   switch (element.type) {
     case "rectangle":
     case "image":
+    case "pdf":
     case "text":
     case "iframe":
     case "embeddable":

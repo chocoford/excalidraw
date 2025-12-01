@@ -1,7 +1,10 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { compressData } from "@excalidraw/excalidraw/data/encode";
 import { newElementWith } from "@excalidraw/element";
-import { isInitializedImageElement } from "@excalidraw/element";
+import {
+  isInitializedImageElement,
+  isInitializedPdfElement,
+} from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import type {
@@ -9,6 +12,7 @@ import type {
   ExcalidrawImageElement,
   FileId,
   InitializedExcalidrawImageElement,
+  InitializedExcalidrawPdfElement,
 } from "@excalidraw/element/types";
 import type {
   BinaryFileData,
@@ -94,7 +98,9 @@ export class FileManager {
 
     for (const element of elements) {
       const fileData =
-        isInitializedImageElement(element) && files[element.fileId];
+        (isInitializedImageElement(element) ||
+          isInitializedPdfElement(element)) &&
+        files[element.fileId];
 
       if (
         fileData &&
@@ -174,7 +180,8 @@ export class FileManager {
   shouldPreventUnload = (elements: readonly ExcalidrawElement[]) => {
     return elements.some((element) => {
       return (
-        isInitializedImageElement(element) &&
+        (isInitializedImageElement(element) ||
+          isInitializedPdfElement(element)) &&
         !element.isDeleted &&
         this.savingFiles.has(element.fileId)
       );
@@ -189,6 +196,19 @@ export class FileManager {
   ): element is InitializedExcalidrawImageElement => {
     return (
       isInitializedImageElement(element) &&
+      this.savedFiles.has(element.fileId) &&
+      element.status === "pending"
+    );
+  };
+
+  /**
+   * helper to determine if PDF element status needs updating
+   */
+  shouldUpdatePdfElementStatus = (
+    element: ExcalidrawElement,
+  ): element is InitializedExcalidrawPdfElement => {
+    return (
+      isInitializedPdfElement(element) &&
       this.savedFiles.has(element.fileId) &&
       element.status === "pending"
     );

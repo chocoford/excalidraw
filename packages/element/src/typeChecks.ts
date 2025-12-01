@@ -16,6 +16,8 @@ import type {
   ExcalidrawFreeDrawElement,
   InitializedExcalidrawImageElement,
   ExcalidrawImageElement,
+  ExcalidrawPdfElement,
+  InitializedExcalidrawPdfElement,
   ExcalidrawTextElementWithContainer,
   ExcalidrawTextContainer,
   ExcalidrawFrameElement,
@@ -44,6 +46,18 @@ export const isImageElement = (
   element: ExcalidrawElement | null,
 ): element is ExcalidrawImageElement => {
   return !!element && element.type === "image";
+};
+
+export const isPdfElement = (
+  element: ExcalidrawElement | null,
+): element is ExcalidrawPdfElement => {
+  return !!element && element.type === "pdf";
+};
+
+export const isInitializedPdfElement = (
+  element: ExcalidrawElement | null,
+): element is InitializedExcalidrawPdfElement => {
+  return !!element && element.type === "pdf" && !!element.fileId;
 };
 
 export const isEmbeddableElement = (
@@ -264,6 +278,7 @@ export const isExcalidrawElement = (
     case "frame":
     case "magicframe":
     case "image":
+    case "pdf":
     case "selection": {
       return true;
     }

@@ -237,6 +237,11 @@ export const generateRoughOptions = (
     }
     case "arrow":
       return options;
+    case "text":
+    case "image":
+    case "pdf":
+      // These types don't use rough.js rendering
+      return options;
     default: {
       throw new Error(`Unimplemented type ${element.type}`);
     }
@@ -823,7 +828,8 @@ const generateElementShape = (
     case "frame":
     case "magicframe":
     case "text":
-    case "image": {
+    case "image":
+    case "pdf": {
       const shape: ElementShapes[typeof element.type] = null;
       // we return (and cache) `null` to make sure we don't regenerate
       // `element.canvas` on rerenders
@@ -919,6 +925,7 @@ export const getElementShape = <Point extends GlobalPoint | LocalPoint>(
     case "magicframe":
     case "embeddable":
     case "image":
+    case "pdf":
     case "iframe":
     case "text":
     case "selection":

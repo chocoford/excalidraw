@@ -251,6 +251,8 @@ export const IMAGE_MIME_TYPES = {
   jfif: "image/jfif",
 } as const;
 
+export const PDF_MIME_TYPE = "application/pdf" as const;
+
 export const MIME_TYPES = {
   text: "text/plain",
   html: "text/html",
@@ -263,6 +265,8 @@ export const MIME_TYPES = {
   "excalidraw.png": "image/png",
   // binary
   binary: "application/octet-stream",
+  // PDF
+  pdf: PDF_MIME_TYPE,
   // image
   ...IMAGE_MIME_TYPES,
 } as const;

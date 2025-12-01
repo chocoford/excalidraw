@@ -160,6 +160,24 @@ export type InitializedExcalidrawImageElement = MarkNonNullable<
   "fileId"
 >;
 
+export type ExcalidrawPdfElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "pdf";
+    fileId: FileId | null;
+    /** whether respective file is persisted */
+    status: "pending" | "saved" | "error";
+    /** current page number (1-indexed) */
+    currentPage: number;
+    /** total number of pages */
+    totalPages: number;
+  }>;
+
+
+export type InitializedExcalidrawPdfElement = MarkNonNullable<
+  ExcalidrawPdfElement,
+  "fileId"
+>;
+
 export type ExcalidrawFrameElement = _ExcalidrawElementBase & {
   type: "frame";
   name: string | null;
@@ -191,6 +209,7 @@ export type ExcalidrawFlowchartNodeElement =
 export type ExcalidrawRectanguloidElement =
   | ExcalidrawRectangleElement
   | ExcalidrawImageElement
+  | ExcalidrawPdfElement
   | ExcalidrawTextElement
   | ExcalidrawFreeDrawElement
   | ExcalidrawIframeLikeElement
@@ -210,6 +229,7 @@ export type ExcalidrawElement =
   | ExcalidrawArrowElement
   | ExcalidrawFreeDrawElement
   | ExcalidrawImageElement
+  | ExcalidrawPdfElement
   | ExcalidrawFrameElement
   | ExcalidrawMagicFrameElement
   | ExcalidrawIframeElement

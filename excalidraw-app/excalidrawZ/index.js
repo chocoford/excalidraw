@@ -34,6 +34,7 @@ import {
   setExcalidrawCollabInfo,
   updateCollaborators,
 } from "./collab";
+import { loadPDFTiles, loadPDFViewer, handlePDFDrop } from "./pdf";
 
 const toggleImageInvertSwitch = (flag) => {
   if (window.excalidrawZHelper.shouldPreventInvertImage === flag) {
@@ -426,4 +427,9 @@ window.excalidrawZHelper = {
   collaborators: [],
   reportCollaborators,
   updateCollaborators,
+
+  // PDF
+  loadPDFTiles,
+  loadPDFViewer,
+  handlePDFDrop,
 };
