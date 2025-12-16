@@ -89,7 +89,14 @@ const generateFileId = async (buffer) => {
  * @returns {Promise<string[]>} - Array of image file IDs
  */
 export const loadPDFTiles = async (pages, options = {}) => {
-  const { x = undefined, y = undefined, gap = 20, direction = "vertical", itemsPerLine = undefined, autoScroll = true } = options;
+  const {
+    x = undefined,
+    y = undefined,
+    gap = 20,
+    direction = "vertical",
+    itemsPerLine = undefined,
+    autoScroll = true,
+  } = options;
 
   try {
     const container = document.querySelector(".excalidraw-container");
@@ -183,7 +190,12 @@ const detectImageMimeType = (buffer) => {
   const bytes = new Uint8Array(buffer);
 
   // PNG signature
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
     return "image/png";
   }
 

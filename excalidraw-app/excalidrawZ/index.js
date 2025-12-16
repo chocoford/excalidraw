@@ -6,7 +6,6 @@ import {
   togglePencilInterationMode,
 } from "./interaction";
 import {
-  filesStoreConnection,
   connectFileStore,
   getRelativeFiles,
   getAllMedias,

@@ -101,14 +101,14 @@ export const MobileMenu = ({
     );
 
     return (
-
       <div
         className="App-toolbar-content"
         style={{
           display: "flex",
           flexDirection: "row",
           justifyContent: "space-between",
-          opacity: 0, pointerEvents: "none"
+          opacity: 0,
+          pointerEvents: "none",
         }}
       >
         {topLeftUI}
@@ -141,6 +141,8 @@ export const MobileMenu = ({
           className="App-bottom-bar"
           style={{
             marginBottom: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN,
+            opacity: "0",
+            position: "absolute",
           }}
         >
           <MobileShapeActions

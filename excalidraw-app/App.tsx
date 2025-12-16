@@ -49,7 +49,11 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { isElementLink } from "@excalidraw/element";
 import { restore, restoreAppState } from "@excalidraw/excalidraw/data/restore";
-import { newElementWith, newPdfElement, newImageElement } from "@excalidraw/element";
+import {
+  newElementWith,
+  newPdfElement,
+  newImageElement,
+} from "@excalidraw/element";
 import { isInitializedImageElement } from "@excalidraw/element";
 import { PDF_MIME_TYPE } from "@excalidraw/common";
 import clsx from "clsx";
@@ -609,14 +613,13 @@ const ExcalidrawWrapper = () => {
 
     const handleCreatePdf = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const { fileId, pdfBuffer, x, y, width, height, totalPages } = customEvent.detail;
-
-      console.log('[PDF] Creating PDF element:', { fileId, totalPages });
+      const { fileId, pdfBuffer, x, y, width, height, totalPages } =
+        customEvent.detail;
 
       // Convert ArrayBuffer to Data URL (better Safari/WebKit compatibility than Blob URL)
       const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
         const bytes = new Uint8Array(buffer);
-        let binary = '';
+        let binary = "";
         for (let i = 0; i < bytes.byteLength; i++) {
           binary += String.fromCharCode(bytes[i]);
         }
@@ -625,8 +628,6 @@ const ExcalidrawWrapper = () => {
 
       const base64 = arrayBufferToBase64(pdfBuffer);
       const dataUrl = `data:application/pdf;base64,${base64}`;
-
-      console.log('[PDF] Data URL created, length:', dataUrl.length);
 
       // Add file to Excalidraw (this will handle storage)
       excalidrawAPI.addFiles([
@@ -658,11 +659,17 @@ const ExcalidrawWrapper = () => {
       });
     };
 
-    const container = document.querySelector('.excalidraw-container');
-    container?.addEventListener('excalidrawz:createPdfElement', handleCreatePdf);
+    const container = document.querySelector(".excalidraw-container");
+    container?.addEventListener(
+      "excalidrawz:createPdfElement",
+      handleCreatePdf,
+    );
 
     return () => {
-      container?.removeEventListener('excalidrawz:createPdfElement', handleCreatePdf);
+      container?.removeEventListener(
+        "excalidrawz:createPdfElement",
+        handleCreatePdf,
+      );
     };
   }, [excalidrawAPI]);
 
@@ -675,9 +682,14 @@ const ExcalidrawWrapper = () => {
     const handleCreateImages = (e: Event) => {
       const customEvent = e as CustomEvent;
       const { pages, options } = customEvent.detail;
-      const { x, y, gap = 20, direction = "vertical", itemsPerLine = undefined, autoScroll = true } = options;
-
-      console.log('[PDF Images] Creating image elements:', { pageCount: pages.length, options });
+      const {
+        x,
+        y,
+        gap = 20,
+        direction = "vertical",
+        itemsPerLine = undefined,
+        autoScroll = true,
+      } = options;
 
       // Calculate insertion position
       let startX = x;
@@ -709,8 +721,14 @@ const ExcalidrawWrapper = () => {
           startY = minY;
         } else {
           // If canvas is empty, use viewport center
-          startX = appState.scrollX + appState.width / 2 / appState.zoom.value - (pages[0]?.width || 0) / 2;
-          startY = appState.scrollY + appState.height / 2 / appState.zoom.value - (pages[0]?.height || 0) / 2;
+          startX =
+            appState.scrollX +
+            appState.width / 2 / appState.zoom.value -
+            (pages[0]?.width || 0) / 2;
+          startY =
+            appState.scrollY +
+            appState.height / 2 / appState.zoom.value -
+            (pages[0]?.height || 0) / 2;
         }
       }
 
@@ -733,7 +751,7 @@ const ExcalidrawWrapper = () => {
           {
             id: fileId as FileId,
             dataURL: dataUrl as any,
-            mimeType: mimeType,
+            mimeType,
             created: Date.now(),
           },
         ]);
@@ -777,18 +795,16 @@ const ExcalidrawWrapper = () => {
             // Continue in same column
             currentY += height + gap;
           }
+        } else if (shouldWrap) {
+          // Wrap to next row
+          currentX = lineStartX;
+          currentY = lineStartY + maxHeightInCurrentLine + gap;
+          lineStartY = currentY;
+          maxWidthInCurrentLine = 0;
+          maxHeightInCurrentLine = 0;
         } else {
-          if (shouldWrap) {
-            // Wrap to next row
-            currentX = lineStartX;
-            currentY = lineStartY + maxHeightInCurrentLine + gap;
-            lineStartY = currentY;
-            maxWidthInCurrentLine = 0;
-            maxHeightInCurrentLine = 0;
-          } else {
-            // Continue in same row
-            currentX += width + gap;
-          }
+          // Continue in same row
+          currentX += width + gap;
         }
       });
 
@@ -810,11 +826,17 @@ const ExcalidrawWrapper = () => {
       }
     };
 
-    const container = document.querySelector('.excalidraw-container');
-    container?.addEventListener('excalidrawz:createImageElements', handleCreateImages);
+    const container = document.querySelector(".excalidraw-container");
+    container?.addEventListener(
+      "excalidrawz:createImageElements",
+      handleCreateImages,
+    );
 
     return () => {
-      container?.removeEventListener('excalidrawz:createImageElements', handleCreateImages);
+      container?.removeEventListener(
+        "excalidrawz:createImageElements",
+        handleCreateImages,
+      );
     };
   }, [excalidrawAPI]);
 
