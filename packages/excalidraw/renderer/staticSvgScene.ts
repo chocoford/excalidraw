@@ -575,7 +575,7 @@ const renderElementToSvg = (
             "clipPath",
           );
           clipPath.id = `image-clipPath-${element.id}`;
-
+          clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
           const clipRect = svgRoot.ownerDocument!.createElementNS(
             SVG_NS,
             "rect",
@@ -584,6 +584,10 @@ const renderElementToSvg = (
             Math.min(element.width, element.height),
             element,
           );
+          const clipOffsetX = element.crop ? normalizedCropX : 0;
+          const clipOffsetY = element.crop ? normalizedCropY : 0;
+          clipRect.setAttribute("x", `${clipOffsetX}`);
+          clipRect.setAttribute("y", `${clipOffsetY}`);
           clipRect.setAttribute("width", `${element.width}`);
           clipRect.setAttribute("height", `${element.height}`);
           clipRect.setAttribute("rx", `${radius}`);
