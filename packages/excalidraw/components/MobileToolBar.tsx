@@ -193,6 +193,7 @@ export const MobileToolBar = ({
   return (
     <div
       className="mobile-toolbar"
+      style={{ opacity: "0", position: "absolute" }}
       ref={(div) => {
         if (div) {
           setToolbarWidth(div.getBoundingClientRect().width);
