@@ -16,6 +16,7 @@ import {
   newImageElement,
   newLinearElement,
   newMagicFrameElement,
+  newPdfElement,
   newTextElement,
 } from "@excalidraw/element";
 
@@ -200,9 +201,11 @@ export class API {
       : never;
     points?: T extends "arrow" | "line" | "freedraw" ? readonly LocalPoint[] : never;
     locked?: boolean;
-    fileId?: T extends "image" ? string : never;
-    scale?: T extends "image" ? ExcalidrawImageElement["scale"] : never;
-    status?: T extends "image" ? ExcalidrawImageElement["status"] : never;
+    fileId?: T extends "image" | "pdf" ? string : never;
+    scale?: T extends "image" ? [number, number] : never;
+    status?: T extends "image" | "pdf" ? "pending" | "saved" | "error" : never;
+    currentPage?: T extends "pdf" ? number : never;
+    totalPages?: T extends "pdf" ? number : never;
     startBinding?: T extends "arrow"
       ? ExcalidrawArrowElement["startBinding"] | ExcalidrawElbowArrowElement["startBinding"]
       : never;
@@ -353,6 +356,18 @@ export class API {
           fileId: (rest.fileId as string as FileId) ?? null,
           status: rest.status || "saved",
           scale: rest.scale || [1, 1],
+        });
+        break;
+      case "pdf":
+        element = newPdfElement({
+          ...base,
+          width,
+          height,
+          type,
+          fileId: (rest.fileId as string as FileId) ?? null,
+          status: rest.status || "saved",
+          currentPage: rest.currentPage || 1,
+          totalPages: rest.totalPages || 1,
         });
         break;
       case "frame":

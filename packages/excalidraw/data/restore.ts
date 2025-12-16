@@ -311,6 +311,13 @@ const restoreElement = (
         scale: element.scale || [1, 1],
         crop: element.crop ?? null,
       });
+    case "pdf":
+      return restoreElementWithProperties(element, {
+        status: element.status || "pending",
+        fileId: element.fileId,
+        currentPage: element.currentPage ?? 1,
+        totalPages: element.totalPages ?? 1,
+      });
     case "line":
     // @ts-ignore LEGACY type
     // eslint-disable-next-line no-fallthrough

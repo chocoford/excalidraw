@@ -2,7 +2,7 @@
 // ExcalidrawImageElement & related helpers
 // -----------------------------------------------------------------------------
 
-import { MIME_TYPES, SVG_NS } from "@excalidraw/common";
+import { MIME_TYPES, PDF_MIME_TYPE, SVG_NS } from "@excalidraw/common";
 
 import type {
   AppClassProperties,
@@ -53,7 +53,7 @@ export const updateImageCache = async ({
         return promises.concat(
           (async () => {
             try {
-              if (fileData.mimeType === MIME_TYPES.binary) {
+              if (fileData.mimeType === MIME_TYPES.binary || fileData.mimeType === PDF_MIME_TYPE) {
                 throw new Error("Only images can be added to ImageCache");
               }
 

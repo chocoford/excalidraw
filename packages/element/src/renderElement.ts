@@ -516,6 +516,29 @@ const drawElementOnCanvas = (
       }
       break;
     }
+    case "pdf": {
+      // PDF elements are rendered as placeholders on canvas
+      // The actual interactive content is displayed via PdfOverlay component
+      context.save();
+      context.fillStyle = "#f0f0f0";
+      context.fillRect(0, 0, element.width, element.height);
+
+      // Draw PDF icon placeholder
+      context.strokeStyle = "#999";
+      context.lineWidth = 2;
+      context.strokeRect(0, 0, element.width, element.height);
+
+      // Draw text label
+      context.fillStyle = "#666";
+      context.font = "14px sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      const labelText = `PDF (Page ${element.currentPage}/${element.totalPages})`;
+      context.fillText(labelText, element.width / 2, element.height / 2);
+
+      context.restore();
+      break;
+    }
     default: {
       if (isTextElement(element)) {
         const rtl = isRTL(element.text);
@@ -857,7 +880,8 @@ export const renderElement = (
     case "image":
     case "text":
     case "iframe":
-    case "embeddable": {
+    case "embeddable":
+    case "pdf": {
       // TODO investigate if we can do this in situ. Right now we need to call
       // beforehand because math helpers (such as getElementAbsoluteCoords)
       // rely on existing shapes

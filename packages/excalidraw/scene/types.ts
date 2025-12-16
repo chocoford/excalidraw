@@ -154,6 +154,7 @@ export type ElementShapes = {
   line: Drawable[];
   text: null;
   image: null;
+  pdf: null;
   frame: null;
   magicframe: null;
 };

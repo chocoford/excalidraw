@@ -41,6 +41,7 @@ import {
   LINE_CONFIRM_THRESHOLD,
   MAX_ALLOWED_FILE_BYTES,
   MIME_TYPES,
+  PDF_MIME_TYPE,
   MQ_MAX_HEIGHT_LANDSCAPE,
   MQ_MAX_WIDTH_LANDSCAPE,
   MQ_MAX_WIDTH_PORTRAIT,
@@ -144,6 +145,7 @@ import {
   isUsingAdaptiveRadius,
   isIframeElement,
   isIframeLikeElement,
+  isPdfElement,
   isMagicFrameElement,
   isTextBindableContainer,
   isElbowArrow,
@@ -255,6 +257,7 @@ import type {
   IframeData,
   ExcalidrawIframeElement,
   ExcalidrawEmbeddableElement,
+  ExcalidrawPdfElement,
   Ordered,
   MagicGenerationData,
   ExcalidrawArrowElement,
@@ -998,10 +1001,13 @@ class App extends React.Component<AppProps, AppState> {
     const embeddableElements = this.scene
       .getNonDeletedElements()
       .filter(
-        (el): el is Ordered<NonDeleted<ExcalidrawIframeLikeElement>> =>
+        (el): el is Ordered<
+          NonDeleted<ExcalidrawIframeLikeElement | ExcalidrawPdfElement>
+        > =>
           (isEmbeddableElement(el) &&
             this.embedsValidationStatus.get(el.id) === true) ||
-          isIframeElement(el),
+          isIframeElement(el) ||
+          isPdfElement(el),
       );
 
     return (
@@ -1244,30 +1250,56 @@ class App extends React.Component<AppProps, AppState> {
                     padding: `${el.strokeWidth}px`,
                   }}
                 >
-                  {(isEmbeddableElement(el)
-                    ? this.props.renderEmbeddable?.(el, this.state)
-                    : null) ?? (
-                    <iframe
-                      ref={(ref) => this.cacheEmbeddableRef(el, ref)}
-                      className="excalidraw__embeddable"
-                      srcDoc={
-                        src?.type === "document"
-                          ? src.srcdoc(this.state.theme)
-                          : undefined
-                      }
-                      src={
-                        src?.type !== "document" ? src?.link ?? "" : undefined
-                      }
-                      // https://stackoverflow.com/q/18470015
-                      scrolling="no"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      title="Excalidraw Embedded Content"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen={true}
-                      sandbox={`${
-                        src?.sandbox?.allowSameOrigin ? "allow-same-origin" : ""
-                      } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
-                    />
+                  {isPdfElement(el) ? (
+                    // PDF rendering
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        backgroundColor: "#525659",
+                      }}
+                    >
+                      <iframe
+                        className="excalidraw__pdf"
+                        src={
+                          el.fileId ? this.files[el.fileId]?.dataURL ?? "" : ""
+                        }
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          border: "none",
+                        }}
+                        title="PDF Viewer"
+                      />
+                    </div>
+                  ) : (
+                    (isEmbeddableElement(el)
+                      ? this.props.renderEmbeddable?.(el, this.state)
+                      : null) ?? (
+                      <iframe
+                        ref={(ref) => this.cacheEmbeddableRef(el, ref)}
+                        className="excalidraw__embeddable"
+                        srcDoc={
+                          src?.type === "document"
+                            ? src.srcdoc(this.state.theme)
+                            : undefined
+                        }
+                        src={
+                          src?.type !== "document" ? src?.link ?? "" : undefined
+                        }
+                        // https://stackoverflow.com/q/18470015
+                        scrolling="no"
+                        referrerPolicy="no-referrer-when-downgrade"
+                        title="Excalidraw Embedded Content"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen={true}
+                        sandbox={`${
+                          src?.sandbox?.allowSameOrigin
+                            ? "allow-same-origin"
+                            : ""
+                        } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
+                      />
+                    )
                   )}
                 </div>
               </div>
@@ -10246,6 +10278,29 @@ class App extends React.Component<AppProps, AppState> {
     );
 
     try {
+      // [ExcalidrawZ] Handle PDF file drop
+      if (file?.type === PDF_MIME_TYPE) {
+        try {
+          // Call ExcalidrawZ helper to handle PDF drop
+          if ((window as any).excalidrawZHelper?.handlePDFDrop) {
+            await (window as any).excalidrawZHelper.handlePDFDrop(
+              file,
+              sceneX,
+              sceneY,
+            );
+          } else {
+            throw new Error('ExcalidrawZ PDF handler not available');
+          }
+
+          return;
+        } catch (error: any) {
+          return this.setState({
+            isLoading: false,
+            errorMessage: error.message || 'Failed to process PDF file',
+          });
+        }
+      }
+
       // if image tool not supported, don't show an error here and let it fall
       // through so we still support importing scene data from images. If no
       // scene data encoded, we'll show an error then

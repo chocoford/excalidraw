@@ -121,7 +121,10 @@ class Portal {
     const newElements = this.collab.excalidrawAPI
       .getSceneElementsIncludingDeleted()
       .map((element) => {
-        if (this.collab.fileManager.shouldUpdateImageElementStatus(element)) {
+        if (
+          this.collab.fileManager.shouldUpdateImageElementStatus(element) ||
+          this.collab.fileManager.shouldUpdatePdfElementStatus(element)
+        ) {
           isChanged = true;
           // this will signal collaborators to pull image data from server
           // (using mutation instead of newElementWith otherwise it'd break

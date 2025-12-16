@@ -3,6 +3,7 @@ import type {
   UserIdleState,
   throttleRAF,
   MIME_TYPES,
+  PDF_MIME_TYPE,
 } from "@excalidraw/common";
 
 import type { SuggestedBinding } from "@excalidraw/element";
@@ -27,6 +28,7 @@ import type {
   Theme,
   StrokeRoundness,
   ExcalidrawEmbeddableElement,
+  ExcalidrawPdfElement,
   ExcalidrawMagicFrameElement,
   ExcalidrawFrameLikeElement,
   ExcalidrawElementType,
@@ -111,6 +113,7 @@ export type DataURL = string & { _brand: "DataURL" };
 export type BinaryFileData = {
   mimeType:
     | ValueOf<typeof IMAGE_MIME_TYPES>
+    | typeof PDF_MIME_TYPE
     // future user or unknown file type
     | typeof MIME_TYPES.binary;
   id: FileId;

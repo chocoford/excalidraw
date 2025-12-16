@@ -49,8 +49,9 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { isElementLink } from "@excalidraw/element";
 import { restore, restoreAppState } from "@excalidraw/excalidraw/data/restore";
-import { newElementWith } from "@excalidraw/element";
+import { newElementWith, newPdfElement, newImageElement } from "@excalidraw/element";
 import { isInitializedImageElement } from "@excalidraw/element";
+import { PDF_MIME_TYPE } from "@excalidraw/common";
 import clsx from "clsx";
 import {
   parseLibraryTokensFromUrl,
@@ -63,6 +64,7 @@ import type {
   FileId,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
+  ExcalidrawImageElement,
 } from "@excalidraw/element/types";
 import type {
   AppState,
@@ -599,6 +601,223 @@ const ExcalidrawWrapper = () => {
     };
   }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode]);
 
+  // PDF viewer event listener
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const handleCreatePdf = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { fileId, pdfBuffer, x, y, width, height, totalPages } = customEvent.detail;
+
+      console.log('[PDF] Creating PDF element:', { fileId, totalPages });
+
+      // Convert ArrayBuffer to Data URL (better Safari/WebKit compatibility than Blob URL)
+      const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+      };
+
+      const base64 = arrayBufferToBase64(pdfBuffer);
+      const dataUrl = `data:application/pdf;base64,${base64}`;
+
+      console.log('[PDF] Data URL created, length:', dataUrl.length);
+
+      // Add file to Excalidraw (this will handle storage)
+      excalidrawAPI.addFiles([
+        {
+          id: fileId as FileId,
+          dataURL: dataUrl as any, // DataURL brand type
+          mimeType: PDF_MIME_TYPE,
+          created: Date.now(),
+        },
+      ]);
+
+      // Create element
+      const element = newPdfElement({
+        type: "pdf",
+        fileId: fileId as FileId,
+        x,
+        y,
+        width,
+        height,
+        totalPages,
+        currentPage: 1,
+        status: "saved",
+      });
+
+      // Add to scene
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      excalidrawAPI.updateScene({
+        elements: [...currentElements, element],
+      });
+    };
+
+    const container = document.querySelector('.excalidraw-container');
+    container?.addEventListener('excalidrawz:createPdfElement', handleCreatePdf);
+
+    return () => {
+      container?.removeEventListener('excalidrawz:createPdfElement', handleCreatePdf);
+    };
+  }, [excalidrawAPI]);
+
+  // PDF as images batch event listener
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const handleCreateImages = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { pages, options } = customEvent.detail;
+      const { x, y, gap = 20, direction = "vertical", itemsPerLine = undefined, autoScroll = true } = options;
+
+      console.log('[PDF Images] Creating image elements:', { pageCount: pages.length, options });
+
+      // Calculate insertion position
+      let startX = x;
+      let startY = y;
+
+      if (startX === undefined || startY === undefined) {
+        // Auto-find empty space
+        const appState = excalidrawAPI.getAppState();
+        const elements = excalidrawAPI.getSceneElements();
+
+        // Calculate the bounds of all existing elements
+        let maxX = 0;
+        let maxY = 0;
+        let minX = 0;
+        let minY = 0;
+
+        if (elements.length > 0) {
+          elements.forEach((el) => {
+            const right = el.x + el.width;
+            const bottom = el.y + el.height;
+            maxX = Math.max(maxX, right);
+            maxY = Math.max(maxY, bottom);
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+          });
+
+          // Place PDF to the right of existing content with some padding
+          startX = maxX + 100;
+          startY = minY;
+        } else {
+          // If canvas is empty, use viewport center
+          startX = appState.scrollX + appState.width / 2 / appState.zoom.value - (pages[0]?.width || 0) / 2;
+          startY = appState.scrollY + appState.height / 2 / appState.zoom.value - (pages[0]?.height || 0) / 2;
+        }
+      }
+
+      let currentX = startX;
+      let currentY = startY;
+      const newElements: ExcalidrawImageElement[] = [];
+
+      // Track max dimensions for wrapping
+      let maxWidthInCurrentLine = 0;
+      let maxHeightInCurrentLine = 0;
+      let lineStartX = startX;
+      let lineStartY = startY;
+
+      // Add all files and create elements
+      pages.forEach((page: any, index: number) => {
+        const { fileId, dataUrl, width, height, mimeType } = page;
+
+        // Add file to Excalidraw
+        excalidrawAPI.addFiles([
+          {
+            id: fileId as FileId,
+            dataURL: dataUrl as any,
+            mimeType: mimeType,
+            created: Date.now(),
+          },
+        ]);
+
+        // Create image element
+        const element = newImageElement({
+          type: "image",
+          x: currentX,
+          y: currentY,
+          width,
+          height,
+          fileId: fileId as FileId,
+          status: "saved",
+        });
+
+        newElements.push(element);
+
+        // Track max dimensions in current line
+        if (direction === "vertical") {
+          maxWidthInCurrentLine = Math.max(maxWidthInCurrentLine, width);
+          maxHeightInCurrentLine = Math.max(maxHeightInCurrentLine, height);
+        } else {
+          maxWidthInCurrentLine = Math.max(maxWidthInCurrentLine, width);
+          maxHeightInCurrentLine = Math.max(maxHeightInCurrentLine, height);
+        }
+
+        // Update position for next page
+        const isLastItem = index === pages.length - 1;
+        const itemInLine = (index + 1) % (itemsPerLine || pages.length);
+        const shouldWrap = itemsPerLine && itemInLine === 0 && !isLastItem;
+
+        if (direction === "vertical") {
+          if (shouldWrap) {
+            // Wrap to next column
+            currentX = lineStartX + maxWidthInCurrentLine + gap;
+            currentY = lineStartY;
+            lineStartX = currentX;
+            maxWidthInCurrentLine = 0;
+            maxHeightInCurrentLine = 0;
+          } else {
+            // Continue in same column
+            currentY += height + gap;
+          }
+        } else {
+          if (shouldWrap) {
+            // Wrap to next row
+            currentX = lineStartX;
+            currentY = lineStartY + maxHeightInCurrentLine + gap;
+            lineStartY = currentY;
+            maxWidthInCurrentLine = 0;
+            maxHeightInCurrentLine = 0;
+          } else {
+            // Continue in same row
+            currentX += width + gap;
+          }
+        }
+      });
+
+      // Add all elements to scene
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      excalidrawAPI.updateScene({
+        elements: [...currentElements, ...newElements],
+      });
+
+      // Auto-scroll viewport to inserted content using Excalidraw's built-in API
+      if (autoScroll && newElements.length > 0) {
+        setTimeout(() => {
+          excalidrawAPI.scrollToContent(newElements, {
+            fitToContent: true,
+            animate: true,
+            duration: 300,
+          });
+        }, 100);
+      }
+    };
+
+    const container = document.querySelector('.excalidraw-container');
+    container?.addEventListener('excalidrawz:createImageElements', handleCreateImages);
+
+    return () => {
+      container?.removeEventListener('excalidrawz:createImageElements', handleCreateImages);
+    };
+  }, [excalidrawAPI]);
+
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
       LocalData.flushSave();
@@ -654,7 +873,8 @@ const ExcalidrawWrapper = () => {
             .getSceneElementsIncludingDeleted()
             .map((element) => {
               if (
-                LocalData.fileStorage.shouldUpdateImageElementStatus(element)
+                LocalData.fileStorage.shouldUpdateImageElementStatus(element) ||
+                LocalData.fileStorage.shouldUpdatePdfElementStatus(element)
               ) {
                 const newElement = newElementWith(element, { status: "saved" });
                 if (newElement !== element) {
@@ -881,6 +1101,7 @@ const ExcalidrawWrapper = () => {
             excalidrawAPI?.scrollToContent(element.link, { animate: true });
           }
         }}
+        validateEmbeddable={true}
       >
         <AppMainMenu
           onCollabDialogOpen={onCollabDialogOpen}

@@ -176,6 +176,40 @@ const renderElementToSvg = (
       addToRoot(g || node, element);
       break;
     }
+    case "pdf": {
+      // Render PDF as a simple placeholder rectangle
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${offsetY || 0}) rotate(${degree} ${cx} ${cy})`,
+      );
+      rect.setAttribute("width", `${element.width}px`);
+      rect.setAttribute("height", `${element.height}px`);
+      rect.setAttribute("fill", "#f0f0f0");
+      rect.setAttribute("stroke", "#999");
+      rect.setAttribute("stroke-width", "2");
+      if (opacity !== 1) {
+        rect.setAttribute("opacity", `${opacity}`);
+      }
+
+      // Add text label
+      const text = document.createElementNS(SVG_NS, "text");
+      text.textContent = `PDF (Page ${element.currentPage}/${element.totalPages})`;
+      text.setAttribute("x", `${element.width / 2}`);
+      text.setAttribute("y", `${element.height / 2}`);
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("dominant-baseline", "middle");
+      text.setAttribute("font-size", "14px");
+      text.setAttribute("fill", "#666");
+      text.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${offsetY || 0}) rotate(${degree} ${cx} ${cy})`,
+      );
+
+      addToRoot(rect, element);
+      addToRoot(text, element);
+      break;
+    }
     case "iframe":
     case "embeddable": {
       // render placeholder rectangle

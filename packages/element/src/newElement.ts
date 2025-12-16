@@ -30,6 +30,7 @@ import { isLineElement } from "./typeChecks";
 import type {
   ExcalidrawElement,
   ExcalidrawImageElement,
+  ExcalidrawPdfElement,
   ExcalidrawTextElement,
   ExcalidrawLinearElement,
   ExcalidrawGenericElement,
@@ -545,5 +546,24 @@ export const newImageElement = (
     fileId: opts.fileId ?? null,
     scale: opts.scale ?? [1, 1],
     crop: opts.crop ?? null,
+  };
+};
+
+export const newPdfElement = (
+  opts: {
+    type: ExcalidrawPdfElement["type"];
+    status?: ExcalidrawPdfElement["status"];
+    fileId?: ExcalidrawPdfElement["fileId"];
+    currentPage?: ExcalidrawPdfElement["currentPage"];
+    totalPages?: ExcalidrawPdfElement["totalPages"];
+  } & ElementConstructorOpts,
+): NonDeleted<ExcalidrawPdfElement> => {
+  return {
+    ..._newElementBase<ExcalidrawPdfElement>("pdf", opts),
+    strokeColor: "transparent",
+    status: opts.status ?? "pending",
+    fileId: opts.fileId ?? null,
+    currentPage: opts.currentPage ?? 1,
+    totalPages: opts.totalPages ?? 1,
   };
 };
