@@ -34,6 +34,11 @@ import {
   updateCollaborators,
 } from "./collab";
 import { loadPDFTiles, loadPDFViewer, handlePDFDrop } from "./pdf";
+import {
+  getUserSettings,
+  applyUserSettings,
+  startSettingsPolling,
+} from "./userSettings";
 
 const toggleImageInvertSwitch = (flag) => {
   if (window.excalidrawZHelper.shouldPreventInvertImage === flag) {
@@ -167,14 +172,15 @@ const watchExcalidrawState = async () => {
         sendMessage({
           event: "onStateChanged",
           data: {
-            state,
             data: {
               dataString: JSON.stringify({
                 elements,
+                appState: state,
                 // files: filesDict,
               }),
               elements,
               files: filesDict,
+              appState: state,
             },
           },
         });
@@ -323,6 +329,9 @@ const onload = () => {
   // connect file store
   connectFileStore();
 
+  // start user settings polling and sync
+  startSettingsPolling(2000);
+
   // remove annoying sounds
   setTimeout(() => {
     sendMessage({
@@ -431,4 +440,8 @@ window.excalidrawZHelper = {
   loadPDFTiles,
   loadPDFViewer,
   handlePDFDrop,
+
+  // User Settings
+  getUserSettings,
+  applyUserSettings,
 };

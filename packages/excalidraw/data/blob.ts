@@ -162,7 +162,10 @@ export const loadSceneOrLibraryFromBlob = async (
               theme: localAppState?.theme,
               fileHandle: fileHandle || blob.handle || null,
               ...cleanAppStateForExport(data.appState || {}),
-              ...(localAppState
+              // [ExcalidrawZ] Only calculate scroll center if viewport is not provided in the file
+              ...(localAppState &&
+                (data.appState?.scrollX === undefined ||
+                  data.appState?.scrollY === undefined)
                 ? calculateScrollCenter(data.elements || [], localAppState)
                 : {}),
             },

@@ -8,6 +8,12 @@ interface Window {
   gtag: Function;
   sa_event: Function;
   fathom: { trackEvent: Function };
+  excalidrawZHelper?: {
+    sendMessage: (payload: { event: string; data?: any }) => void;
+    currentFileId?: string;
+    getUserSettings: () => Record<string, any> | null;
+    applyUserSettings: (settings: Record<string, any>) => void;
+  };
 }
 
 interface CanvasRenderingContext2D {

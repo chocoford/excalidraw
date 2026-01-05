@@ -4,12 +4,44 @@ import { getRelativeFiles } from "./indexdb+";
 /**
  *
  * @param {number[]} buffer
+ * @param {string} fileId - Optional file identifier to track if loading the same file
  */
-export const loadFileBuffer = async (buffer) => {
+export const loadFileBuffer = async (buffer, fileId) => {
   const uint8Array = new Uint8Array(buffer);
   const jsonString = new TextDecoder("utf-8").decode(uint8Array);
   const content = JSON.parse(jsonString);
   console.info("loadFileBuffer", buffer, jsonString, content);
+
+  // Check if loading the same file to preserve viewport
+  const isSameFile = fileId && window.excalidrawZHelper.currentFileId === fileId;
+
+  if (isSameFile) {
+    // Save current viewport position and merge into content
+    const state = JSON.parse(localStorage.getItem("excalidraw-state") || "{}");
+    const savedViewport = {
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+      zoom: state.zoom,
+    };
+    console.info("[ExcalidrawZ] Preserving viewport for same file:", {
+      fileId,
+      savedViewport,
+      originalAppState: content.appState,
+    });
+    content.appState = {
+      ...content.appState,
+      ...savedViewport,
+    };
+  } else {
+    console.info("[ExcalidrawZ] Loading different file:", {
+      newFileId: fileId,
+      currentFileId: window.excalidrawZHelper.currentFileId,
+    });
+  }
+
+  // Update current file ID
+  window.excalidrawZHelper.currentFileId = fileId;
+
   const files = await getRelativeFiles(content.elements);
   content.files = { ...content.files, ...files };
   const blob = new Blob([JSON.stringify(content)], {
@@ -46,29 +78,26 @@ export const loadFileString = async (dataString) => {
  * @param {File} file
  */
 export const loadFile = async (file) => {
-  function FakeDataTransfer(file) {
-    this.dropEffect = "all";
-    this.effectAllowed = "all";
-    this.items = [{ getAsFileSystemHandle: async () => null }];
-    this.types = ["Files"];
-    this.getData = function () {
-      return file;
-    };
-    this.files = {
-      item: () => {
-        return file;
-      },
-    };
-  }
+  // Use native DataTransfer API for better compatibility
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
 
-  const fakeDropEvent = new DragEvent("drop", { bubbles: true });
-  fakeDropEvent.simulated = true;
+  const fakeDropEvent = new DragEvent("drop", {
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // Set dataTransfer using defineProperty for better compatibility
   Object.defineProperty(fakeDropEvent, "dataTransfer", {
-    value: new FakeDataTransfer(file),
+    value: dataTransfer,
   });
 
   const node = document.querySelector(".excalidraw-container");
-  node.dispatchEvent(fakeDropEvent);
+  if (node) {
+    node.dispatchEvent(fakeDropEvent);
+  } else {
+    console.warn("未找到 .excalidraw-container 元素");
+  }
 };
 
 export const loadImageBuffer = async (buffer, type) => {
@@ -129,14 +158,22 @@ export const loadImage = async (image) => {
 };
 
 export const saveFile = () => {
-  const data = localStorage.getItem("excalidraw");
+  const elementsData = localStorage.getItem("excalidraw");
+  const appStateData = localStorage.getItem("excalidraw-state");
   try {
-    // data = JSON.parse(data);
+    const elements = JSON.parse(elementsData);
+    const appState = JSON.parse(appStateData);
+    const completeData = JSON.stringify({
+      elements,
+      appState,
+    });
     sendMessage({
       event: "saveFileDone",
-      data,
+      data: completeData,
     });
-  } catch {}
+  } catch (error) {
+    console.error("Failed to save file:", error);
+  }
 };
 
 export const loadLibraryItem = (json) => {

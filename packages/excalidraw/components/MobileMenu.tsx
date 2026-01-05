@@ -141,8 +141,6 @@ export const MobileMenu = ({
           className="App-bottom-bar"
           style={{
             marginBottom: SCROLLBAR_WIDTH + SCROLLBAR_MARGIN,
-            opacity: "0",
-            position: "absolute",
           }}
         >
           <MobileShapeActions
@@ -153,7 +151,10 @@ export const MobileMenu = ({
             setAppState={setAppState}
           />
 
-          <Island className="App-toolbar">
+          <Island
+            className="App-toolbar"
+            style={{ opacity: "0", marginBottom: '20px' }}
+          >
             {!appState.viewModeEnabled &&
               appState.openDialog?.name !== "elementLinkSelector" &&
               renderToolbar()}

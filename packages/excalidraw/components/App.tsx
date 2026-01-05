@@ -1359,7 +1359,9 @@ class App extends React.Component<AppProps, AppState> {
     const embeddableElements = this.scene
       .getNonDeletedElements()
       .filter(
-        (el): el is Ordered<
+        (
+          el,
+        ): el is Ordered<
           NonDeleted<ExcalidrawIframeLikeElement | ExcalidrawPdfElement>
         > =>
           (isEmbeddableElement(el) &&
@@ -1615,6 +1617,7 @@ class App extends React.Component<AppProps, AppState> {
                         width: "100%",
                         height: "100%",
                         backgroundColor: "#525659",
+                        position: "relative",
                       }}
                     >
                       <iframe
@@ -1626,9 +1629,52 @@ class App extends React.Component<AppProps, AppState> {
                           width: "100%",
                           height: "100%",
                           border: "none",
+                          pointerEvents: isIOS ? "none" : "auto",
                         }}
                         title="PDF Viewer"
                       />
+                      {isIOS && (
+                        <button
+                          className="excalidraw__pdf-open-button"
+                          style={{
+                            position: "absolute",
+                            top: "12px",
+                            right: "12px",
+                            padding: "8px",
+                            backgroundColor: "rgba(255, 255, 255, 0.95)",
+                            border: "none",
+                            borderRadius: "999px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#333",
+                            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                            cursor: "pointer",
+                            pointerEvents: "auto",
+                            zIndex: 1,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const fileId = el.fileId;
+                            if (!fileId) return;
+                            const pdfData = this.files[fileId];
+                            if (pdfData && window.excalidrawZHelper) {
+                              window.excalidrawZHelper.sendMessage({
+                                event: "openPDFNatively",
+                                data: {
+                                  fileId,
+                                  dataURL: pdfData.dataURL,
+                                  mimeType: pdfData.mimeType,
+                                },
+                              });
+                            }
+                          }}
+                        >
+                          <div style={{ width: "20px", height: "20px" }}>
+                            {fullscreenIcon}
+                          </div>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     (isEmbeddableElement(el)
@@ -11241,7 +11287,6 @@ class App extends React.Component<AppProps, AppState> {
     );
     const dataTransferList = await parseDataTransferEvent(event);
 
-   
     // must be retrieved first, in the same frame
     const fileItems = dataTransferList.getFiles();
 
@@ -11258,18 +11303,17 @@ class App extends React.Component<AppProps, AppState> {
               sceneY,
             );
           } else {
-            throw new Error('ExcalidrawZ PDF handler not available');
+            throw new Error("ExcalidrawZ PDF handler not available");
           }
 
           return;
         } catch (error: any) {
           return this.setState({
             isLoading: false,
-            errorMessage: error.message || 'Failed to process PDF file',
+            errorMessage: error.message || "Failed to process PDF file",
           });
         }
       }
-
 
       if (
         file &&
@@ -11356,21 +11400,21 @@ class App extends React.Component<AppProps, AppState> {
       const { file, fileHandle } = fileItems[0];
       if (file) {
         // [ExcalidrawZ] handle drop libJson from library.
-      if (file.name.endsWith("excalidrawlibjson")) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const json = JSON.parse(reader.result as string);
-          json.type = EXPORT_DATA_TYPES.excalidrawLibrary;
-          const libraryItems = parseLibraryJSON(JSON.stringify(json));
-          this.addElementsFromPasteOrLibrary({
-            elements: distributeLibraryItemsOnSquareGrid(libraryItems),
-            position: event,
-            files: null,
-          });
-        };
-        reader.readAsText(file);
-        return;
-      }
+        if (file.name.endsWith("excalidrawlibjson")) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const json = JSON.parse(reader.result as string);
+            json.type = EXPORT_DATA_TYPES.excalidrawLibrary;
+            const libraryItems = parseLibraryJSON(JSON.stringify(json));
+            this.addElementsFromPasteOrLibrary({
+              elements: distributeLibraryItemsOnSquareGrid(libraryItems),
+              position: event,
+              files: null,
+            });
+          };
+          reader.readAsText(file);
+          return;
+        }
         // Attempt to parse an excalidraw/excalidrawlib file
         await this.loadFileToCanvas(file, fileHandle);
       }

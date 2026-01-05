@@ -673,6 +673,85 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
+  // [ExcalidrawZ] Apply user settings event listener
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const handleApplyUserSettings = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const settings = customEvent.detail;
+
+      if (!settings || typeof settings !== "object") {
+        console.warn(
+          "[ExcalidrawZ] Invalid settings in applyUserSettings event",
+        );
+        return;
+      }
+
+      // Get default values for resetting fields
+      const defaultAppState = getDefaultAppState();
+      const processedSettings: Partial<AppState> = {};
+
+      // All drawing preference keys to process
+      const drawingPrefKeys = [
+        "currentItemStrokeWidth",
+        "currentItemStrokeColor",
+        "currentItemBackgroundColor",
+        "currentItemStrokeStyle",
+        "currentItemFillStyle",
+        "currentItemRoughness",
+        "currentItemOpacity",
+        "currentItemFontFamily",
+        "currentItemFontSize",
+        "currentItemTextAlign",
+        "currentItemRoundness",
+        "currentItemArrowType",
+        "currentItemStartArrowhead",
+        "currentItemEndArrowhead",
+      ];
+
+      // Process each drawing preference field
+      for (const key of drawingPrefKeys) {
+        const value = settings[key];
+        if (value !== null && value !== undefined) {
+          // Use provided value
+          (processedSettings as any)[key] = value;
+        } else {
+          // Reset to default value (including when field is missing from settings)
+          (processedSettings as any)[key] = (defaultAppState as any)[key];
+          console.info(
+            `[ExcalidrawZ] Resetting ${key} to default:`,
+            (processedSettings as any)[key],
+          );
+        }
+      }
+
+      console.info(
+        "[ExcalidrawZ] Applying user settings via API:",
+        processedSettings,
+      );
+
+      // Update scene with processed settings
+      excalidrawAPI.updateScene({
+        appState: processedSettings as any,
+      });
+    };
+
+    window.addEventListener(
+      "excalidrawz:applyUserSettings",
+      handleApplyUserSettings,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "excalidrawz:applyUserSettings",
+        handleApplyUserSettings,
+      );
+    };
+  }, [excalidrawAPI]);
+
   // PDF as images batch event listener
   useEffect(() => {
     if (!excalidrawAPI) {

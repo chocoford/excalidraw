@@ -170,7 +170,7 @@ export const FontPickerList = React.memo(
     const filteredFonts = useMemo(
       () =>
         arrayToList(
-          [...sceneFonts, ...availableFonts].filter((font) =>
+          [...(new Set([...sceneFonts, ...availableFonts]))].filter((font) =>
             font.text?.toLowerCase().includes(searchTerm),
           ),
         ),
@@ -296,7 +296,12 @@ export const FontPickerList = React.memo(
         tabIndex={font.value === selectedFontFamily ? 0 : -1}
         onClick={(e) => {
           // onSelect(font.value);
-          wrappedOnSelect(Number(e.currentTarget.value));
+          const fontValue = Number(e.currentTarget.value);
+          if (isNaN(fontValue)) {
+            onSelect(font.value);
+          } else {
+            wrappedOnSelect(fontValue);
+          }
         }}
         onMouseMove={() => {
           if (hoveredFont?.value !== font.value) {
