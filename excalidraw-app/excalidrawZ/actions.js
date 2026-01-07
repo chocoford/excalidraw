@@ -19,24 +19,30 @@ export const toggleToolbarAction = (key) => {
     return;
   }
 
-  if (key === "text2diagram") {
+  const toggleGenerateAction = (index) => {
     withDropdownMenu((container) => {
-      container.children[0]?.children[4]?.click();
+      let node = container.querySelector(".dropdown-menu-container > div");
+      for (let i = 0; i <= index; i++) {
+        node = node?.nextSibling;
+      }
+      node?.click();
     });
+  };
+
+  if (key === "text2diagram") {
+    toggleGenerateAction(0);
     return;
   }
 
   if (key === "mermaid") {
     withDropdownMenu((container) => {
-      container.children[0]?.children[5]?.click();
+      toggleGenerateAction(1);
     });
     return;
   }
 
   if (key === "wireframe") {
-    withDropdownMenu((container) => {
-      container.children[0]?.children[6]?.click();
-    });
+    toggleGenerateAction(2);
     return;
   }
 

@@ -4,21 +4,31 @@ import { sendMessage } from "./message";
 import { getRelativeFiles } from "./indexdb+";
 
 /**
- * Export elements to blob(png).
+ * Export elements to blob (PNG, JXL, etc.).
  * @param {string} id The id used to map message from ExcalidrawZ.
  * @param {any[]} elements Excalidraw elements.
  * @param {{[id: string]: any} | undefined} files Excalidraw files.
- * @param {boolean} exportEmbedScene
- * @param {boolean} withBackground
+ * @param {object} options Export options
+ * @param {boolean} options.exportEmbedScene Whether to embed scene data
+ * @param {boolean} options.withBackground Whether to export with background
+ * @param {boolean} options.exportWithDarkMode Whether to export in dark mode
+ * @param {string} options.mimeType MIME type (e.g., "image/png", "image/jxl")
+ * @param {number} options.quality Quality 0-100 (for JXL, JPEG, etc.)
  */
 export const exportElementsToBlob = async (
   id,
   elements,
   files,
-  exportEmbedScene = false,
-  withBackground = true,
-  exportWithDarkMode = false,
+  options = {},
 ) => {
+  const {
+    exportEmbedScene = false,
+    withBackground = true,
+    exportWithDarkMode = false,
+    mimeType,
+    quality,
+  } = options;
+
   const blob = await exportToBlob({
     elements,
     files: files || (await getRelativeFiles(elements)),
@@ -27,6 +37,8 @@ export const exportElementsToBlob = async (
       exportBackground: withBackground,
       exportWithDarkMode,
     },
+    mimeType,
+    quality,
   });
 
   const reader = new FileReader();
