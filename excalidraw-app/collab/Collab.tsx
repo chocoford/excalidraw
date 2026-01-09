@@ -6,7 +6,7 @@ import {
   reconcileElements,
 } from "@excalidraw/excalidraw";
 import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
-import { APP_NAME, EVENT } from "@excalidraw/common";
+import { APP_NAME, cloneJSON, EVENT, toBrandedType } from "@excalidraw/common";
 import {
   IDLE_THRESHOLD,
   ACTIVE_THRESHOLD,
@@ -28,6 +28,8 @@ import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
 
 import throttle from "lodash.throttle";
 import { PureComponent } from "react";
+
+import { bumpElementVersions } from "@excalidraw/excalidraw/data/restore";
 
 import type {
   ReconciledExcalidrawElement,
@@ -334,6 +336,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   saveCollabRoomToFirebase = async (
     syncableElements: readonly SyncableExcalidrawElement[],
   ) => {
+    syncableElements = cloneJSON(syncableElements);
     try {
       const storedElements = await saveToFirebase(
         this.portal,
@@ -602,7 +605,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           case WS_SUBTYPES.INIT: {
             if (!this.portal.socketInitialized) {
               this.initializeRoom({ fetchScene: false });
-              const remoteElements = decryptedData.payload.elements;
+              const remoteElements = toBrandedType<
+                readonly RemoteExcalidrawElement[]
+              >(decryptedData.payload.elements);
               const reconciledElements =
                 this._reconcileElements(remoteElements);
               this.handleRemoteSceneUpdate(reconciledElements);
@@ -616,7 +621,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           }
           case WS_SUBTYPES.UPDATE:
             this.handleRemoteSceneUpdate(
-              this._reconcileElements(decryptedData.payload.elements),
+              this._reconcileElements(
+                toBrandedType<readonly RemoteExcalidrawElement[]>(
+                  decryptedData.payload.elements,
+                ),
+              ),
             );
             // trigger onStateChanged
             this.reportStateChanged();
@@ -767,15 +776,26 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   private _reconcileElements = (
-    remoteElements: readonly ExcalidrawElement[],
+    remoteElements: readonly RemoteExcalidrawElement[],
   ): ReconciledExcalidrawElement[] => {
-    const localElements = this.getSceneElementsIncludingDeleted();
     const appState = this.excalidrawAPI.getAppState();
-    const restoredRemoteElements = restoreElements(remoteElements, null);
-    const reconciledElements = reconcileElements(
-      localElements,
-      restoredRemoteElements as RemoteExcalidrawElement[],
+
+    const existingElements = this.getSceneElementsIncludingDeleted();
+
+    // NOTE ideally we restore _after_ reconciliation but we can't do that
+    // as we'd regenerate even elements such as appState.newElement which would
+    // break the state
+    remoteElements = restoreElements(remoteElements, existingElements);
+
+    let reconciledElements = reconcileElements(
+      existingElements,
+      remoteElements,
       appState,
+    );
+
+    reconciledElements = bumpElementVersions(
+      reconciledElements,
+      existingElements,
     );
 
     // Avoid broadcasting to the rest of the collaborators the scene
