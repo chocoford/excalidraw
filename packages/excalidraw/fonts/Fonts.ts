@@ -31,8 +31,6 @@ import type { ValueOf } from "@excalidraw/common/utility-types";
 
 import type { Scene } from "@excalidraw/element";
 
-import { ExcalidrawZFontFaces } from "./ExcalidrawZFont";
-
 import { CascadiaFontFaces } from "./Cascadia";
 import { ComicShannsFontFaces } from "./ComicShanns";
 import { EmojiFontFaces } from "./Emoji";
@@ -393,7 +391,7 @@ export class Fonts {
     init("Nunito", ...NunitoFontFaces);
     init(
       "Excalifont, YRDZST, BinggraeSamanco, SetoFont",
-      ...ExcalidrawZFontFaces,
+      ...ExcalifontFontFaces,
     );
 
     // fallback font faces
