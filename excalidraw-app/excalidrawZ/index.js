@@ -13,7 +13,6 @@ import {
 } from "./indexdb+";
 import { sendMessage } from "./message";
 import { toggleToolbarAction } from "./actions";
-import { antiInvertImage, toggleAntiInvertImageSettings } from "./image";
 import {
   loadFileBuffer,
   loadFileString,
@@ -39,38 +38,6 @@ import {
   applyUserSettings,
   startSettingsPolling,
 } from "./userSettings";
-
-const toggleImageInvertSwitch = (flag) => {
-  if (window.excalidrawZHelper.shouldPreventInvertImage === flag) {
-    return;
-  }
-
-  window.excalidrawZHelper.shouldPreventInvertImage = flag;
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "Î",
-      code: "KeyD",
-      altKey: true,
-      shiftKey: true,
-      composed: true,
-      keyCode: 68,
-      which: 68,
-    }),
-  );
-  setTimeout(() => {
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "Î",
-        code: "KeyD",
-        altKey: true,
-        shiftKey: true,
-        composed: true,
-        keyCode: 68,
-        which: 68,
-      }),
-    );
-  }, 0);
-};
 
 /**
  *
@@ -398,13 +365,6 @@ window.excalidrawZHelper = {
 
   getAllMedias,
   insertMedias,
-
-  shouldPreventInvertImage: true,
-  preventInvertImageFlags: {},
-  toggleImageInvertSwitch,
-  toggleAntiInvertImageSettings,
-
-  antiInvertImage,
 
   undo: () => {
     document.querySelector('[data-testid="button-undo"]')?.click();

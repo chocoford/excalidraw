@@ -462,48 +462,17 @@ const drawElementOnCanvas = (
               height: img.naturalHeight,
             };
 
-        const shouldInvert =
-          (window as any).excalidrawZHelper.shouldPreventInvertImage &&
-          !!Object.entries(
-            (window as any).excalidrawZHelper.preventInvertImageFlags,
-          ).find(
-            ([key, value]) =>
-              !!value &&
-              IMAGE_MIME_TYPES[key as keyof typeof IMAGE_MIME_TYPES] ===
-                imgType,
-          ) &&
-          appState.theme === THEME.DARK;
-
-        if (shouldInvert) {
-          const canvas = (window as any).excalidrawZHelper.antiInvertImage(
-            img,
-            element.width,
-            element.height,
-          );
-          context.drawImage(
-            canvas,
-            x,
-            y,
-            canvas.width,
-            canvas.height,
-            0 /* hardcoded for the selection box*/,
-            0,
-            element.width,
-            element.height,
-          );
-        } else {
-          context.drawImage(
-            img,
-            x,
-            y,
-            width,
-            height,
-            0 /* hardcoded for the selection box*/,
-            0,
-            element.width,
-            element.height,
-          );
-        }
+        context.drawImage(
+          img,
+          x,
+          y,
+          width,
+          height,
+          0 /* hardcoded for the selection box*/,
+          0,
+          element.width,
+          element.height,
+        );
       } else {
         drawImagePlaceholder(element, context);
       }

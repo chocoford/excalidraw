@@ -120,36 +120,34 @@ export const loadImageBuffer = async (buffer, type) => {
  * @param {File} image
  */
 export const loadImage = async (image) => {
-  function FakeDataTransfer(image) {
-    this.dropEffect = "all";
-    this.effectAllowed = "all";
-    this.items = [{ getAsFileSystemHandle: async () => null }];
-    this.types = ["Images"];
-    this.getData = function () {
-      return image;
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(image);
+
+  const node = document.querySelector(".excalidraw-container");
+  const { x: clientX, y: clientY } = (() => {
+    if (node) {
+      const rect = node.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    }
+    return {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
     };
-    // 构造一个类似 FileList 的对象
-    this.files = {
-      0: image,
-      length: 1,
-      item: () => image,
-    };
-  }
-  const dataTransfer = new FakeDataTransfer(image);
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
+  })();
   const fakeDropEvent = new DragEvent("drop", {
     bubbles: true,
-    clientX: centerX,
-    clientY: centerY,
+    cancelable: true,
+    clientX,
+    clientY,
   });
   fakeDropEvent.simulated = true;
-  // 将 dataTransfer 对象挂载到事件上
   Object.defineProperty(fakeDropEvent, "dataTransfer", {
     value: dataTransfer,
   });
 
-  const node = document.querySelector(".excalidraw-container");
   if (node) {
     node.dispatchEvent(fakeDropEvent);
   } else {
