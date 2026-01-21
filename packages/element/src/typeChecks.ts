@@ -73,7 +73,10 @@ export const isIframeLikeElement = (
   element: ExcalidrawElement | null,
 ): element is ExcalidrawIframeLikeElement => {
   return (
-    !!element && (element.type === "iframe" || element.type === "embeddable")
+    !!element &&
+    (element.type === "iframe" ||
+      element.type === "embeddable" ||
+      element.type === "pdf")
   );
 };
 

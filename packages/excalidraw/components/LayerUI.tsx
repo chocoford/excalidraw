@@ -410,25 +410,26 @@ const LayerUI = ({
                 "layer-ui__wrapper__top-right--compact": isCompactStylesPanel,
               },
             )}
-            style={{ display: "none" }}
           >
-            {appState.collaborators.size > 0 && (
-              <UserList
-                collaborators={appState.collaborators}
-                userToFollow={appState.userToFollow?.socketId || null}
-              />
-            )}
-            {renderTopRightUI?.(
-              editorInterface.formFactor === "phone",
-              appState,
-            )}
-            {!appState.viewModeEnabled &&
-              appState.openDialog?.name !== "elementLinkSelector" &&
-              // hide button when sidebar docked
-              (!isSidebarDocked ||
-                appState.openSidebar?.name !== DEFAULT_SIDEBAR.name) && (
-                <tunnels.DefaultSidebarTriggerTunnel.Out />
+            <div style={{ display: "none" }}>
+              {appState.collaborators.size > 0 && (
+                <UserList
+                  collaborators={appState.collaborators}
+                  userToFollow={appState.userToFollow?.socketId || null}
+                />
               )}
+              {renderTopRightUI?.(
+                editorInterface.formFactor === "phone",
+                appState,
+              )}
+              {!appState.viewModeEnabled &&
+                appState.openDialog?.name !== "elementLinkSelector" &&
+                // hide button when sidebar docked
+                (!isSidebarDocked ||
+                  appState.openSidebar?.name !== DEFAULT_SIDEBAR.name) && (
+                  <tunnels.DefaultSidebarTriggerTunnel.Out />
+                )}
+            </div>
             {shouldShowStats && (
               <Stats
                 app={app}

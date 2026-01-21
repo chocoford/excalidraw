@@ -1595,9 +1595,10 @@ class App extends React.Component<AppProps, AppState> {
                   width: isVisible ? `${el.width}px` : 0,
                   height: isVisible ? `${el.height}px` : 0,
                   transform: isVisible ? `rotate(${el.angle}rad)` : "none",
-                  pointerEvents: isActive
-                    ? POINTER_EVENTS.enabled
-                    : POINTER_EVENTS.disabled,
+                  pointerEvents:
+                    isActive || (isPdfElement(el) && isIOS)
+                      ? POINTER_EVENTS.enabled
+                      : POINTER_EVENTS.disabled,
                 }}
               >
                 {isHovered && (
@@ -1611,107 +1612,118 @@ class App extends React.Component<AppProps, AppState> {
                     padding: `${el.strokeWidth}px`,
                   }}
                 >
-                  {isPdfElement(el) ? (
-                    // PDF rendering
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        backgroundColor: "#525659",
-                        position: "relative",
-                      }}
-                    >
-                      <iframe
-                        className="excalidraw__pdf"
-                        src={
-                          el.fileId ? this.files[el.fileId]?.dataURL ?? "" : ""
-                        }
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          border: "none",
-                          pointerEvents: isIOS ? "none" : "auto",
-                        }}
-                        title="PDF Viewer"
-                      />
-                      {isIOS && (
-                        <button
-                          className="excalidraw__pdf-open-button"
-                          style={{
-                            position: "absolute",
-                            top: "12px",
-                            right: "12px",
-                            padding: "8px",
-                            backgroundColor: "rgba(255, 255, 255, 0.95)",
-                            border: "none",
-                            borderRadius: "999px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#333",
-                            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
-                            cursor: "pointer",
-                            pointerEvents: "auto",
-                            zIndex: 1,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const fileId = el.fileId;
-                            if (!fileId) return;
-                            const pdfData = this.files[fileId];
-                            if (pdfData && window.excalidrawZHelper) {
-                              window.excalidrawZHelper.sendMessage({
-                                event: "openPDFNatively",
-                                data: {
-                                  fileId,
-                                  dataURL: pdfData.dataURL,
-                                  mimeType: pdfData.mimeType,
-                                },
-                              });
-                            }
-                          }}
-                        >
-                          <div style={{ width: "20px", height: "20px" }}>
-                            {fullscreenIcon}
-                          </div>
-                        </button>
+                  {isPdfElement(el)
+                    ? this.renderPdf(el, isActive, isIOS)
+                    : (isEmbeddableElement(el)
+                        ? this.props.renderEmbeddable?.(el, this.state)
+                        : null) ?? (
+                        <iframe
+                          ref={(ref) => this.cacheEmbeddableRef(el, ref)}
+                          className="excalidraw__embeddable"
+                          srcDoc={
+                            src?.type === "document"
+                              ? src.srcdoc(this.state.theme)
+                              : undefined
+                          }
+                          src={
+                            src?.type !== "document"
+                              ? src?.link ?? ""
+                              : undefined
+                          }
+                          // https://stackoverflow.com/q/18470015
+                          scrolling="no"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          title="Excalidraw Embedded Content"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen={true}
+                          sandbox={`${
+                            src?.sandbox?.allowSameOrigin
+                              ? "allow-same-origin"
+                              : ""
+                          } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
+                        />
                       )}
-                    </div>
-                  ) : (
-                    (isEmbeddableElement(el)
-                      ? this.props.renderEmbeddable?.(el, this.state)
-                      : null) ?? (
-                      <iframe
-                        ref={(ref) => this.cacheEmbeddableRef(el, ref)}
-                        className="excalidraw__embeddable"
-                        srcDoc={
-                          src?.type === "document"
-                            ? src.srcdoc(this.state.theme)
-                            : undefined
-                        }
-                        src={
-                          src?.type !== "document" ? src?.link ?? "" : undefined
-                        }
-                        // https://stackoverflow.com/q/18470015
-                        scrolling="no"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        title="Excalidraw Embedded Content"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen={true}
-                        sandbox={`${
-                          src?.sandbox?.allowSameOrigin
-                            ? "allow-same-origin"
-                            : ""
-                        } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
-                      />
-                    )
-                  )}
                 </div>
               </div>
             </div>
           );
         })}
       </>
+    );
+  }
+
+  private renderPdf(
+    element: ExcalidrawPdfElement,
+    isActive: boolean,
+    isIOS: boolean,
+  ) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          backgroundColor: "#525659",
+          position: "relative",
+        }}
+      >
+        <iframe
+          className="excalidraw__pdf"
+          src={element.fileId ? this.files[element.fileId]?.dataURL ?? "" : ""}
+          style={{
+            width: "100%",
+            height: "100%",
+            border: "none",
+            // Control iframe pointer events based on active state
+            // When not active, clicks pass through to canvas which handles activation
+            pointerEvents: isActive
+              ? POINTER_EVENTS.enabled
+              : POINTER_EVENTS.disabled,
+          }}
+          title="PDF Viewer"
+        />
+        {isIOS && (
+          <button
+            className="excalidraw__pdf-open-button"
+            style={{
+              position: "absolute",
+              top: "12px",
+              right: "12px",
+              padding: "8px",
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              border: "none",
+              borderRadius: "999px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#333",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+              cursor: "pointer",
+              pointerEvents: POINTER_EVENTS.enabled,
+              zIndex: 1,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const fileId = element.fileId;
+              if (!fileId) return;
+              const pdfData = this.files[fileId];
+              if (pdfData && window.excalidrawZHelper) {
+                window.excalidrawZHelper.sendMessage({
+                  event: "openPDFNatively",
+                  data: {
+                    fileId,
+                    dataURL: pdfData.dataURL,
+                    mimeType: pdfData.mimeType,
+                  },
+                });
+              }
+            }}
+          >
+            <div style={{ width: "20px", height: "20px" }}>
+              {fullscreenIcon}
+            </div>
+          </button>
+        )}
+      </div>
     );
   }
 

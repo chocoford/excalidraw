@@ -122,7 +122,8 @@ export type ExcalidrawIframeElement = _ExcalidrawElementBase &
 
 export type ExcalidrawIframeLikeElement =
   | ExcalidrawIframeElement
-  | ExcalidrawEmbeddableElement;
+  | ExcalidrawEmbeddableElement
+  | ExcalidrawPdfElement;
 
 export type IframeData =
   | {

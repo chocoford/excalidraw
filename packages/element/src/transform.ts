@@ -624,7 +624,8 @@ export const convertToExcalidrawElements = (
       }
       case "freedraw":
       case "iframe":
-      case "embeddable": {
+      case "embeddable":
+      case "pdf": {
         excalidrawElement = element;
         break;
       }

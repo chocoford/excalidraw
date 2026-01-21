@@ -14,9 +14,6 @@ export const getIsDark = () => {
  */
 export const toggleColorTheme = (theme = undefined) => {
   const isDark = getIsDark();
-  if (theme !== "dark") {
-    window.excalidrawZHelper.shouldPreventInvertImage = false;
-  }
   if ((theme === "dark") === isDark) {
     return;
   }

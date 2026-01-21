@@ -127,15 +127,8 @@ export const exportToBlob = async (
     };
   }
 
-  let canvas = await exportToCanvas(opts);
+  const canvas = await exportToCanvas(opts);
 
-  canvas = opts.appState?.exportWithDarkMode
-    ? (window as any).excalidrawZHelper.antiInvertImage(
-        canvas,
-        canvas.width,
-        canvas.height,
-      )
-    : canvas;
 
   quality = quality ? quality : /image\/jpe?g/.test(mimeType) ? 0.92 : 0.8;
 
