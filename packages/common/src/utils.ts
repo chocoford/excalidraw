@@ -10,7 +10,6 @@ import type {
   Zoom,
 } from "@excalidraw/excalidraw/types";
 
-import { tinycolor } from "./colors";
 import {
   DEFAULT_VERSION,
   ENV,
@@ -552,10 +551,6 @@ export const mapFind = <T, K>(
     }
   }
   return undefined;
-};
-
-export const isTransparent = (color: string) => {
-  return tinycolor(color).getAlpha() === 0;
 };
 
 export type ResolvablePromise<T> = Promise<T> & {

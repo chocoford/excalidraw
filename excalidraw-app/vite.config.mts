@@ -101,6 +101,10 @@ export default defineConfig(({ mode }) => {
               // Taking the substring after "locales/"
               return `locales/${id.substring(index + 8)}`;
             }
+
+            if (id.includes("@excalidraw/mermaid-to-excalidraw")) {
+              return "mermaid-to-excalidraw";
+            }
           },
         },
       },
