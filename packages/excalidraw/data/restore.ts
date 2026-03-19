@@ -22,6 +22,7 @@ import {
 import {
   calculateFixedPointForNonElbowArrowBinding,
   getNonDeletedElements,
+  normalizeArrowhead,
   isPointInElement,
   isValidPolygon,
   projectFixedPointOntoDiagonal,
@@ -82,7 +83,12 @@ import {
   getNormalizedZoom,
 } from "../scene";
 
-import type { AppState, BinaryFiles, LibraryItem } from "../types";
+import type {
+  AppState,
+  BinaryFiles,
+  LibraryItem,
+  NormalizedZoomValue,
+} from "../types";
 import type { ImportedDataState, LegacyAppState } from "./types";
 
 type RestoredAppState = Omit<
@@ -150,7 +156,7 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
         | ExcalidrawElbowArrowElement["startBinding"]
         | ExcalidrawElbowArrowElement["endBinding"] = {
         ...binding,
-        fixedPoint: normalizeFixedPoint(binding.fixedPoint ?? [0, 0]),
+        fixedPoint: normalizeFixedPoint(binding.fixedPoint),
         mode: binding.mode || "orbit",
       };
 
@@ -171,7 +177,7 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
         return {
           elementId: binding.elementId,
           mode: binding.mode,
-          fixedPoint: normalizeFixedPoint(binding.fixedPoint || [0.5, 0.5]),
+          fixedPoint: normalizeFixedPoint(binding.fixedPoint),
         } as FixedPointBinding | null;
       }
       return null;
@@ -180,15 +186,14 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
     // binding schema v1 (legacy) -> attempt to migrate to v2
     // ---------------------------------------------------------------------------
 
-    const targetBoundElement =
-      (targetElementsMap.get(binding.elementId) as ExcalidrawBindableElement) ||
-      undefined;
+    const targetBoundElement = targetElementsMap.get(binding.elementId) as
+      | ExcalidrawBindableElement
+      | undefined;
     const boundElement =
       targetBoundElement ||
-      (existingElementsMap?.get(
-        binding.elementId,
-      ) as ExcalidrawBindableElement) ||
-      undefined;
+      (existingElementsMap?.get(binding.elementId) as
+        | ExcalidrawBindableElement
+        | undefined);
     const elementsMap = targetBoundElement
       ? targetElementsMap
       : existingElementsMap;
@@ -203,18 +208,36 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
       const mode = isPointInElement(p, boundElement, elementsMap)
         ? "inside"
         : "orbit";
+      const safeElement = {
+        ...element,
+        startBinding: element.startBinding?.elementId
+          ? {
+              ...element.startBinding,
+              mode,
+              fixedPoint: normalizeFixedPoint(element.startBinding.fixedPoint),
+            }
+          : null,
+        endBinding: element.endBinding?.elementId
+          ? {
+              ...element.endBinding,
+              mode,
+              fixedPoint: normalizeFixedPoint(element.endBinding.fixedPoint),
+            }
+          : null,
+      };
       const focusPoint =
         mode === "inside"
           ? p
           : projectFixedPointOntoDiagonal(
-              element,
+              safeElement,
               p,
               boundElement,
               startOrEnd,
               elementsMap,
+              { value: 1 as NormalizedZoomValue },
             ) || p;
       const { fixedPoint } = calculateFixedPointForNonElbowArrowBinding(
-        element,
+        safeElement,
         boundElement,
         startOrEnd,
         elementsMap,
@@ -411,7 +434,8 @@ export const restoreElement = (
     // @ts-ignore LEGACY type
     // eslint-disable-next-line no-fallthrough
     case "draw":
-      const { startArrowhead = null, endArrowhead = null } = element;
+      const startArrowhead = normalizeArrowhead(element.startArrowhead);
+      const endArrowhead = normalizeArrowhead(element.endArrowhead);
       let x = element.x;
       let y = element.y;
       let points = // migrate old arrow model to new one
@@ -443,7 +467,11 @@ export const restoreElement = (
         ...getSizeFromPoints(points),
       });
     case "arrow": {
-      const { startArrowhead = null, endArrowhead = "arrow" } = element;
+      const startArrowhead = normalizeArrowhead(element.startArrowhead);
+      const endArrowhead =
+        element.endArrowhead === undefined
+          ? "arrow"
+          : normalizeArrowhead(element.endArrowhead);
       const x: number | undefined = element.x;
       const y: number | undefined = element.y;
       const points: readonly LocalPoint[] | undefined = // migrate old arrow model to new one

@@ -105,6 +105,10 @@ export default defineConfig(({ mode }) => {
             if (id.includes("@excalidraw/mermaid-to-excalidraw")) {
               return "mermaid-to-excalidraw";
             }
+
+            if (id.includes("@codemirror/") || id.includes("@lezer/")) {
+              return "codemirror.chunk";
+            }
           },
         },
       },
