@@ -38,6 +38,40 @@ import {
   applyUserSettings,
   startSettingsPolling,
 } from "./userSettings";
+import {
+  getCamera,
+  setCamera,
+  scrollToCenter,
+  scrollToElement,
+  zoomToFit,
+  zoomToFitElements,
+  zoomTo,
+  onCameraChange,
+  startCameraTracking,
+} from "./camera";
+import {
+  beginAICameraSession,
+  updateAICameraTarget,
+  endAICameraSession,
+  cancelAICameraSession,
+  interruptAICameraSession,
+  getAICameraSession,
+} from "./aiCameraSession";
+import {
+  CaptureUpdate,
+  getElements,
+  getElementsIncludingDeleted,
+  getElementById,
+  getElementsByIds,
+  updateElement,
+  updateElements,
+  addElements,
+  removeElements,
+  replaceAllElements,
+  getSelectedElementIds,
+  setSelectedElementIds,
+  startElementsTracking,
+} from "./elements";
 
 /**
  *
@@ -404,4 +438,39 @@ window.excalidrawZHelper = {
   // User Settings
   getUserSettings,
   applyUserSettings,
+
+  // Camera
+  _api: null,
+  getCamera,
+  setCamera,
+  scrollToCenter,
+  scrollToElement,
+  zoomToFit,
+  zoomToFitElements,
+  zoomTo,
+  onCameraChange,
+  startCameraTracking,
+
+  // AI Camera Session
+  beginAICameraSession,
+  updateAICameraTarget,
+  endAICameraSession,
+  cancelAICameraSession,
+  interruptAICameraSession,
+  getAICameraSession,
+
+  // Elements
+  CaptureUpdate,
+  getElements,
+  getElementsIncludingDeleted,
+  getElementById,
+  getElementsByIds,
+  updateElement,
+  updateElements,
+  addElements,
+  removeElements,
+  replaceAllElements,
+  getSelectedElementIds,
+  setSelectedElementIds,
+  startElementsTracking,
 };

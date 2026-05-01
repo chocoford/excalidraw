@@ -48,7 +48,7 @@ import {
   share,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import { isElementLink } from "@excalidraw/element";
+import { isElementLink, getCommonBounds } from "@excalidraw/element";
 import {
   newElementWith,
   newPdfElement,
@@ -991,6 +991,15 @@ const ExcalidrawWrapper = () => {
       }
     };
     window.addEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
+
+    // Bridge excalidrawAPI to excalidrawZHelper for camera & other native APIs
+    if (excalidrawAPI && (window as any).excalidrawZHelper) {
+      (window as any).excalidrawZHelper._api = excalidrawAPI;
+      (window as any).excalidrawZHelper._getCommonBounds = getCommonBounds;
+      (window as any).excalidrawZHelper.startCameraTracking?.();
+      (window as any).excalidrawZHelper.startElementsTracking?.();
+    }
+
     return () => {
       window.removeEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
     };
