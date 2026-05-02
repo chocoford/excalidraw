@@ -1002,6 +1002,9 @@ const ExcalidrawWrapper = () => {
       (window as any).excalidrawZHelper.startCameraTracking?.();
       (window as any).excalidrawZHelper.startElementsTracking?.();
       (window as any).excalidrawZHelper.startCanvasPreferencesTracking?.();
+      // All bridges + trackers ready — now safe to tell the host the
+      // helper is fully initialized.
+      (window as any).excalidrawZHelper.notifyHelperReady?.();
     }
 
     return () => {

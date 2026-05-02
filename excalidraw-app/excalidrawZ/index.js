@@ -322,29 +322,37 @@ const observeContainerLoad = (callback) => {
   bodyObserver.observe(document.body, { childList: true, subtree: true });
 };
 
-const onload = () => {
-  // watchExcalidrawState is now event-driven and started from App.tsx
-  // when excalidrawAPI is ready (no setTimeout race needed).
+const onDomReady = () => {
+  // DOM-level setup only. The "onload" message is deferred until the
+  // helper is fully initialized (excalidrawAPI bridged + trackers started),
+  // which is signalled by App.tsx via `notifyHelperReady()` below.
   hideEls();
   observeContainerLoad(() => {
     watchHistoryButtonState();
   });
-  sendMessage({
-    event: "onload",
-  });
-
-  // connect file store
   connectFileStore();
-
-  // remove annoying sounds
-  setTimeout(() => {
-    sendMessage({
-      event: "onBlur",
-    });
-  }, 300);
 };
 
-window.addEventListener("DOMContentLoaded", onload);
+window.addEventListener("DOMContentLoaded", onDomReady);
+
+/**
+ * Called by App.tsx once excalidrawAPI is bridged and all trackers are
+ * started. Sends the `onload` message to the host, signalling the helper
+ * is fully usable. Idempotent — host receives `onload` at most once.
+ */
+let _helperReadyFired = false;
+export const notifyHelperReady = () => {
+  if (_helperReadyFired) {
+    return;
+  }
+  _helperReadyFired = true;
+  sendMessage({ event: "onload" });
+
+  // Suppress macOS UI sound on first focus shortly after load
+  setTimeout(() => {
+    sendMessage({ event: "onBlur" });
+  }, 300);
+};
 
 document.addEventListener(
   "focus",
@@ -445,6 +453,7 @@ window.excalidrawZHelper = {
   // Core
   _api: null,
   startWatchExcalidrawState,
+  notifyHelperReady,
 
   // Camera
   getCamera,
