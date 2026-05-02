@@ -19,6 +19,13 @@ export const toggleToolbarAction = (key) => {
     return;
   }
 
+  if (key === "lasso") {
+    withDropdownMenu((container) => {
+      container.children[0]?.children[3]?.click();
+    });
+    return;
+  }
+
   const toggleGenerateAction = (index) => {
     withDropdownMenu((container) => {
       let node = container.querySelector(".dropdown-menu-container > div");

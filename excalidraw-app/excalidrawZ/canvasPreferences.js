@@ -18,12 +18,23 @@ export const STATS_PANELS = {
  *   - viewBackgroundColor, gridModeEnabled  → localStorage + .excalidraw file + collab
  *   - theme, zenModeEnabled, objectsSnapModeEnabled,
  *     isMidpointSnappingEnabled, bindingPreference,
- *     preferredSelectionTool, stats             → localStorage only
- *   - viewModeEnabled                            → NOT persisted (per-session)
+ *     preferredSelectionTool, boxSelectionMode, stats   → localStorage only
+ *   - viewModeEnabled                                   → NOT persisted (per-session)
  *
  * Note: tool lock is intentionally NOT included here — it lives on
  * `appState.activeTool.locked` and is already controllable via
  * `toggleToolbarAction("Q")`.
+ *
+ * Two related-but-distinct fields:
+ *   - boxSelectionMode: 'contain' | 'overlap'
+ *       Controls box-select behavior — whether elements must be FULLY
+ *       contained in the selection rectangle ('contain'/Wrap) or just
+ *       overlap it ('overlap'). This is the "Select on Wrap/Overlap"
+ *       toggle in the main menu.
+ *   - preferredSelectionTool: 'selection' | 'lasso'
+ *       Which selection tool to use by default — the standard cursor
+ *       ('selection') or the lasso ('lasso'). Setting this also activates
+ *       the tool immediately, mirroring Excalidraw's UI behavior.
  */
 const PREF_KEYS = [
   "theme",
@@ -34,6 +45,7 @@ const PREF_KEYS = [
   "objectsSnapModeEnabled",
   "isMidpointSnappingEnabled",
   "bindingPreference",
+  "boxSelectionMode",
   "preferredSelectionTool",
   "stats",
 ];
@@ -60,6 +72,7 @@ export const getCanvasPreferences = () => {
     objectsSnapModeEnabled: !!s.objectsSnapModeEnabled,
     isMidpointSnappingEnabled: !!s.isMidpointSnappingEnabled,
     bindingPreference: s.bindingPreference,
+    boxSelectionMode: s.boxSelectionMode,
     preferredSelectionTool: s.preferredSelectionTool?.type,
     stats: s.stats,
   };
@@ -78,6 +91,7 @@ export const getCanvasPreferences = () => {
  *   objectsSnapModeEnabled?: boolean,
  *   isMidpointSnappingEnabled?: boolean,
  *   bindingPreference?: 'enabled' | 'disabled',
+ *   boxSelectionMode?: 'contain' | 'overlap',
  *   preferredSelectionTool?: 'selection' | 'lasso',
  *   stats?: boolean | { open?: boolean, panels?: number },
  * }} partial
@@ -99,6 +113,7 @@ export const setCanvasPreferences = (partial) => {
   if ("objectsSnapModeEnabled" in partial) update.objectsSnapModeEnabled = !!partial.objectsSnapModeEnabled;
   if ("isMidpointSnappingEnabled" in partial) update.isMidpointSnappingEnabled = !!partial.isMidpointSnappingEnabled;
   if ("bindingPreference" in partial) update.bindingPreference = partial.bindingPreference;
+  if ("boxSelectionMode" in partial) update.boxSelectionMode = partial.boxSelectionMode;
 
   // `stats` is an object { open: boolean, panels: number } on appState.
   // Accept three input shapes for ergonomics:
@@ -117,19 +132,38 @@ export const setCanvasPreferences = (partial) => {
     }
   }
 
-  // preferredSelectionTool is an object on appState, not a plain string
+  // preferredSelectionTool is an object on appState, not a plain string.
+  // We DO NOT push it through `update` — it requires a coordinated change
+  // (setActiveTool + setAppState) that mirrors Excalidraw's own UI behavior;
+  // pushing it via updateScene alone leaves activeTool out of sync, causing
+  // the active tool to silently flip to the new preference at the next
+  // "auto-revert" moment (e.g. after finishing a draw action).
+  let preferredSelectionToolType;
   if ("preferredSelectionTool" in partial) {
-    update.preferredSelectionTool = {
-      ...(current.preferredSelectionTool || { initialized: true }),
-      type: partial.preferredSelectionTool,
-    };
+    preferredSelectionToolType = partial.preferredSelectionTool;
   }
 
-  if (Object.keys(update).length === 0) {
-    return false;
+  if (Object.keys(update).length > 0) {
+    api.updateScene({ appState: update });
   }
 
-  api.updateScene({ appState: update });
+  if (
+    preferredSelectionToolType === "selection" ||
+    preferredSelectionToolType === "lasso"
+  ) {
+    // Mirror Excalidraw's own toolbar handler (Actions.tsx onToolChange):
+    // immediately switch the active tool AND persist the preference.
+    api.setActiveTool({ type: preferredSelectionToolType });
+    api.updateScene({
+      appState: {
+        preferredSelectionTool: {
+          type: preferredSelectionToolType,
+          initialized: true,
+        },
+      },
+    });
+  }
+
   return true;
 };
 
