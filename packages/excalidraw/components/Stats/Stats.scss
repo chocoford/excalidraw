@@ -2,6 +2,8 @@
   width: 204px;
   position: absolute;
   top: 0px;
+  // [ExcalidrawZ] offset from the right edge to clear native window controls
+  margin-right: 36px;
   font-size: 12px;
   z-index: var(--zIndex-layerUI);
   pointer-events: var(--ui-pointerEvents);

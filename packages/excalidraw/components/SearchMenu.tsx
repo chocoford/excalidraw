@@ -30,6 +30,7 @@ import { getDefaultFrameName } from "@excalidraw/element/frame";
 import type {
   ExcalidrawFrameLikeElement,
   ExcalidrawTextElement,
+  NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
 import { atom, useAtom } from "../editor-jotai";
@@ -874,3 +875,84 @@ const handleSearch = debounce(
   },
   SEARCH_DEBOUNCE,
 );
+
+// [ExcalidrawZ] Synchronous, host-callable search wrapper.
+// Mirrors the inner logic of `handleSearch` (without debounce) and returns
+// a plain serializable shape suitable for the WebView bridge. Reuses the
+// private helpers above (getMatchPreview, getMatchedLines, getMatchInFrame,
+// escapeSpecialCharacters) so character-precise highlight metrics stay
+// consistent with the built-in SearchMenu.
+export type SearchMatchResult = {
+  elementId: string;
+  elementType: "text" | "frame";
+  matchIndex: number;
+  matchLength: number;
+  preview: ReturnType<typeof getMatchPreview>;
+  matchedLines: SearchMatch["matchedLines"];
+};
+
+export const computeSearchMatches = (
+  query: string,
+  elements: readonly NonDeletedExcalidrawElement[],
+  zoomValue: number,
+  opts: { caseSensitive?: boolean } = {},
+): SearchMatchResult[] => {
+  if (!query) {
+    return [];
+  }
+
+  const searchQuery = query as SearchQuery;
+  const flags = opts.caseSensitive ? "g" : "gi";
+  const regex = new RegExp(escapeSpecialCharacters(searchQuery), flags);
+
+  const texts = elements
+    .filter((el): el is ExcalidrawTextElement => isTextElement(el))
+    .sort((a, b) => a.y - b.y);
+
+  const frames = elements
+    .filter((el): el is ExcalidrawFrameLikeElement => isFrameLikeElement(el))
+    .sort((a, b) => a.y - b.y);
+
+  const textMatches: SearchMatchResult[] = [];
+  for (const textEl of texts) {
+    const text = textEl.originalText;
+    let m: RegExpExecArray | null;
+    regex.lastIndex = 0;
+    while ((m = regex.exec(text)) !== null) {
+      const matchedLines = getMatchedLines(textEl, searchQuery, m.index);
+      if (matchedLines.length > 0) {
+        textMatches.push({
+          elementId: textEl.id,
+          elementType: "text",
+          matchIndex: m.index,
+          matchLength: m[0].length,
+          preview: getMatchPreview(text, m.index, searchQuery),
+          matchedLines,
+        });
+      }
+    }
+  }
+
+  const frameMatches: SearchMatchResult[] = [];
+  for (const frame of frames) {
+    const name = frame.name ?? getDefaultFrameName(frame);
+    let m: RegExpExecArray | null;
+    regex.lastIndex = 0;
+    while ((m = regex.exec(name)) !== null) {
+      const matchedLines = getMatchInFrame(frame, searchQuery, m.index, zoomValue);
+      if (matchedLines.length > 0) {
+        frameMatches.push({
+          elementId: frame.id,
+          elementType: "frame",
+          matchIndex: m.index,
+          matchLength: m[0].length,
+          preview: getMatchPreview(name, m.index, searchQuery),
+          matchedLines,
+        });
+      }
+    }
+  }
+
+  // Frames first, matches built-in ordering
+  return [...frameMatches, ...textMatches];
+};

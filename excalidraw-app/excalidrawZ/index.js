@@ -50,6 +50,18 @@ import {
   startCameraTracking,
 } from "./camera";
 import {
+  searchElements,
+  setCanvasHighlights,
+  clearCanvasHighlights,
+  focusSearchResult,
+  sendSearchResults,
+} from "./search";
+import {
+  getCanvasPreferences,
+  setCanvasPreferences,
+  startCanvasPreferencesTracking,
+} from "./canvasPreferences";
+import {
   beginAICameraSession,
   updateAICameraTarget,
   endAICameraSession,
@@ -450,6 +462,18 @@ window.excalidrawZHelper = {
   zoomTo,
   onCameraChange,
   startCameraTracking,
+
+  // Search
+  searchElements,
+  setCanvasHighlights,
+  clearCanvasHighlights,
+  focusSearchResult,
+  sendSearchResults,
+
+  // Canvas Preferences
+  getCanvasPreferences,
+  setCanvasPreferences,
+  startCanvasPreferencesTracking,
 
   // AI Camera Session
   beginAICameraSession,
