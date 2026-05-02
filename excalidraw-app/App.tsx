@@ -998,6 +998,7 @@ const ExcalidrawWrapper = () => {
       (window as any).excalidrawZHelper._api = excalidrawAPI;
       (window as any).excalidrawZHelper._getCommonBounds = getCommonBounds;
       (window as any).excalidrawZHelper._computeSearchMatches = computeSearchMatches;
+      (window as any).excalidrawZHelper.startWatchExcalidrawState?.();
       (window as any).excalidrawZHelper.startCameraTracking?.();
       (window as any).excalidrawZHelper.startElementsTracking?.();
       (window as any).excalidrawZHelper.startCanvasPreferencesTracking?.();

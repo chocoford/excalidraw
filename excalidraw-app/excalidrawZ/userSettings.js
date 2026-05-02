@@ -1,4 +1,4 @@
-import { sendMessage } from "./message";
+import { getAppState } from "./_helpers";
 
 /**
  * 用户绘图偏好设置
@@ -22,26 +22,33 @@ const SETTING_KEYS = [
 ];
 
 /**
- * 从 localStorage 获取当前的用户设置
- * @returns {Object} 用户设置对象
+ * Get the current user settings from the live appState (zero latency).
+ * Falls back to reading localStorage if the API isn't ready yet.
+ * @returns {Object | null}
  */
 export const getUserSettings = () => {
-  try {
-    const appStateData = localStorage.getItem("excalidraw-state");
-    if (!appStateData) {
-      return null;
-    }
-
-    const appState = JSON.parse(appStateData);
+  const appState = getAppState();
+  if (appState) {
     const settings = {};
-
-    // 只提取我们关心的设置
     SETTING_KEYS.forEach((key) => {
       if (appState[key] !== undefined) {
         settings[key] = appState[key];
       }
     });
+    return settings;
+  }
 
+  // Fallback: API not ready yet — read from localStorage
+  try {
+    const raw = localStorage.getItem("excalidraw-state");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const settings = {};
+    SETTING_KEYS.forEach((key) => {
+      if (parsed[key] !== undefined) {
+        settings[key] = parsed[key];
+      }
+    });
     return settings;
   } catch (error) {
     console.error("[ExcalidrawZ] Failed to get user settings:", error);
@@ -73,93 +80,3 @@ export const applyUserSettings = (settings) => {
   }
 };
 
-/**
- * 监听设置变化并同步到 Swift 侧
- */
-export const watchUserSettings = () => {
-  let lastSettings = getUserSettings();
-
-  // 监听 localStorage 变化
-  const observer = new MutationObserver(() => {
-    const currentSettings = getUserSettings();
-
-    // 检查是否有变化
-    if (JSON.stringify(currentSettings) !== JSON.stringify(lastSettings)) {
-      lastSettings = currentSettings;
-
-      // 发送到 Swift 侧
-      sendMessage({
-        event: "onUserSettingsChanged",
-        data: currentSettings,
-      });
-
-      console.info(
-        "[ExcalidrawZ] User settings changed, synced to native:",
-        currentSettings,
-      );
-    }
-  });
-
-  // 观察 localStorage 的变化
-  // 由于 MutationObserver 不能直接观察 localStorage，
-  // 我们需要观察可能触发设置变化的 DOM 元素
-  const container = document.querySelector(".excalidraw-container");
-  if (container) {
-    observer.observe(container, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-  }
-
-  // 也监听直接的 storage 事件
-  window.addEventListener("storage", (e) => {
-    if (e.key === "excalidraw-state") {
-      const currentSettings = getUserSettings();
-      if (JSON.stringify(currentSettings) !== JSON.stringify(lastSettings)) {
-        lastSettings = currentSettings;
-        sendMessage({
-          event: "onUserSettingsChanged",
-          data: currentSettings,
-        });
-      }
-    }
-  });
-
-  // 初始同步
-  if (lastSettings) {
-    sendMessage({
-      event: "onUserSettingsChanged",
-      data: lastSettings,
-    });
-  }
-};
-
-/**
- * 定期检查设置变化（备用方案）
- * 因为某些 Excalidraw 的更新可能不触发 DOM 变化或 storage 事件
- */
-export const startSettingsPolling = (intervalMs = 2000) => {
-  let lastSettings = getUserSettings();
-
-  const checkInterval = setInterval(() => {
-    const currentSettings = getUserSettings();
-
-    if (JSON.stringify(currentSettings) !== JSON.stringify(lastSettings)) {
-      lastSettings = currentSettings;
-
-      sendMessage({
-        event: "onUserSettingsChanged",
-        data: currentSettings,
-      });
-
-      console.info(
-        "[ExcalidrawZ] User settings changed (polled):",
-        currentSettings,
-      );
-    }
-  }, intervalMs);
-
-  // 返回清理函数
-  return () => clearInterval(checkInterval);
-};

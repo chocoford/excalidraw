@@ -13,6 +13,7 @@ import {
 } from "./indexdb+";
 import { sendMessage } from "./message";
 import { toggleToolbarAction } from "./actions";
+import { throttle } from "./_helpers";
 import {
   loadFileBuffer,
   loadFileString,
@@ -33,11 +34,7 @@ import {
   updateCollaborators,
 } from "./collab";
 import { loadPDFTiles, loadPDFViewer, handlePDFDrop } from "./pdf";
-import {
-  getUserSettings,
-  applyUserSettings,
-  startSettingsPolling,
-} from "./userSettings";
+import { getUserSettings, applyUserSettings } from "./userSettings";
 import {
   getCamera,
   setCamera,
@@ -163,48 +160,46 @@ export const didToggleToolLock = (isLocked) => {
   });
 };
 
-const watchExcalidrawState = async () => {
-  try {
-    console.info("Connect files store done.");
-
-    let lastVersion = "";
-    setInterval(async () => {
-      const data = localStorage.getItem("excalidraw");
-      let state = localStorage.getItem("excalidraw-state");
-      const version = localStorage.getItem("version-files");
-      if (lastVersion === version) {
-        return;
-      }
-      try {
-        state = JSON.parse(state);
-        /**
-         * @type {any[]}
-         */
-        const elements = JSON.parse(data);
-        const filesDict = await getRelativeFiles(elements);
-        sendMessage({
-          event: "onStateChanged",
-          data: {
-            data: {
-              dataString: JSON.stringify({
-                elements,
-                appState: state,
-                // files: filesDict,
-              }),
-              elements,
-              files: filesDict,
-              appState: state,
-            },
-          },
-        });
-      } catch (error) {
-        console.error(error);
-      }
-      lastVersion = version;
-    }, 2000);
-  } catch (error) {
-    console.error(error);
+/**
+ * Watch scene/appState changes and broadcast to the host as `onStateChanged`.
+ *
+ * Event-driven (api.onChange) + 1s throttle:
+ *   - first change after a quiet period fires immediately (leading edge)
+ *   - subsequent changes inside the 1s window are coalesced into a single
+ *     trailing call at the end of the window
+ *   - no changes → no events
+ *
+ * Replaces the old setInterval(2s) localStorage polling.
+ */
+const startWatchExcalidrawState = () => {
+  const api = window.excalidrawZHelper?._api;
+  if (!api || typeof api.onChange !== "function") {
+    console.warn("[watchExcalidrawState] excalidrawAPI not ready");
+    return;
   }
+
+  const dispatch = throttle(async (elements, appState) => {
+    try {
+      const filesDict = await getRelativeFiles(elements);
+      sendMessage({
+        event: "onStateChanged",
+        data: {
+          data: {
+            dataString: JSON.stringify({ elements, appState }),
+            elements,
+            files: filesDict,
+            appState,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("[watchExcalidrawState]", error);
+    }
+  }, 1000);
+
+  api.onChange((elements, appState) => {
+    dispatch(elements, appState);
+  });
 };
 
 const hideEls = () => {
@@ -328,9 +323,8 @@ const observeContainerLoad = (callback) => {
 };
 
 const onload = () => {
-  setTimeout(() => {
-    watchExcalidrawState();
-  }, 2000);
+  // watchExcalidrawState is now event-driven and started from App.tsx
+  // when excalidrawAPI is ready (no setTimeout race needed).
   hideEls();
   observeContainerLoad(() => {
     watchHistoryButtonState();
@@ -341,9 +335,6 @@ const onload = () => {
 
   // connect file store
   connectFileStore();
-
-  // start user settings polling and sync
-  startSettingsPolling(2000);
 
   // remove annoying sounds
   setTimeout(() => {
@@ -451,8 +442,11 @@ window.excalidrawZHelper = {
   getUserSettings,
   applyUserSettings,
 
-  // Camera
+  // Core
   _api: null,
+  startWatchExcalidrawState,
+
+  // Camera
   getCamera,
   setCamera,
   scrollToCenter,

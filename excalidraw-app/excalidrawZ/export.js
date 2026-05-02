@@ -13,18 +13,49 @@ const getLiveViewBackgroundColor = () => {
 };
 
 /**
- * Export elements to blob (PNG, JXL, etc.).
- * @param {string} id The id used to map message from ExcalidrawZ.
- * @param {any[]} elements Excalidraw elements.
- * @param {{[id: string]: any} | undefined} files Excalidraw files.
- * @param {object} options Export options
- * @param {boolean} options.exportEmbedScene Whether to embed scene data
- * @param {boolean} options.withBackground Whether to export with background
- * @param {boolean} options.exportWithDarkMode Whether to export in dark mode
- * @param {string} options.mimeType MIME type (e.g., "image/png", "image/jxl")
- * @param {number} options.quality Quality 0-100 (for JXL, JPEG, etc.)
- * @param {number} options.exportScale Pixel density multiplier (1, 2, 3, ...). Default 1.
- * @param {string} options.viewBackgroundColor Override background color. Defaults to the live editor's canvas color.
+ * Convert a Blob to its base64 representation (without the
+ * `data:<mime>;base64,` prefix). Wrapped in a Promise so the export
+ * function can `await` it.
+ */
+const blobToBase64 = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+
+// WebKit canvas limits — exceeding these makes canvas.toBlob() return null.
+// macOS Safari is more lenient than iOS; conservative values that work on both.
+const MAX_CANVAS_DIMENSION = 16384; // single-axis hard limit
+const MAX_CANVAS_AREA = 256 * 1024 * 1024; // 256M pixels (~16384²)
+
+/**
+ * Export elements to a blob (PNG, JXL, JPEG, etc.).
+ *
+ * Returns a Promise resolving with the export result. Also emits the
+ * `getElementsBlob` event for backward compatibility with hosts that
+ * still use the id-based callback pattern via `evaluateJavaScript`.
+ *
+ * Hosts using `callAsyncJavaScript` should `await` the return value
+ * directly and pass `null` for `id` (or any value, it's ignored on the
+ * Promise side).
+ *
+ * @param {string|null} id  Legacy request id for the event-based path.
+ *                          Pass null/undefined when awaiting the Promise.
+ * @param {any[]} elements
+ * @param {{[id: string]: any} | undefined} files
+ * @param {{
+ *   exportEmbedScene?: boolean,
+ *   withBackground?: boolean,
+ *   exportWithDarkMode?: boolean,
+ *   mimeType?: string,
+ *   quality?: number,
+ *   exportScale?: number,
+ *   viewBackgroundColor?: string,
+ * }} options
+ * @returns {Promise<{ blobData: string, actualScale: number, scaleClamped: boolean }>}
+ * @throws on export failure
  */
 export const exportElementsToBlob = async (
   id,
@@ -41,12 +72,6 @@ export const exportElementsToBlob = async (
     exportScale = 1,
     viewBackgroundColor = getLiveViewBackgroundColor(),
   } = options;
-
-  // WebKit canvas limits — exceeding these makes canvas.toBlob() return null
-  // ("couldn't export to blob" error). macOS Safari is more lenient than iOS.
-  // We use a conservative limit that works on both.
-  const MAX_CANVAS_DIMENSION = 16384; // single-axis hard limit
-  const MAX_CANVAS_AREA = 256 * 1024 * 1024; // 256M pixels (~16384²)
 
   let actualScale = exportScale;
   let scaleClamped = false;
@@ -66,8 +91,8 @@ export const exportElementsToBlob = async (
       quality,
       // exportToCanvas only honors appState.exportScale when maxWidthOrHeight
       // is set, so we explicitly provide getDimensions to apply the scale
-      // multiplier to the canvas size — and pre-flight clamp it if the
-      // resulting canvas would exceed WebKit's limits.
+      // multiplier — and pre-flight clamp it if the canvas would exceed
+      // WebKit's limits.
       getDimensions: (width, height) => {
         const targetW = width * exportScale;
         const targetH = height * exportScale;
@@ -102,32 +127,52 @@ export const exportElementsToBlob = async (
       },
     });
 
-    const reader = new FileReader();
-    reader.onloadend = function () {
-      sendMessage({
-        event: "getElementsBlob",
-        data: {
-          id,
-          blobData: reader.result.split(",")[1], // 移除前缀 "data:*/*;base64,"
-          actualScale,
-          scaleClamped,
-        },
-      });
-    };
-    reader.readAsDataURL(blob);
+    const blobData = await blobToBase64(blob);
+    const result = { blobData, actualScale, scaleClamped };
+
+    // Backward compat: also notify via event (legacy id-based path)
+    sendMessage({
+      event: "getElementsBlob",
+      data: { id, ...result },
+    });
+
+    return result;
   } catch (error) {
     console.error("[export] failed", error);
+    const errMessage = error?.message || String(error);
+
+    // Backward compat: notify legacy listeners of the failure
     sendMessage({
       event: "getElementsBlob",
       data: {
         id,
-        error: error?.message || String(error),
+        error: errMessage,
         requestedScale: exportScale,
       },
     });
+
+    // Re-throw so callAsyncJavaScript callers see the rejection
+    throw error;
   }
 };
 
+/**
+ * Export elements to an SVG string.
+ *
+ * Returns a Promise resolving with the SVG string. Also emits the
+ * `getElementsSVG` event for backward compat.
+ *
+ * @param {string|null} id  Legacy request id (ignored when awaiting).
+ * @param {any[]} elements
+ * @param {{[id: string]: any} | undefined} files
+ * @param {boolean} [exportEmbedScene]
+ * @param {boolean} [withBackground]
+ * @param {boolean} [exportWithDarkMode]
+ * @param {number} [exportScale]
+ * @param {string} [viewBackgroundColor]
+ * @returns {Promise<{ svg: string }>}
+ * @throws on export failure
+ */
 export const exportElementsToSvg = async (
   id,
   elements,
@@ -138,26 +183,36 @@ export const exportElementsToSvg = async (
   exportScale = 1,
   viewBackgroundColor = getLiveViewBackgroundColor(),
 ) => {
-  const svg = await exportToSvg({
-    elements,
-    files: files || (await getRelativeFiles(elements)),
-    appState: {
-      exportEmbedScene,
-      exportBackground: withBackground,
-      exportWithDarkMode,
-      exportScale,
-      viewBackgroundColor,
-    },
-  });
-  // 创建一个新的 XMLSerializer 实例
-  const serializer = new XMLSerializer();
-  // 将 SVG 元素序列化为字符串
-  const svgString = serializer.serializeToString(svg);
-  sendMessage({
-    event: "getElementsSVG",
-    data: {
-      id,
-      svg: svgString,
-    },
-  });
+  try {
+    const svgEl = await exportToSvg({
+      elements,
+      files: files || (await getRelativeFiles(elements)),
+      appState: {
+        exportEmbedScene,
+        exportBackground: withBackground,
+        exportWithDarkMode,
+        exportScale,
+        viewBackgroundColor,
+      },
+    });
+    const svg = new XMLSerializer().serializeToString(svgEl);
+    const result = { svg };
+
+    sendMessage({
+      event: "getElementsSVG",
+      data: { id, ...result },
+    });
+
+    return result;
+  } catch (error) {
+    console.error("[export] failed", error);
+    const errMessage = error?.message || String(error);
+
+    sendMessage({
+      event: "getElementsSVG",
+      data: { id, error: errMessage },
+    });
+
+    throw error;
+  }
 };

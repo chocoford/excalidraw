@@ -1,22 +1,89 @@
 import { sendMessage } from "./message";
 import { getRelativeFiles } from "./indexdb+";
 
+const getAPI = () => window.excalidrawZHelper?._api;
+
+const DEFAULT_LOAD_TIMEOUT_MS = 5000;
+
+/**
+ * Wait until the scene's element set actually changes (or a meaningful update
+ * happens), with timeout. Used to bridge "drop event dispatched" → "scene
+ * actually loaded".
+ *
+ * Detection: snapshot element IDs before, then on each onChange check if the
+ * element set differs from the snapshot. Skips onChange calls that don't
+ * change the element set (e.g. cursor moves, tool switches).
+ *
+ * @param {object} api  excalidrawAPI
+ * @param {number} timeoutMs
+ * @returns {Promise<readonly any[]>}  resolves with the new elements array
+ */
+const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
+  return new Promise((resolve, reject) => {
+    if (!api || typeof api.onChange !== "function") {
+      reject(new Error("excalidrawAPI not ready"));
+      return;
+    }
+
+    const beforeElements = api.getSceneElementsIncludingDeleted();
+    const beforeIds = new Set(beforeElements.map((el) => el.id));
+    const beforeCount = beforeIds.size;
+
+    let unsubscribe = null;
+    const timer = setTimeout(() => {
+      unsubscribe?.();
+      reject(
+        new Error(
+          "load timed out — file may be invalid, rejected, or empty",
+        ),
+      );
+    }, timeoutMs);
+
+    unsubscribe = api.onChange((elements) => {
+      // Compare element ID set to detect actual scene change
+      if (elements.length === beforeCount) {
+        let unchanged = true;
+        for (const el of elements) {
+          if (!beforeIds.has(el.id)) {
+            unchanged = false;
+            break;
+          }
+        }
+        if (unchanged) {
+          return;
+        }
+      }
+      clearTimeout(timer);
+      unsubscribe?.();
+      resolve(elements);
+    });
+  });
+};
+
 /**
  *
  * @param {number[]} buffer
- * @param {string} fileId - Optional file identifier to track if loading the same file
+ * @param {string} [fileId] - Optional file identifier to track if loading the same file
+ * @returns {Promise<{ fileId: string|undefined, elementCount: number, durationMs: number }>}
+ * @throws if JSON parsing fails or the load times out
  */
 export const loadFileBuffer = async (buffer, fileId) => {
+  const startedAt = Date.now();
   const uint8Array = new Uint8Array(buffer);
   const jsonString = new TextDecoder("utf-8").decode(uint8Array);
-  const content = JSON.parse(jsonString);
+
+  let content;
+  try {
+    content = JSON.parse(jsonString);
+  } catch (e) {
+    throw new Error(`loadFileBuffer: invalid JSON — ${e.message}`);
+  }
   console.info("loadFileBuffer", buffer, jsonString, content);
 
   // Check if loading the same file to preserve viewport
   const isSameFile = fileId && window.excalidrawZHelper.currentFileId === fileId;
 
   if (isSameFile) {
-    // Save current viewport position and merge into content
     const state = JSON.parse(localStorage.getItem("excalidraw-state") || "{}");
     const savedViewport = {
       scrollX: state.scrollX,
@@ -39,7 +106,6 @@ export const loadFileBuffer = async (buffer, fileId) => {
     });
   }
 
-  // Update current file ID
   window.excalidrawZHelper.currentFileId = fileId;
 
   const files = await getRelativeFiles(content.elements);
@@ -47,38 +113,54 @@ export const loadFileBuffer = async (buffer, fileId) => {
   const blob = new Blob([JSON.stringify(content)], {
     type: "application/vnd.excalidraw+json",
   });
-  // 使用 Blob 创建 File 对象
   const file = new File([blob], "file.excalidraw", {
     type: "application/vnd.excalidraw+json",
   });
-  await loadFile(file);
+
+  return _dispatchAndWait(file, { startedAt, fileId });
 };
 
 /**
  *
  * @param {string} dataString
+ * @returns {Promise<{ elementCount: number, durationMs: number }>}
+ * @throws if JSON parsing fails or the load times out
  */
 export const loadFileString = async (dataString) => {
-  const content = JSON.parse(dataString);
+  const startedAt = Date.now();
+  let content;
+  try {
+    content = JSON.parse(dataString);
+  } catch (e) {
+    throw new Error(`loadFileString: invalid JSON — ${e.message}`);
+  }
   const files = await getRelativeFiles(content.elements);
   content.files = { ...content.files, ...files };
   console.info("loadFileString", content);
-  // 创建一个 Blob 对象，并指定类型为 JSON 格式
   const blob = new Blob([JSON.stringify(content)], {
     type: "application/vnd.excalidraw+json",
   });
-  // 使用 Blob 创建 File 对象
   const file = new File([blob], "file.excalidraw", {
     type: "application/vnd.excalidraw+json",
   });
-  await loadFile(file);
+
+  return _dispatchAndWait(file, { startedAt });
 };
 
 /**
- * @param {File} file
+ * Internal: dispatch a fake drop event, then await the scene change.
+ * Resolves with stats; rejects on timeout or container missing.
  */
-export const loadFile = async (file) => {
-  // Use native DataTransfer API for better compatibility
+const _dispatchAndWait = async (file, meta = {}) => {
+  const node = document.querySelector(".excalidraw-container");
+  if (!node) {
+    throw new Error("loadFile: .excalidraw-container not found");
+  }
+
+  const api = getAPI();
+  // Prepare the wait BEFORE dispatching so we don't miss the change
+  const waitPromise = api ? waitForSceneChange(api) : null;
+
   const dataTransfer = new DataTransfer();
   dataTransfer.items.add(file);
 
@@ -86,55 +168,69 @@ export const loadFile = async (file) => {
     bubbles: true,
     cancelable: true,
   });
-
-  // Set dataTransfer using defineProperty for better compatibility
   Object.defineProperty(fakeDropEvent, "dataTransfer", {
     value: dataTransfer,
   });
+  node.dispatchEvent(fakeDropEvent);
 
-  const node = document.querySelector(".excalidraw-container");
-  if (node) {
-    node.dispatchEvent(fakeDropEvent);
-  } else {
-    console.warn("未找到 .excalidraw-container 元素");
+  if (waitPromise) {
+    const elements = await waitPromise;
+    return {
+      ...meta,
+      elementCount: elements.length,
+      durationMs: Date.now() - (meta.startedAt || Date.now()),
+    };
   }
+  // Fallback when API isn't ready — return immediately with no stats
+  console.warn("[loadFile] excalidrawAPI not ready, completion not awaited");
+  return { ...meta, elementCount: 0, durationMs: 0 };
 };
 
+/**
+ * @param {File} file
+ * @returns {Promise<void>}  Kept for backward compat — internal use only.
+ *                            External callers should use loadFileBuffer / loadFileString.
+ */
+export const loadFile = async (file) => {
+  await _dispatchAndWait(file);
+};
+
+/**
+ * @param {number[]} buffer
+ * @param {string} type  e.g. "png", "jpeg"
+ * @returns {Promise<{ elementCount: number, durationMs: number }>}
+ */
 export const loadImageBuffer = async (buffer, type) => {
-  // 将传入的普通数组转换成 Uint8Array
+  const startedAt = Date.now();
   const typedArray = new Uint8Array(buffer);
-  // 使用 typedArray 创建 Blob 对象
-  const blob = new Blob([typedArray], {
-    type: `image/${type}`,
-  });
-
-  // 使用 Blob 创建 File 对象
-  const file = new File([blob], `image.${type}`, {
-    type: `image/${type}`,
-  });
-
-  // 调用 loadImage 来模拟图片的拖拽事件
-  await loadImage(file);
+  const blob = new Blob([typedArray], { type: `image/${type}` });
+  const file = new File([blob], `image.${type}`, { type: `image/${type}` });
+  return loadImage(file, { startedAt });
 };
+
 /**
  * @param {File} image
+ * @param {{ startedAt?: number }} [meta]
+ * @returns {Promise<{ elementCount: number, durationMs: number }>}
  */
-export const loadImage = async (image) => {
+export const loadImage = async (image, meta = {}) => {
+  const startedAt = meta.startedAt || Date.now();
+  const node = document.querySelector(".excalidraw-container");
+  if (!node) {
+    throw new Error("loadImage: .excalidraw-container not found");
+  }
+
+  const api = getAPI();
+  const waitPromise = api ? waitForSceneChange(api) : null;
+
   const dataTransfer = new DataTransfer();
   dataTransfer.items.add(image);
 
-  const node = document.querySelector(".excalidraw-container");
   const { x: clientX, y: clientY } = (() => {
-    if (node) {
-      const rect = node.getBoundingClientRect();
-      return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      };
-    }
+    const rect = node.getBoundingClientRect();
     return {
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
     };
   })();
   const fakeDropEvent = new DragEvent("drop", {
@@ -147,12 +243,17 @@ export const loadImage = async (image) => {
   Object.defineProperty(fakeDropEvent, "dataTransfer", {
     value: dataTransfer,
   });
+  node.dispatchEvent(fakeDropEvent);
 
-  if (node) {
-    node.dispatchEvent(fakeDropEvent);
-  } else {
-    console.warn("未找到 .excalidraw-container 元素");
+  if (waitPromise) {
+    const elements = await waitPromise;
+    return {
+      elementCount: elements.length,
+      durationMs: Date.now() - startedAt,
+    };
   }
+  console.warn("[loadImage] excalidrawAPI not ready, completion not awaited");
+  return { elementCount: 0, durationMs: 0 };
 };
 
 export const saveFile = () => {
