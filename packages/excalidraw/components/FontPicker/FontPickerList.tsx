@@ -46,6 +46,7 @@ import {
 import { fontPickerKeyHandler } from "./keyboardNavHandlers";
 
 import type { JSX } from "react";
+import type { ExcalidrawFontFace } from "../../fonts/ExcalidrawFontFace";
 
 export interface FontDescriptor {
   value: FontFamilyValues;
@@ -86,6 +87,15 @@ const getFontFamilyIcon = (fontFamily: FontFamilyValues): JSX.Element => {
   }
 };
 
+const getFontFamilyLabel = (
+  fontFamily: FontFamilyValues,
+  fontFaces: ExcalidrawFontFace[],
+) =>
+  // prefer our config as the browser resolved names may be wrapped in quotes and such
+  Object.entries(FONT_FAMILY).find(([, id]) => id === fontFamily)?.[0] ??
+  fontFaces[0]?.fontFace?.family ??
+  "Unknown";
+
 export const FontPickerList = React.memo(
   ({
     selectedFontFamily,
@@ -117,7 +127,7 @@ export const FontPickerList = React.memo(
               text:
                 familyId === 1
                   ? "ExcalidrawZ Mixed"
-                  : fontFaces[0]?.fontFace?.family ?? "Unknown",
+                  : getFontFamilyLabel(familyId, fontFaces) ?? "Unknown",
             };
 
             if (metadata.deprecated) {

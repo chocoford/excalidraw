@@ -96,6 +96,8 @@ type RestoredAppState = Omit<
   "offsetTop" | "offsetLeft" | "width" | "height"
 >;
 
+const MAX_ARROW_PX = 75_000;
+
 export const AllowedExcalidrawActiveTools: Record<
   AppState["activeTool"]["type"],
   boolean
@@ -251,7 +253,9 @@ const repairBinding = <T extends ExcalidrawArrowElement>(
       };
     }
 
-    console.error(`could not repair binding for element`);
+    console.error(
+      `Could not repair binding for element "${boundElement?.id}" out of (${elementsMap?.size}) elements`,
+    );
   } catch (error) {
     console.error("Error repairing binding:", error);
   }
@@ -472,8 +476,8 @@ export const restoreElement = (
         element.endArrowhead === undefined
           ? "arrow"
           : normalizeArrowhead(element.endArrowhead);
-      const x: number | undefined = element.x;
-      const y: number | undefined = element.y;
+      const x = element.x as number | undefined;
+      const y = element.y as number | undefined;
       const points: readonly LocalPoint[] | undefined = // migrate old arrow model to new one
         !Array.isArray(element.points) || element.points.length < 2
           ? [pointFrom(0, 0), pointFrom(element.width, element.height)]
@@ -498,8 +502,8 @@ export const restoreElement = (
         startArrowhead,
         endArrowhead,
         points,
-        x,
-        y,
+        x: x ?? 0,
+        y: y ?? 0,
         elbowed: (element as ExcalidrawArrowElement).elbowed,
         ...getSizeFromPoints(points),
       };
@@ -518,12 +522,44 @@ export const restoreElement = (
           })
         : restoreElementWithProperties(element as ExcalidrawArrowElement, base);
 
-      return {
+      const normalizedRestoredElement = {
         ...restoredElement,
         ...LinearElementEditor.getNormalizeElementPointsAndCoords(
           restoredElement,
         ),
       };
+
+      // Last resort fix for extremely large arrows
+      if (
+        normalizedRestoredElement.width > MAX_ARROW_PX ||
+        normalizedRestoredElement.height > MAX_ARROW_PX
+      ) {
+        console.error(
+          `Removing extremely large arrow ${
+            normalizedRestoredElement.id
+          } (type: ${
+            isElbowArrow(normalizedRestoredElement) ? "elbow" : "simple"
+          }, width: ${normalizedRestoredElement.width}, height: ${
+            normalizedRestoredElement.height
+          }, x: ${normalizedRestoredElement.x}, y: ${
+            normalizedRestoredElement.y
+          })`,
+        );
+        return {
+          ...normalizedRestoredElement,
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          points: [
+            pointFrom<LocalPoint>(0, 0),
+            pointFrom<LocalPoint>(100, 100),
+          ],
+          isDeleted: true,
+        };
+      }
+
+      return normalizedRestoredElement;
     }
 
     // generic elements
@@ -671,6 +707,7 @@ export const restoreElements = <T extends ExcalidrawElement>(
   const existingElementsMap = existingElements
     ? arrayToMap(existingElements)
     : null;
+
   const restoredElements = syncInvalidIndices(
     (targetElements || []).reduce((elements, element) => {
       // filtering out selection, which is legacy, no longer kept in elements,
@@ -767,7 +804,7 @@ export const restoreElements = <T extends ExcalidrawElement>(
     }
   }
 
-  // NOTE (mtolmacs): Temporary fix for extremely large arrows
+  // NOTE (mtolmacs): Temporary fix for invalid/self-bound elbow arrows
   // Need to iterate again so we have attached text nodes in elementsMap
   return restoredElements.map((element) => {
     if (
@@ -939,6 +976,12 @@ export const restoreAppState = (
         : localValue !== undefined
         ? localValue
         : defaultValue;
+  }
+
+  const boxSelectionMode =
+    appState.boxSelectionMode ?? localAppState?.boxSelectionMode;
+  if (boxSelectionMode !== undefined) {
+    nextAppState.boxSelectionMode = boxSelectionMode;
   }
 
   return {
