@@ -20,10 +20,24 @@ import {
   loadImageBuffer,
   loadImage,
   saveFile,
+  getCurrentFileSnapshot,
   loadLibraryItem,
   onLoadLibrary,
 } from "./load+save";
 import { exportElementsToBlob, exportElementsToSvg } from "./export";
+import { mermaidToElements, insertFromMermaid } from "./mermaid";
+import {
+  createElements,
+  insertFromSkeleton,
+  createShape,
+  createText,
+  createArrow,
+  createLine,
+  createFrame,
+  createImage,
+} from "./creators";
+import { insertElements } from "./placement";
+import { connectElements } from "./connect";
 import { getIsDark, toggleColorTheme } from "./colorScheme";
 import { setAvailableFonts } from "./font";
 import {
@@ -389,6 +403,7 @@ window.excalidrawZHelper = {
   loadFileBuffer,
   loadFileString,
   saveFile,
+  getCurrentFileSnapshot,
 
   loadImageBuffer,
   loadImage,
@@ -407,6 +422,26 @@ window.excalidrawZHelper = {
 
   exportElementsToBlob,
   exportElementsToSvg,
+
+  // Mermaid
+  mermaidToElements,
+  insertFromMermaid,
+
+  // Element creators
+  createElements,
+  createShape,
+  createText,
+  createArrow,
+  createLine,
+  createFrame,
+  createImage,
+
+  // One-shot insertion
+  insertElements,
+  insertFromSkeleton,
+
+  // Connect existing elements
+  connectElements,
 
   getAllMedias,
   insertMedias,

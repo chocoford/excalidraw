@@ -1,5 +1,3 @@
-import { sendMessage } from "./message";
-
 /** @type IDBDatabase */
 export let filesStoreConnection = null;
 export const connectFileStore = async () => {
@@ -104,36 +102,10 @@ export const getRelativeFiles = async (elements) => {
 /**
  * Get all media files from the indexed-db store.
  *
- * Returns a Promise resolving with `{ files }`. Also emits the
- * `getAllMedias` event for backward compat with hosts that use
- * `evaluateJavaScript` + id-based event matching. Hosts using
- * `callAsyncJavaScript` should pass `null` for `id` and `await` the
- * return value.
- *
- * @param {string|null} id  Legacy request id (ignored when awaiting).
  * @returns {Promise<{ files: any[] }>}
  * @throws on indexed-db read failure
  */
-export const getAllMedias = async (id) => {
-  try {
-    const files = await getAllFiles();
-    const result = { files };
-
-    sendMessage({
-      event: "getAllMedias",
-      data: { id, ...result },
-    });
-
-    return result;
-  } catch (error) {
-    console.error("[getAllMedias] failed", error);
-    const errMessage = error?.message || String(error);
-
-    sendMessage({
-      event: "getAllMedias",
-      data: { id, error: errMessage },
-    });
-
-    throw error;
-  }
+export const getAllMedias = async () => {
+  const files = await getAllFiles();
+  return { files };
 };

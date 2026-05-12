@@ -6,13 +6,26 @@ const getAPI = () => window.excalidrawZHelper?._api;
 const DEFAULT_LOAD_TIMEOUT_MS = 5000;
 
 /**
- * Wait until the scene's element set actually changes (or a meaningful update
- * happens), with timeout. Used to bridge "drop event dispatched" → "scene
- * actually loaded".
+ * Wait until the scene reflects a load attempt (or time out).
  *
- * Detection: snapshot element IDs before, then on each onChange check if the
- * element set differs from the snapshot. Skips onChange calls that don't
- * change the element set (e.g. cursor moves, tool switches).
+ * Resolves on the first `onChange` fire after subscription. This is robust
+ * because:
+ *
+ *   1. Excalidraw suppresses `onChange` while `appState.isLoading === true`
+ *      (see App.tsx#onSceneUpdated). The drop handler sets isLoading=true
+ *      before processing and back to false in `syncActionResult`, so the
+ *      onChange we observe is post-load — not the in-flight render.
+ *   2. Subscription and `dispatchEvent` happen synchronously with no `await`
+ *      between them, so React cannot flush an unrelated state update in the
+ *      gap.
+ *   3. Pointer/cursor moves go through `onPointerUpdate`, not `onChange`.
+ *   4. Even on parse failure, the drop handler calls
+ *      `setState({ errorMessage, isLoading: false })`, so onChange still
+ *      fires — distinguishing "load attempt completed" from "drop ignored".
+ *
+ * Critically, this works for empty → empty loads (which the previous
+ * ID-set diff missed): we don't need any observable scene delta, just one
+ * onChange fire from the post-load render.
  *
  * @param {object} api  excalidrawAPI
  * @param {number} timeoutMs
@@ -25,10 +38,6 @@ const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
       return;
     }
 
-    const beforeElements = api.getSceneElementsIncludingDeleted();
-    const beforeIds = new Set(beforeElements.map((el) => el.id));
-    const beforeCount = beforeIds.size;
-
     let unsubscribe = null;
     const timer = setTimeout(() => {
       unsubscribe?.();
@@ -40,19 +49,6 @@ const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
     }, timeoutMs);
 
     unsubscribe = api.onChange((elements) => {
-      // Compare element ID set to detect actual scene change
-      if (elements.length === beforeCount) {
-        let unchanged = true;
-        for (const el of elements) {
-          if (!beforeIds.has(el.id)) {
-            unchanged = false;
-            break;
-          }
-        }
-        if (unchanged) {
-          return;
-        }
-      }
       clearTimeout(timer);
       unsubscribe?.();
       resolve(elements);
@@ -256,40 +252,82 @@ export const loadImage = async (image, meta = {}) => {
   return { elementCount: 0, durationMs: 0 };
 };
 
-export const saveFile = () => {
-  const elementsData = localStorage.getItem("excalidraw");
-  const appStateData = localStorage.getItem("excalidraw-state");
-  try {
-    const elements = JSON.parse(elementsData);
-    const appState = JSON.parse(appStateData);
-    const completeData = JSON.stringify({
-      elements,
-      appState,
-    });
-    sendMessage({
-      event: "saveFileDone",
-      data: completeData,
-    });
-  } catch (error) {
-    console.error("Failed to save file:", error);
+/**
+ * Snapshot the current scene as a serialized .excalidraw payload.
+ *
+ * Reads from live appState (no localStorage round-trip). Returns the
+ * serialized JSON string directly — host should `await` this via
+ * callAsyncJavaScript.
+ *
+ * @returns {Promise<{ dataString: string, elementCount: number }>}
+ * @throws if excalidrawAPI is not ready
+ */
+export const saveFile = async () => {
+  const api = getAPI();
+  if (!api) {
+    throw new Error("saveFile: excalidrawAPI not ready");
   }
+  const elements = api.getSceneElementsIncludingDeleted();
+  const appState = api.getAppState();
+  const dataString = JSON.stringify({ elements, appState });
+  return { dataString, elementCount: elements.length };
 };
 
-export const loadLibraryItem = (json) => {
-  const mineType = "application/vnd.excalidrawlib+json";
-  const dataTransfer = new DataTransfer();
-  dataTransfer.setData(mineType, JSON.stringify(json));
-  const positionX = window.innerWidth / 2;
-  const positionY = window.innerHeight / 2;
-  const dropEvent = new DragEvent("drop", {
-    dataTransfer,
-    bubbles: true,
-    cancelable: true,
-    clientX: positionX,
-    clientY: positionY,
+/**
+ * Snapshot the live scene + its referenced files into the same payload
+ * shape the host receives via `onStateChanged` broadcasts.
+ *
+ * Use this when the host needs guaranteed up-to-date data: the broadcast
+ * is throttled (~1s) so cached host state can lag behind the editor.
+ * `getCurrentFileSnapshot()` always reflects the current scene at call time.
+ *
+ * @returns {Promise<{
+ *   dataString: string,
+ *   elements: readonly any[],
+ *   appState: any,
+ *   files: { [id: string]: any },
+ * }>}
+ * @throws if excalidrawAPI is not ready
+ */
+export const getCurrentFileSnapshot = async () => {
+  const api = getAPI();
+  if (!api) {
+    throw new Error("getCurrentFileSnapshot: excalidrawAPI not ready");
+  }
+  const elements = api.getSceneElementsIncludingDeleted();
+  const appState = api.getAppState();
+  const files = await getRelativeFiles(elements);
+  return {
+    dataString: JSON.stringify({ elements, appState }),
+    elements,
+    appState,
+    files,
+  };
+};
+
+/**
+ * Import a library item (e.g. .excalidrawlib JSON).
+ *
+ * Uses the imperative `updateLibrary` API directly — cleaner and properly
+ * awaitable, vs the previous synthetic-drop hack.
+ *
+ * @param {object} json  Parsed .excalidrawlib payload
+ * @param {{ merge?: boolean }} [opts]
+ * @returns {Promise<{ itemCount: number }>}
+ * @throws if excalidrawAPI is not ready or the library data is invalid
+ */
+export const loadLibraryItem = async (json, opts = {}) => {
+  const api = getAPI();
+  if (!api?.updateLibrary) {
+    throw new Error("loadLibraryItem: excalidrawAPI not ready");
+  }
+  const { merge = true } = opts;
+  const items = await api.updateLibrary({
+    libraryItems: json,
+    merge,
+    openLibraryMenu: false,
   });
-  const node = document.querySelector(".excalidraw-container");
-  node.dispatchEvent(dropEvent);
+  return { itemCount: items.length };
 };
 
 export const onLoadLibrary = (libraryData) => {

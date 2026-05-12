@@ -1,3 +1,5 @@
+import { restoreElements } from "@excalidraw/excalidraw/data/restore";
+
 import { sendMessage } from "./message";
 
 /**
@@ -22,6 +24,64 @@ export const CaptureUpdate = {
   IMMEDIATELY: "IMMEDIATELY",
   EVENTUALLY: "EVENTUALLY",
   NEVER: "NEVER",
+};
+
+/**
+ * Run host-supplied elements through Excalidraw's `restoreElements` with
+ * `repairBindings: true` so dangling containerId / boundElements / arrow
+ * bindings get cleaned up before they hit the scene.
+ *
+ * Default-on for every host mutation entry — host treats Excalidraw as a
+ * black box and shouldn't have to know about its binding rules. Performance-
+ * sensitive callers can opt out with `{ sanitize: false }`.
+ */
+const sanitizeForScene = (elements, existing) =>
+  restoreElements(elements, existing, { repairBindings: true });
+
+/**
+ * For `removeElements`: clear bindings on remaining elements that point to
+ * any of the just-removed IDs. We do this manually because removed elements
+ * are kept in the array with `isDeleted: true` (to preserve undo history),
+ * and `restoreElements`'s repair logic only clears refs to elements that
+ * are *missing from the map* — not refs to deleted-but-still-present ones.
+ *
+ * Sweeps:
+ *   - text.containerId → null if container is being removed
+ *   - element.boundElements → drop entries pointing to removed IDs
+ *   - arrow.startBinding / endBinding → null if target is being removed
+ */
+const sweepDependentBindings = (elements, removedIds) => {
+  return elements.map((el) => {
+    if (removedIds.has(el.id)) {
+      return el;
+    }
+
+    let next = el;
+
+    if (
+      el.type === "text" &&
+      el.containerId &&
+      removedIds.has(el.containerId)
+    ) {
+      next = { ...next, containerId: null };
+    }
+
+    if (el.boundElements && el.boundElements.length) {
+      const filtered = el.boundElements.filter((b) => !removedIds.has(b.id));
+      if (filtered.length !== el.boundElements.length) {
+        next = { ...next, boundElements: filtered };
+      }
+    }
+
+    if (el.startBinding && removedIds.has(el.startBinding.elementId)) {
+      next = { ...next, startBinding: null };
+    }
+    if (el.endBinding && removedIds.has(el.endBinding.elementId)) {
+      next = { ...next, endBinding: null };
+    }
+
+    return next;
+  });
 };
 
 /**
@@ -80,15 +140,24 @@ export const getElementsByIds = (ids) => {
  * Uses mutateElement under the hood — only listed fields are changed,
  * version/versionNonce/updated are bumped automatically.
  *
+ * If `sanitize` is true (default), runs the post-mutation scene through
+ * `restoreElements({ repairBindings: true })` to clean up any bindings
+ * the patch might have orphaned.
+ *
  * @param {string} id
  * @param {Partial<ExcalidrawElement>} updates
+ * @param {{
+ *   sanitize?: boolean,
+ *   captureUpdate?: keyof typeof CaptureUpdate,
+ * }} [opts]
  * @returns {boolean} true if the element was found and updated
  */
-export const updateElement = (id, updates) => {
+export const updateElement = (id, updates, opts = {}) => {
   const api = getAPI();
   if (!api) {
     return false;
   }
+  const { sanitize = true, captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
   const element = api
     .getSceneElementsIncludingDeleted()
     .find((el) => el.id === id);
@@ -97,19 +166,32 @@ export const updateElement = (id, updates) => {
     return false;
   }
   api.mutateElement(element, updates);
+  if (sanitize) {
+    const fresh = api.getSceneElementsIncludingDeleted();
+    api.updateScene({
+      elements: sanitizeForScene(fresh, fresh),
+      captureUpdate,
+    });
+  }
   return true;
 };
 
 /**
  * Update multiple elements in one batch.
+ *
  * @param {Array<{ id: string, updates: Partial<ExcalidrawElement> }>} patches
+ * @param {{
+ *   sanitize?: boolean,
+ *   captureUpdate?: keyof typeof CaptureUpdate,
+ * }} [opts]
  * @returns {number} number of elements actually updated
  */
-export const updateElements = (patches) => {
+export const updateElements = (patches, opts = {}) => {
   const api = getAPI();
   if (!api) {
     return 0;
   }
+  const { sanitize = true, captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
   const all = api.getSceneElementsIncludingDeleted();
   const map = new Map(all.map((el) => [el.id, el]));
   let count = 0;
@@ -120,29 +202,47 @@ export const updateElements = (patches) => {
       count++;
     }
   }
+  if (count > 0 && sanitize) {
+    const fresh = api.getSceneElementsIncludingDeleted();
+    api.updateScene({
+      elements: sanitizeForScene(fresh, fresh),
+      captureUpdate,
+    });
+  }
   return count;
 };
 
 /**
  * Append new elements to the scene (preserves existing).
+ *
  * @param {ExcalidrawElement[]} newElements
- * @param {{ captureUpdate?: keyof typeof CaptureUpdate }} opts
+ * @param {{
+ *   sanitize?: boolean,
+ *   captureUpdate?: keyof typeof CaptureUpdate,
+ * }} [opts]
  */
 export const addElements = (newElements, opts = {}) => {
   const api = getAPI();
   if (!api) {
     return;
   }
-  const { captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
+  const { sanitize = true, captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
   const current = api.getSceneElementsIncludingDeleted();
-  api.updateScene({
-    elements: [...current, ...newElements],
-    captureUpdate,
-  });
+  let next = [...current, ...newElements];
+  if (sanitize) {
+    next = sanitizeForScene(next, current);
+  }
+  api.updateScene({ elements: next, captureUpdate });
 };
 
 /**
  * Remove elements by IDs (marks them as deleted in the scene).
+ *
+ * Always sweeps dependent bindings on the remaining elements — removing a
+ * container without clearing the bound text's `containerId` would otherwise
+ * leave the scene in an inconsistent state (orphan bindings, broken
+ * select-all, etc.). Not opt-out-able by design.
+ *
  * @param {string[]} ids
  * @param {{ captureUpdate?: keyof typeof CaptureUpdate }} opts
  * @returns {number} number of elements removed
@@ -156,7 +256,7 @@ export const removeElements = (ids, opts = {}) => {
   const idSet = new Set(ids);
   const current = api.getSceneElementsIncludingDeleted();
   let count = 0;
-  const next = current.map((el) => {
+  let next = current.map((el) => {
     if (idSet.has(el.id) && !el.isDeleted) {
       count++;
       return { ...el, isDeleted: true };
@@ -164,29 +264,30 @@ export const removeElements = (ids, opts = {}) => {
     return el;
   });
   if (count > 0) {
-    api.updateScene({
-      elements: next,
-      captureUpdate,
-    });
+    next = sweepDependentBindings(next, idSet);
+    api.updateScene({ elements: next, captureUpdate });
   }
   return count;
 };
 
 /**
  * Replace all elements in the scene.
+ *
  * @param {ExcalidrawElement[]} elements
- * @param {{ captureUpdate?: keyof typeof CaptureUpdate }} opts
+ * @param {{
+ *   sanitize?: boolean,
+ *   captureUpdate?: keyof typeof CaptureUpdate,
+ * }} [opts]
  */
 export const replaceAllElements = (elements, opts = {}) => {
   const api = getAPI();
   if (!api) {
     return;
   }
-  const { captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
-  api.updateScene({
-    elements,
-    captureUpdate,
-  });
+  const { sanitize = true, captureUpdate = CaptureUpdate.IMMEDIATELY } = opts;
+  const current = api.getSceneElementsIncludingDeleted();
+  const next = sanitize ? sanitizeForScene(elements, current) : elements;
+  api.updateScene({ elements: next, captureUpdate });
 };
 
 /**

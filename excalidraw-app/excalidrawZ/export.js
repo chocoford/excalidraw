@@ -1,6 +1,5 @@
 import { exportToBlob, exportToSvg } from "../../packages/utils/src";
 
-import { sendMessage } from "./message";
 import { getRelativeFiles } from "./indexdb+";
 
 /**
@@ -33,16 +32,6 @@ const MAX_CANVAS_AREA = 256 * 1024 * 1024; // 256M pixels (~16384²)
 /**
  * Export elements to a blob (PNG, JXL, JPEG, etc.).
  *
- * Returns a Promise resolving with the export result. Also emits the
- * `getElementsBlob` event for backward compatibility with hosts that
- * still use the id-based callback pattern via `evaluateJavaScript`.
- *
- * Hosts using `callAsyncJavaScript` should `await` the return value
- * directly and pass `null` for `id` (or any value, it's ignored on the
- * Promise side).
- *
- * @param {string|null} id  Legacy request id for the event-based path.
- *                          Pass null/undefined when awaiting the Promise.
  * @param {any[]} elements
  * @param {{[id: string]: any} | undefined} files
  * @param {{
@@ -57,12 +46,7 @@ const MAX_CANVAS_AREA = 256 * 1024 * 1024; // 256M pixels (~16384²)
  * @returns {Promise<{ blobData: string, actualScale: number, scaleClamped: boolean }>}
  * @throws on export failure
  */
-export const exportElementsToBlob = async (
-  id,
-  elements,
-  files,
-  options = {},
-) => {
+export const exportElementsToBlob = async (elements, files, options = {}) => {
   const {
     exportEmbedScene = false,
     withBackground = true,
@@ -76,93 +60,63 @@ export const exportElementsToBlob = async (
   let actualScale = exportScale;
   let scaleClamped = false;
 
-  try {
-    const blob = await exportToBlob({
-      elements,
-      files: files || (await getRelativeFiles(elements)),
-      appState: {
-        exportEmbedScene,
-        exportBackground: withBackground,
-        exportWithDarkMode,
-        exportScale: actualScale,
-        viewBackgroundColor,
-      },
-      mimeType,
-      quality,
-      // exportToCanvas only honors appState.exportScale when maxWidthOrHeight
-      // is set, so we explicitly provide getDimensions to apply the scale
-      // multiplier — and pre-flight clamp it if the canvas would exceed
-      // WebKit's limits.
-      getDimensions: (width, height) => {
-        const targetW = width * exportScale;
-        const targetH = height * exportScale;
-        const targetArea = targetW * targetH;
+  const blob = await exportToBlob({
+    elements: elements.filter((el) => !el.isDeleted),
+    files: files || (await getRelativeFiles(elements)),
+    appState: {
+      exportEmbedScene,
+      exportBackground: withBackground,
+      exportWithDarkMode,
+      exportScale: actualScale,
+      viewBackgroundColor,
+    },
+    mimeType,
+    quality,
+    // exportToCanvas only honors appState.exportScale when maxWidthOrHeight
+    // is set, so we explicitly provide getDimensions to apply the scale
+    // multiplier — and pre-flight clamp it if the canvas would exceed
+    // WebKit's limits.
+    getDimensions: (width, height) => {
+      const targetW = width * exportScale;
+      const targetH = height * exportScale;
+      const targetArea = targetW * targetH;
 
-        const dimRatio = Math.min(
-          MAX_CANVAS_DIMENSION / targetW,
-          MAX_CANVAS_DIMENSION / targetH,
-          1,
+      const dimRatio = Math.min(
+        MAX_CANVAS_DIMENSION / targetW,
+        MAX_CANVAS_DIMENSION / targetH,
+        1,
+      );
+      const areaRatio =
+        targetArea > MAX_CANVAS_AREA
+          ? Math.sqrt(MAX_CANVAS_AREA / targetArea)
+          : 1;
+      const safetyRatio = Math.min(dimRatio, areaRatio);
+
+      if (safetyRatio < 1) {
+        actualScale = exportScale * safetyRatio;
+        scaleClamped = true;
+        console.warn(
+          `[export] requested ${exportScale}x would produce ` +
+            `${Math.round(targetW)}×${Math.round(targetH)} canvas; ` +
+            `clamped to ${actualScale.toFixed(2)}x to fit browser limits`,
         );
-        const areaRatio =
-          targetArea > MAX_CANVAS_AREA
-            ? Math.sqrt(MAX_CANVAS_AREA / targetArea)
-            : 1;
-        const safetyRatio = Math.min(dimRatio, areaRatio);
+      }
 
-        if (safetyRatio < 1) {
-          actualScale = exportScale * safetyRatio;
-          scaleClamped = true;
-          console.warn(
-            `[export] requested ${exportScale}x would produce ` +
-              `${Math.round(targetW)}×${Math.round(targetH)} canvas; ` +
-              `clamped to ${actualScale.toFixed(2)}x to fit browser limits`,
-          );
-        }
+      return {
+        width: width * actualScale,
+        height: height * actualScale,
+        scale: actualScale,
+      };
+    },
+  });
 
-        return {
-          width: width * actualScale,
-          height: height * actualScale,
-          scale: actualScale,
-        };
-      },
-    });
-
-    const blobData = await blobToBase64(blob);
-    const result = { blobData, actualScale, scaleClamped };
-
-    // Backward compat: also notify via event (legacy id-based path)
-    sendMessage({
-      event: "getElementsBlob",
-      data: { id, ...result },
-    });
-
-    return result;
-  } catch (error) {
-    console.error("[export] failed", error);
-    const errMessage = error?.message || String(error);
-
-    // Backward compat: notify legacy listeners of the failure
-    sendMessage({
-      event: "getElementsBlob",
-      data: {
-        id,
-        error: errMessage,
-        requestedScale: exportScale,
-      },
-    });
-
-    // Re-throw so callAsyncJavaScript callers see the rejection
-    throw error;
-  }
+  const blobData = await blobToBase64(blob);
+  return { blobData, actualScale, scaleClamped };
 };
 
 /**
  * Export elements to an SVG string.
  *
- * Returns a Promise resolving with the SVG string. Also emits the
- * `getElementsSVG` event for backward compat.
- *
- * @param {string|null} id  Legacy request id (ignored when awaiting).
  * @param {any[]} elements
  * @param {{[id: string]: any} | undefined} files
  * @param {boolean} [exportEmbedScene]
@@ -174,7 +128,6 @@ export const exportElementsToBlob = async (
  * @throws on export failure
  */
 export const exportElementsToSvg = async (
-  id,
   elements,
   files,
   exportEmbedScene = false,
@@ -183,36 +136,18 @@ export const exportElementsToSvg = async (
   exportScale = 1,
   viewBackgroundColor = getLiveViewBackgroundColor(),
 ) => {
-  try {
-    const svgEl = await exportToSvg({
-      elements,
-      files: files || (await getRelativeFiles(elements)),
-      appState: {
-        exportEmbedScene,
-        exportBackground: withBackground,
-        exportWithDarkMode,
-        exportScale,
-        viewBackgroundColor,
-      },
-    });
-    const svg = new XMLSerializer().serializeToString(svgEl);
-    const result = { svg };
-
-    sendMessage({
-      event: "getElementsSVG",
-      data: { id, ...result },
-    });
-
-    return result;
-  } catch (error) {
-    console.error("[export] failed", error);
-    const errMessage = error?.message || String(error);
-
-    sendMessage({
-      event: "getElementsSVG",
-      data: { id, error: errMessage },
-    });
-
-    throw error;
-  }
+  const visibleElements = elements.filter((el) => !el.isDeleted);
+  const svgEl = await exportToSvg({
+    elements: visibleElements,
+    files: files || (await getRelativeFiles(visibleElements)),
+    appState: {
+      exportEmbedScene,
+      exportBackground: withBackground,
+      exportWithDarkMode,
+      exportScale,
+      viewBackgroundColor,
+    },
+  });
+  const svg = new XMLSerializer().serializeToString(svgEl);
+  return { svg };
 };
