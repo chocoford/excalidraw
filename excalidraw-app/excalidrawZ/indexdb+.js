@@ -1,3 +1,5 @@
+import { sendMessage } from "./message";
+
 /** @type IDBDatabase */
 export let filesStoreConnection = null;
 export const connectFileStore = async () => {
@@ -102,10 +104,18 @@ export const getRelativeFiles = async (elements) => {
 /**
  * Get all media files from the indexed-db store.
  *
+ * Two call styles (host backwards compat):
+ *   - **New**: `await getAllMedias()` → `Promise<{ files }>`
+ *   - **Old**: `getAllMedias(id)` → fires `getAllMedias` event with
+ *     `{ id, files }`. Still returns Promise.
+ *
  * @returns {Promise<{ files: any[] }>}
  * @throws on indexed-db read failure
  */
-export const getAllMedias = async () => {
+export const getAllMedias = async (id) => {
   const files = await getAllFiles();
+  if (id !== undefined) {
+    sendMessage({ event: "getAllMedias", data: { id, files } });
+  }
   return { files };
 };

@@ -270,6 +270,9 @@ export const saveFile = async () => {
   const elements = api.getSceneElementsIncludingDeleted();
   const appState = api.getAppState();
   const dataString = JSON.stringify({ elements, appState });
+  // Backwards-compat broadcast — hosts subscribed to `saveFileDone` keep
+  // working without switching to the Promise return value.
+  sendMessage({ event: "saveFileDone", data: dataString });
   return { dataString, elementCount: elements.length };
 };
 
