@@ -11,6 +11,29 @@ interface Window {
   excalidrawZHelper?: {
     sendMessage: (payload: { event: string; data?: any }) => void;
     currentFileId?: string;
+    nativeViewportInsets?: {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+    setNativeViewportInsets?: (insets: {
+      top?: number;
+      right?: number;
+      bottom?: number;
+      left?: number;
+    }) => {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+    getNativeViewportInsets?: () => {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
     getUserSettings: () => Record<string, any> | null;
     applyUserSettings: (settings: Record<string, any>) => void;
   };

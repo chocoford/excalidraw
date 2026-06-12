@@ -124,3 +124,13 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Line 314-320: Added `case "pdf"` in `restoreElement()` to restore PDF elements with `status`, `fileId`, `currentPage`, and `totalPages` properties.
 - `excalidraw-app/App.tsx` line 887-888: Updated status checking to include PDF elements.
 - `excalidraw-app/collab/Portal.tsx` line 125-126: Updated collab status checking to include PDF elements.
+
+### Native Viewport Insets
+
+- Add native safe-area bridge in `excalidraw-app/excalidrawZ/viewport.js` line 1-43:
+  - `window.excalidrawZHelper.setNativeViewportInsets({ top, right, bottom, left })`
+  - `window.excalidrawZHelper.getNativeViewportInsets()`
+  - Stores normalized non-negative inset values, updates `nativeViewportInsets`, overrides CSS safe-area vars `--sat`, `--sar`, `--sab`, `--sal`, and dispatches `excalidrawz:nativeViewportInsetsChanged`.
+- Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 41-45 and expose the native inset APIs on `window.excalidrawZHelper` line 451-454.
+- Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.tsx` line 4797-4841 so zoom/scroll-to-content avoids Swift-provided safe areas.
+- Declare the helper API in `packages/excalidraw/global.d.ts` line 14-36.

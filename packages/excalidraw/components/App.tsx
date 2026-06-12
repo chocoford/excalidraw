@@ -4807,29 +4807,35 @@ class App extends React.Component<AppProps, AppState> {
       ?.getBoundingClientRect();
 
     const PADDING = 16;
+    const nativeViewportInsets =
+      (window as any).excalidrawZHelper?.nativeViewportInsets ?? {};
+    const nativeTop = Number(nativeViewportInsets.top) || 0;
+    const nativeRight = Number(nativeViewportInsets.right) || 0;
+    const nativeBottom = Number(nativeViewportInsets.bottom) || 0;
+    const nativeLeft = Number(nativeViewportInsets.left) || 0;
+    const leftSidebarWidth = Math.max(sidebarRect?.right ?? 0, 0);
+    const rightSidebarWidth = Math.max(
+      this.state.width - (sidebarRect?.left ?? this.state.width),
+      0,
+    );
+    const leftPropertiesWidth = Math.max(propertiesPanelRect?.right ?? 0, 0);
+    const rightPropertiesWidth = Math.max(
+      this.state.width - (propertiesPanelRect?.left ?? this.state.width),
+      0,
+    );
 
     return getLanguage().rtl
       ? {
-          top: toolbarBottom + PADDING,
-          right:
-            Math.max(
-              this.state.width -
-                (propertiesPanelRect?.left ?? this.state.width),
-              0,
-            ) + PADDING,
-          bottom: PADDING,
-          left: Math.max(sidebarRect?.right ?? 0, 0) + PADDING,
+          top: Math.max(toolbarBottom, nativeTop) + PADDING,
+          right: Math.max(rightPropertiesWidth, nativeRight) + PADDING,
+          bottom: nativeBottom + PADDING,
+          left: Math.max(leftSidebarWidth, nativeLeft) + PADDING,
         }
       : {
-          top: toolbarBottom + PADDING,
-          right: Math.max(
-            this.state.width -
-              (sidebarRect?.left ?? this.state.width) +
-              PADDING,
-            0,
-          ),
-          bottom: PADDING,
-          left: Math.max(propertiesPanelRect?.right ?? 0, 0) + PADDING,
+          top: Math.max(toolbarBottom, nativeTop) + PADDING,
+          right: Math.max(rightSidebarWidth, nativeRight) + PADDING,
+          bottom: nativeBottom + PADDING,
+          left: Math.max(leftPropertiesWidth, nativeLeft) + PADDING,
         };
   };
 

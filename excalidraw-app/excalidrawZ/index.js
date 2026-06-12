@@ -38,6 +38,11 @@ import {
 } from "./creators";
 import { insertElements } from "./placement";
 import { connectElements } from "./connect";
+import {
+  nativeViewportInsets,
+  setNativeViewportInsets,
+  getNativeViewportInsets,
+} from "./viewport";
 import { getIsDark, toggleColorTheme } from "./colorScheme";
 import { setAvailableFonts } from "./font";
 import {
@@ -442,6 +447,11 @@ window.excalidrawZHelper = {
 
   // Connect existing elements
   connectElements,
+
+  // Native viewport/safe-area bridge
+  nativeViewportInsets,
+  setNativeViewportInsets,
+  getNativeViewportInsets,
 
   getAllMedias,
   insertMedias,
