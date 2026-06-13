@@ -1046,6 +1046,23 @@ describe("tool locking & selection", () => {
       }
     }
   });
+
+  it("should keep the current tool active when unlocking", async () => {
+    await render(<Excalidraw />);
+
+    UI.clickTool("rectangle");
+    UI.clickTool("lock");
+    expect(h.state.activeTool).toMatchObject({
+      type: "rectangle",
+      locked: true,
+    });
+
+    UI.clickTool("lock");
+    expect(h.state.activeTool).toMatchObject({
+      type: "rectangle",
+      locked: false,
+    });
+  });
 });
 
 describe("selectedElementIds stability", () => {

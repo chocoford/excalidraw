@@ -4357,12 +4357,6 @@ class App extends React.Component<AppProps, AppState> {
       return {
         activeTool: {
           ...prevState.activeTool,
-          ...updateActiveTool(
-            this.state,
-            prevState.activeTool.locked
-              ? { type: this.state.preferredSelectionTool.type }
-              : prevState.activeTool,
-          ),
           locked: !prevState.activeTool.locked,
         },
       };

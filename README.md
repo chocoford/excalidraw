@@ -134,3 +134,8 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 41-45 and expose the native inset APIs on `window.excalidrawZHelper` line 451-454.
 - Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.tsx` line 4797-4841 so zoom/scroll-to-content avoids Swift-provided safe areas.
 - Declare the helper API in `packages/excalidraw/global.d.ts` line 14-36.
+
+### Tool Lock Unlock Behavior
+
+- Update `packages/excalidraw/components/App.tsx` line 4345-4364 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
+- Add regression coverage in `packages/excalidraw/tests/selection.test.tsx` line 1050-1065 to ensure unlocking keeps the current drawing tool active.
