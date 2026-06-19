@@ -61,7 +61,7 @@ export const mermaidToElements = async (definition, opts = {}) => {
  * @param {string} definition  Mermaid diagram source.
  * @param {{
  *   position?: object | string,
- *   focus?: boolean | object,
+ *   focus?: boolean | "center" | "fitViewport" | "fitContent" | object,
  *   regenerateIds?: boolean,
  *   mermaidConfig?: object,
  *   captureUpdate?: string,

@@ -92,13 +92,7 @@ export const applyDarkModeFilter = (color: string): string => {
   // order of operations matters
   // (corresponds to "filter: invert(invertPercent) hue-rotate(hueDegrees)" in css)
   const rgb = tc.toRgb();
-  const inverted = cssInvert(rgb.r, rgb.g, rgb.b, 93);
-  const rotated = cssHueRotate(
-    inverted.r,
-    inverted.g,
-    inverted.b,
-    180 as Degrees,
-  );
+  const rotated = applyDarkModeFilterToRGB(rgb.r, rgb.g, rgb.b);
 
   const result = rgbToHex(rotated.r, rotated.g, rotated.b, alpha);
 
@@ -107,6 +101,21 @@ export const applyDarkModeFilter = (color: string): string => {
   }
 
   return result;
+};
+
+export const applyDarkModeFilterToRGB = (
+  red: number,
+  green: number,
+  blue: number,
+) => {
+  const inverted = cssInvert(red, green, blue, 93);
+
+  return cssHueRotate(
+    inverted.r,
+    inverted.g,
+    inverted.b,
+    180 as Degrees,
+  );
 };
 
 // ---------------------------------------------------------------------------

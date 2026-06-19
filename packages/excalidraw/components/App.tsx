@@ -453,6 +453,10 @@ import { SVGLayer } from "./SVGLayer";
 import { searchItemInFocusAtom } from "./SearchMenu";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
+import {
+  ElementHoverActions,
+  hasElementHoverActions,
+} from "./ElementHoverActions";
 import NewElementCanvas from "./canvases/NewElementCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
 import { MagicIcon, copyIcon, fullscreenIcon } from "./icons";
@@ -611,6 +615,7 @@ const YOUTUBE_VIDEO_STATES = new Map<
 >();
 
 const MAX_EMBEDDABLE_VIEWPORT_SCALE = 4;
+const ELEMENT_HOVER_ACTIONS_RETENTION_MARGIN = 64;
 
 let IS_PLAIN_PASTE = false;
 let IS_PLAIN_PASTE_TIMER = 0;
@@ -707,6 +712,7 @@ class App extends React.Component<AppProps, AppState> {
   private lastCompletedCanvasClicks: { x: number; y: number }[] = [];
   /** previous frame pointer coords */
   previousPointerMoveCoords: { x: number; y: number } | null = null;
+  private hoveredElementWithActionsId: ExcalidrawElement["id"] | null = null;
   lastViewportPosition = { x: 0, y: 0 };
 
   animationFrameHandler = new AnimationFrameHandler();
@@ -1877,6 +1883,98 @@ class App extends React.Component<AppProps, AppState> {
     );
   }
 
+  private shouldRetainHoveredElementActions({
+    scenePointerX,
+    scenePointerY,
+  }: {
+    scenePointerX: number;
+    scenePointerY: number;
+  }) {
+    if (!this.hoveredElementWithActionsId) {
+      return false;
+    }
+
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const element = elementsMap.get(this.hoveredElementWithActionsId);
+
+    if (!element || !hasElementHoverActions(element)) {
+      return false;
+    }
+
+    const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
+    const retentionMargin =
+      ELEMENT_HOVER_ACTIONS_RETENTION_MARGIN / this.state.zoom.value;
+
+    return (
+      scenePointerX >= x1 - retentionMargin &&
+      scenePointerX <= x2 + retentionMargin &&
+      scenePointerY >= y1 - retentionMargin &&
+      scenePointerY <= y2 + retentionMargin
+    );
+  }
+
+  private setHoveredElementWithActions(
+    hitElement: ExcalidrawElement | null,
+    scenePointer?: {
+      scenePointerX: number;
+      scenePointerY: number;
+    },
+  ): void {
+    const shouldShowElementHoverActions =
+      this.state.activeTool.type === "selection" ||
+      this.state.activeTool.type === "lasso";
+    let nextHoveredElementWithActionsId =
+      shouldShowElementHoverActions && hasElementHoverActions(hitElement)
+        ? hitElement!.id
+        : null;
+
+    if (
+      !nextHoveredElementWithActionsId &&
+      shouldShowElementHoverActions &&
+      scenePointer &&
+      this.shouldRetainHoveredElementActions(scenePointer)
+    ) {
+      nextHoveredElementWithActionsId = this.hoveredElementWithActionsId;
+    }
+
+    if (this.hoveredElementWithActionsId !== nextHoveredElementWithActionsId) {
+      this.hoveredElementWithActionsId = nextHoveredElementWithActionsId;
+      this.forceUpdate();
+    }
+  }
+
+  private clearHoveredElementWithActions = () => {
+    if (this.hoveredElementWithActionsId) {
+      this.hoveredElementWithActionsId = null;
+      this.forceUpdate();
+    }
+  };
+
+  private renderElementHoverActions() {
+    const hoveredElementId = this.hoveredElementWithActionsId;
+
+    if (!hoveredElementId) {
+      return null;
+    }
+
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const element = elementsMap.get(hoveredElementId);
+
+    if (!element || !hasElementHoverActions(element)) {
+      return null;
+    }
+
+    return (
+      <ElementHoverActions
+        element={element}
+        appState={this.state}
+        elementsMap={elementsMap}
+        files={this.files}
+        onPointerLeave={this.clearHoveredElementWithActions}
+      />
+    );
+  }
+
   private renderPdf(
     element: ExcalidrawPdfElement,
     isActive: boolean,
@@ -2509,6 +2607,7 @@ class App extends React.Component<AppProps, AppState> {
                             />
                           )}
                           {this.renderFrameNames()}
+                          {this.renderElementHoverActions()}
                           {this.state.activeLockedId && (
                             <UnlockPopup
                               app={this}
@@ -6890,6 +6989,7 @@ class App extends React.Component<AppProps, AppState> {
       isDraggingScrollBar ||
       isHandToolActive(this.state)
     ) {
+      this.setHoveredElementWithActions(null);
       return;
     }
 
@@ -7221,6 +7321,7 @@ class App extends React.Component<AppProps, AppState> {
         this.state.activeTool.type !== "text" &&
         this.state.activeTool.type !== "eraser")
     ) {
+      this.setHoveredElementWithActions(null);
       return;
     }
 
@@ -7326,6 +7427,11 @@ class App extends React.Component<AppProps, AppState> {
     } else {
       hitElement = hitElementMightBeLocked;
     }
+
+    this.setHoveredElementWithActions(hitElement, {
+      scenePointerX,
+      scenePointerY,
+    });
 
     if (
       !this.handleIframeLikeElementHover({

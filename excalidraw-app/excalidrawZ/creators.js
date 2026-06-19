@@ -326,7 +326,7 @@ const applyGraphLayout = async (skeletons, layout, layoutOptions = {}) => {
  *   layoutOptions?: { [elkKey: string]: string | number },
  *   regenerateIds?: boolean,
  *   position?: object | string,
- *   focus?: boolean | object,
+ *   focus?: boolean | "center" | "fitViewport" | "fitContent" | object,
  *   files?: { [id: string]: object },
  *   captureUpdate?: string,
  *   sanitize?: boolean,

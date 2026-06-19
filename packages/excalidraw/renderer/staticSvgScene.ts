@@ -9,11 +9,11 @@ import {
   isTestEnv,
   getVerticalOffset,
   applyDarkModeFilter,
-  MIME_TYPES,
 } from "@excalidraw/common";
 import { normalizeLink, toValidURL } from "@excalidraw/common";
 import { hashString } from "@excalidraw/element";
 import { getUncroppedWidthAndHeight } from "@excalidraw/element";
+import { shouldApplyExcalidrawZMathColorFilter } from "@excalidraw/element";
 import {
   createPlaceholderEmbeddableLabel,
   getEmbedLink,
@@ -557,10 +557,12 @@ const renderElementToSvg = (
         const g = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
 
         if (
-          renderConfig.theme === THEME.DARK &&
-          fileData.mimeType === MIME_TYPES.svg
+          shouldApplyExcalidrawZMathColorFilter({
+            element,
+            theme: renderConfig.theme,
+          })
         ) {
-          g.setAttribute("filter", DARK_THEME_FILTER);
+          g.style.filter = DARK_THEME_FILTER;
         }
 
         if (element.crop) {

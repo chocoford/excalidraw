@@ -162,28 +162,79 @@ export const zoomToFit = (opts = {}) => {
 };
 
 /**
- * Zoom to fit specific elements by their IDs.
+ * Focus specific elements by their IDs.
+ *
+ * Modes:
+ *  - 'center'      — just center the elements, keep current zoom unchanged
+ *  - 'fitContent'  — zoom to fit elements, capped by Excalidraw defaults
+ *  - 'fitViewport' — adaptive zoom, can exceed 100%, controlled by viewportZoomFactor
+ *
  * @param {string[]} elementIds
- * @param {{ animate?: boolean, duration?: number, viewportZoomFactor?: number }} opts
+ * @param {{
+ *   mode?: 'center' | 'fitContent' | 'fitViewport',
+ *   animate?: boolean,
+ *   duration?: number,
+ *   viewportZoomFactor?: number,
+ *   minZoom?: number,
+ *   maxZoom?: number,
+ *   canvasOffsets?: { top?: number, right?: number, bottom?: number, left?: number }
+ * }} opts
  */
-export const zoomToFitElements = (elementIds, opts = {}) => {
+export const focusElements = (elementIds, opts = {}) => {
   const api = getAPI();
   if (!api) {
     return;
   }
-  const { animate = true, duration = 300, viewportZoomFactor = 0.7 } = opts;
+
+  const {
+    mode = "fitViewport",
+    animate = true,
+    duration = 300,
+    viewportZoomFactor = 0.7,
+    minZoom,
+    maxZoom,
+    canvasOffsets,
+  } = opts;
   const allElements = api.getSceneElements();
   const targets = allElements.filter((el) => elementIds.includes(el.id));
   if (targets.length === 0) {
     console.warn("[camera] no elements found for IDs:", elementIds);
     return;
   }
-  api.scrollToContent(targets, {
-    fitToViewport: true,
-    viewportZoomFactor,
+
+  const baseOpts = {
     animate,
     duration,
-  });
+    minZoom,
+    maxZoom,
+    canvasOffsets,
+  };
+
+  if (mode === "center") {
+    // omit both fit flags -> calculateScrollCenter, no zoom change
+    api.scrollToContent(targets, baseOpts);
+  } else if (mode === "fitContent") {
+    api.scrollToContent(targets, {
+      ...baseOpts,
+      fitToContent: true,
+      viewportZoomFactor,
+    });
+  } else {
+    api.scrollToContent(targets, {
+      ...baseOpts,
+      fitToViewport: true,
+      viewportZoomFactor,
+    });
+  }
+};
+
+/**
+ * Zoom to fit specific elements by their IDs.
+ * @param {string[]} elementIds
+ * @param {{ animate?: boolean, duration?: number, viewportZoomFactor?: number }} opts
+ */
+export const zoomToFitElements = (elementIds, opts = {}) => {
+  return focusElements(elementIds, { ...opts, mode: "fitViewport" });
 };
 
 /**

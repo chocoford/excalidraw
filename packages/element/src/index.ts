@@ -76,6 +76,7 @@ export * from "./frame";
 export * from "./groups";
 export * from "./heading";
 export * from "./image";
+export * from "./excalidrawZ";
 export * from "./linearElementEditor";
 export * from "./mutateElement";
 export * from "./newElement";

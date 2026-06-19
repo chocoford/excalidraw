@@ -26,6 +26,7 @@ import {
 } from "./load+save";
 import { exportElementsToBlob, exportElementsToSvg } from "./export";
 import { mermaidToElements, insertFromMermaid } from "./mermaid";
+import { createMathImage, insertMathImage, updateMathImage } from "./math";
 import {
   createElements,
   insertFromSkeleton,
@@ -60,6 +61,7 @@ import {
   scrollToCenter,
   scrollToElement,
   zoomToFit,
+  focusElements,
   zoomToFitElements,
   zoomTo,
   onCameraChange,
@@ -432,6 +434,11 @@ window.excalidrawZHelper = {
   mermaidToElements,
   insertFromMermaid,
 
+  // Math images
+  createMathImage,
+  insertMathImage,
+  updateMathImage,
+
   // Element creators
   createElements,
   createShape,
@@ -506,6 +513,7 @@ window.excalidrawZHelper = {
   scrollToCenter,
   scrollToElement,
   zoomToFit,
+  focusElements,
   zoomToFitElements,
   zoomTo,
   onCameraChange,

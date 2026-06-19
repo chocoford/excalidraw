@@ -14,7 +14,6 @@ import {
   DEFAULT_REDUCED_GLOBAL_ALPHA,
   ELEMENT_READY_TO_ERASE_OPACITY,
   FRAME_STYLE,
-  DARK_THEME_FILTER,
   MIME_TYPES,
   THEME,
   distance,
@@ -24,7 +23,7 @@ import {
   IMAGE_MIME_TYPES,
   invariant,
   applyDarkModeFilter,
-  isSafari,
+  applyDarkModeFilterToRGB,
 } from "@excalidraw/common";
 
 import type {
@@ -66,6 +65,7 @@ import {
 } from "./typeChecks";
 import { getContainingFrame } from "./frame";
 import { getCornerRadius } from "./utils";
+import { shouldApplyExcalidrawZMathColorFilter } from "./excalidrawZ";
 
 import { ShapeCache } from "./shape";
 
@@ -385,6 +385,83 @@ const drawImagePlaceholder = (
   );
 };
 
+const drawFilteredImageOnCanvas = (
+  context: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  crop: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  element: ExcalidrawImageElement,
+) => {
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = Math.max(1, Math.ceil(element.width * devicePixelRatio));
+  tempCanvas.height = Math.max(
+    1,
+    Math.ceil(element.height * devicePixelRatio),
+  );
+
+  const tempContext = tempCanvas.getContext("2d");
+
+  if (!tempContext) {
+    return false;
+  }
+
+  try {
+    tempContext.scale(devicePixelRatio, devicePixelRatio);
+    tempContext.drawImage(
+      img,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      element.width,
+      element.height,
+    );
+
+    const imageData = tempContext.getImageData(
+      0,
+      0,
+      tempCanvas.width,
+      tempCanvas.height,
+    );
+    const data = imageData.data;
+
+    for (let index = 0; index < data.length; index += 4) {
+      const filtered = applyDarkModeFilterToRGB(
+        data[index],
+        data[index + 1],
+        data[index + 2],
+      );
+      data[index] = filtered.r;
+      data[index + 1] = filtered.g;
+      data[index + 2] = filtered.b;
+    }
+
+    tempContext.putImageData(imageData, 0, 0);
+    context.drawImage(
+      tempCanvas,
+      0,
+      0,
+      tempCanvas.width,
+      tempCanvas.height,
+      0,
+      0,
+      element.width,
+      element.height,
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const drawElementOnCanvas = (
   element: NonDeletedExcalidrawElement,
   rc: RoughCanvas,
@@ -469,76 +546,36 @@ const drawElementOnCanvas = (
               height: img.naturalHeight,
             };
 
-        const shouldInvertImage =
-          renderConfig.theme === THEME.DARK &&
-          cacheEntry?.mimeType === MIME_TYPES.svg;
-
-        if (shouldInvertImage && isSafari) {
-          const devicePixelRatio = window.devicePixelRatio || 1;
-          const tempCanvas = document.createElement("canvas");
-          tempCanvas.width = element.width * devicePixelRatio;
-          tempCanvas.height = element.height * devicePixelRatio;
-          const tempContext = tempCanvas.getContext("2d");
-
-          if (tempContext) {
-            tempContext.scale(devicePixelRatio, devicePixelRatio);
-            tempContext.drawImage(
-              img,
-              x,
-              y,
-              width,
-              height,
-              0,
-              0,
-              element.width,
-              element.height,
-            );
-
-            const imageData = tempContext.getImageData(
-              0,
-              0,
-              tempCanvas.width,
-              tempCanvas.height,
-            );
-
-            const data = imageData.data;
-
-            for (let i = 0; i < data.length; i += 4) {
-              data[i] = 255 - data[i];
-              data[i + 1] = 255 - data[i + 1];
-              data[i + 2] = 255 - data[i + 2];
-            }
-
-            tempContext.putImageData(imageData, 0, 0);
-            context.drawImage(
-              tempCanvas,
-              0,
-              0,
-              tempCanvas.width,
-              tempCanvas.height,
-              0,
-              0,
-              element.width,
-              element.height,
-            );
-          }
-        } else {
-          if (shouldInvertImage) {
-            context.filter = DARK_THEME_FILTER;
-          }
-
-          context.drawImage(
+        if (
+          shouldApplyExcalidrawZMathColorFilter({
+            element,
+            theme: renderConfig.theme,
+          })
+        ) {
+          const didDrawFilteredImage = drawFilteredImageOnCanvas(
+            context,
             img,
-            x,
-            y,
-            width,
-            height,
-            0 /* hardcoded for the selection box*/,
-            0,
-            element.width,
-            element.height,
+            { x, y, width, height },
+            element,
           );
+
+          if (didDrawFilteredImage) {
+            context.restore();
+            break;
+          }
         }
+
+        context.drawImage(
+          img,
+          x,
+          y,
+          width,
+          height,
+          0 /* hardcoded for the selection box*/,
+          0,
+          element.width,
+          element.height,
+        );
       } else {
         drawImagePlaceholder(element, context, renderConfig.theme);
       }

@@ -139,3 +139,30 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 - Update `packages/excalidraw/components/App.tsx` line 4345-4364 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
 - Add regression coverage in `packages/excalidraw/tests/selection.test.tsx` line 1050-1065 to ensure unlocking keeps the current drawing tool active.
+
+### Math Image Editing
+
+- Add ExcalidrawZ math metadata helpers in `packages/element/src/excalidrawZ.ts` line 1-38:
+  - Treats image elements tagged with `customData.excalidrawZ.type === "math"` as semantic math images.
+  - Enables a math-specific dark-mode color filter from the math tag and current theme, without depending on image cache MIME metadata.
+- Export the helper from `packages/element/src/index.ts` line 79 so UI integrations can share the same predicate.
+- Add `applyDarkModeFilterToRGB()` in `packages/common/src/colors.ts` line 106-119 so canvas image pixels can reuse the same `invert(93%) hue-rotate(180deg)` formula as `DARK_THEME_FILTER`; unit coverage is in `packages/common/src/colors.test.ts` line 1-22.
+- Apply the math color filter in canvas image rendering with a small pixel canvas fallback at `packages/element/src/renderElement.ts` line 388-463, then use it from the image draw path at line 549-560.
+- Apply the same CSS filter in static SVG export at `packages/excalidraw/renderer/staticSvgScene.ts` line 557-565.
+- Add unit coverage in `packages/element/tests/excalidrawZ.test.ts` line 1-60 for math tag detection and dark-theme filtering.
+- Add math image helper APIs in `excalidraw-app/excalidrawZ/math.js`:
+  - `createMathImage()` at line 153-217 builds a tagged image element plus the matching SVG binary file map.
+  - `insertMathImage()` at line 230-245 inserts the tagged formula image through the normal placement pipeline.
+  - `updateMathImage()` at line 258-308 replaces an existing formula image with a fresh file id so Excalidraw's non-replacing `addFiles()` behavior does not keep stale SVG data.
+- Expose the math image APIs on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 29 and line 436-439.
+- Add a generic hover action overlay in `packages/excalidraw/components/ElementHoverActions.tsx` line 1-156. The first registered action is math image editing, which sends `requestEditMathImage` through `window.excalidrawZHelper.sendMessage` and renders outside the element's top-right bounds.
+- Track, retain, and render hover actions from `packages/excalidraw/components/App.tsx` line 1886-1965 and line 2566. The retention margin keeps externally positioned action buttons clickable while the pointer moves from the element to the button.
+- Add hover action styling in `packages/excalidraw/css/styles.scss` line 843-872.
+
+### Insert Focus Modes
+
+- Add `focusElements()` in `excalidraw-app/excalidrawZ/camera.js` line 164-229 to focus element IDs in three modes:
+  - `"center"` centers the camera on the target elements while preserving the current zoom.
+  - `"fitContent"` and `"fitViewport"` keep the existing zoom-to-fit behavior surfaces.
+- Expose `focusElements()` on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 58-69 and line 510-518.
+- Extend `insertElements()` focus handling in `excalidraw-app/excalidrawZ/placement.js` line 111-122 and line 137-159 so callers can pass `focus: "center"` or `focus: { mode: "center" }`; `focus: true` remains the existing animated fit-to-viewport behavior.

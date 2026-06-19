@@ -1,5 +1,6 @@
 import {
   applyDarkModeFilter,
+  applyDarkModeFilterToRGB,
   COLOR_PALETTE,
   rgbToHex,
 } from "@excalidraw/common";
@@ -12,6 +13,14 @@ describe("COLOR_PALETTE", () => {
 
 describe("applyDarkModeFilter", () => {
   describe("basic transformations", () => {
+    it("transforms RGB values using the same filter as hex colors", () => {
+      const filtered = applyDarkModeFilterToRGB(30, 30, 30);
+
+      expect(rgbToHex(filtered.r, filtered.g, filtered.b)).toBe(
+        applyDarkModeFilter("#1e1e1e"),
+      );
+    });
+
     it("transforms black to near-white", () => {
       const result = applyDarkModeFilter("#000000");
       // Black inverted 93% + hue rotate should be near white/light gray

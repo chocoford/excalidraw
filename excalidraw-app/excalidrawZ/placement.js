@@ -5,10 +5,11 @@ import {
 } from "@excalidraw/element";
 
 import { CaptureUpdate, addElements } from "./elements";
-import { zoomToFitElements } from "./camera";
+import { focusElements } from "./camera";
 
 const AUTO_PLACEMENT_GAP = 60;
 const FOCUS_DEFAULTS = {
+  mode: "fitViewport",
   animate: true,
   duration: 300,
   viewportZoomFactor: 0.7,
@@ -107,6 +108,19 @@ const resolveTopLeft = (api, position, bounds) => {
   return { x: sMaxX + AUTO_PLACEMENT_GAP, y: sMinY };
 };
 
+const normalizeFocusOptions = (focus) => {
+  if (!focus) {
+    return null;
+  }
+  if (typeof focus === "string") {
+    return { mode: focus };
+  }
+  if (typeof focus === "object") {
+    return focus;
+  }
+  return {};
+};
+
 /**
  * Insert pre-built elements into the scene, with optional repositioning,
  * file registration, and camera focus. One-shot API — pair with any of the
@@ -120,7 +134,8 @@ const resolveTopLeft = (api, position, bounds) => {
  *     | "auto"
  *     | "viewport-center"
  *     | "scene-center",
- *   focus?: boolean | {
+ *   focus?: boolean | "center" | "fitViewport" | "fitContent" | {
+ *     mode?: "center" | "fitViewport" | "fitContent",
  *     animate?: boolean,
  *     duration?: number,
  *     viewportZoomFactor?: number,
@@ -138,7 +153,10 @@ const resolveTopLeft = (api, position, bounds) => {
  *       - `"viewport-center"` / `"scene-center"` — centered respectively.
  *   - `focus` (default `false`): zoom-to-fit the inserted batch.
  *       - `true` — animated jump (300ms, viewportZoomFactor 0.7).
- *       - object — fine-tune `animate`, `duration`, `viewportZoomFactor`.
+ *       - `"center"` or `{ mode: "center" }` — center the camera on the
+ *         inserted batch while preserving the current zoom.
+ *       - object — fine-tune `mode`, `animate`, `duration`,
+ *         `viewportZoomFactor`, `minZoom`, `maxZoom`, `canvasOffsets`.
  *   - `files`: image binaries (keyed by fileId) to register via
  *     `excalidrawAPI.addFiles` before insertion. Required when the batch
  *     contains image elements not already in the editor's file store.
@@ -216,8 +234,8 @@ export const insertElements = (elements, opts = {}) => {
   const elementIds = positioned.map((el) => el.id);
 
   if (focus) {
-    const focusOpts = typeof focus === "object" ? focus : {};
-    zoomToFitElements(elementIds, { ...FOCUS_DEFAULTS, ...focusOpts });
+    const focusOpts = normalizeFocusOptions(focus);
+    focusElements(elementIds, { ...FOCUS_DEFAULTS, ...focusOpts });
   }
 
   return {
