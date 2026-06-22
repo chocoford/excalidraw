@@ -7,6 +7,10 @@ import { t } from "../i18n";
 
 import { register } from "./register";
 
+const shouldUseExcalidrawZNativeLibrary = () =>
+  typeof window !== "undefined" &&
+  !!(window as any).webkit?.messageHandlers?.excalidrawZ;
+
 export const actionAddToLibrary = register({
   name: "addToLibrary",
   trackEvent: { category: "element" },
@@ -31,26 +35,23 @@ export const actionAddToLibrary = register({
 
     const theAddedLibraryItem = {
       id: randomId(),
-      status: "unpublished",
+      status: "unpublished" as const,
       elements: selectedElements.map(deepCopyElement),
       created: Date.now(),
     };
-    (window as any).excalidrawZHelper.sendMessage({
-      event: "addToLibrary",
-      data: theAddedLibraryItem,
-    });
-    // prevent default...
-    // return;
+    const useNativeLibrary = shouldUseExcalidrawZNativeLibrary();
+    if (useNativeLibrary) {
+      (window as any).excalidrawZHelper.sendMessage({
+        event: "addToLibrary",
+        data: theAddedLibraryItem,
+      });
+    }
+
     return app.library
       .getLatestLibrary()
       .then((items) => {
         return app.library.setLibrary([
-          // {
-          //   id: randomId(),
-          //   status: "unpublished",
-          //   elements: selectedElements.map(deepCopyElement),
-          //   created: Date.now(),
-          // },
+          ...(useNativeLibrary ? [] : [theAddedLibraryItem]),
           ...items,
         ]);
       })

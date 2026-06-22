@@ -318,7 +318,10 @@ export interface AppState {
   bindingPreference: "enabled" | "disabled";
   /** user preference whether arrow snap to midpoints while binding */
   isMidpointSnappingEnabled: boolean;
-  startBoundElement: NonDeleted<ExcalidrawBindableElement> | null;
+  /**
+   * The bindable element the UI highlights for the user when an arrow is
+   * dragged or otherwise its endpoint being close to said element.
+   */
   suggestedBinding: {
     element: NonDeleted<ExcalidrawBindableElement>;
     midPoint?: GlobalPoint;
@@ -350,8 +353,11 @@ export interface AppState {
     type: "selection" | "lasso";
     initialized: boolean;
   };
+
+  // Pen handling
   penMode: boolean;
   penDetected: boolean;
+
   exportBackground: boolean;
   exportEmbedScene: boolean;
   exportWithDarkMode: boolean;
@@ -475,6 +481,9 @@ export interface AppState {
   // as elements are unlocked, we remove the groupId from the elements
   // and also remove groupId from this map
   lockedMultiSelections: { [groupId: string]: true };
+  // Stores the current bind mode which is detemined at various points during
+  // a drag operation (like pointer position vs bindable element) but needed
+  // globally for calculating the binding strategy
   bindMode: BindMode;
 }
 
@@ -490,10 +499,7 @@ export type SearchMatch = {
   }[];
 };
 
-export type UIAppState = Omit<
-  AppState,
-  "startBoundElement" | "cursorButton" | "scrollX" | "scrollY"
->;
+export type UIAppState = Omit<AppState, "cursorButton" | "scrollX" | "scrollY">;
 
 export type NormalizedZoomValue = number & { _brand: "normalizedZoom" };
 
@@ -570,6 +576,7 @@ export interface ExcalidrawProps {
     appState: AppState,
     files: BinaryFiles,
   ) => void;
+  onThemeChange?: (theme: Theme | "system") => void;
   /**
    * note: only subscribes if the props.onIncrement is defined on initial render
    */
@@ -642,6 +649,10 @@ export interface ExcalidrawProps {
     appState: UIAppState,
   ) => JSX.Element;
   UIOptions?: Partial<UIOptions>;
+  /**
+   * dimensions and size constraints for inserted images
+   */
+  imageOptions?: ImageOptions;
   detectScroll?: boolean;
   handleKeyboardGlobally?: boolean;
   onLibraryChange?: (libraryItems: LibraryItems) => void | Promise<any>;
@@ -728,6 +739,11 @@ export type ExportOpts = {
   ) => JSX.Element;
 };
 
+export type ImageOptions = Partial<{
+  maxWidthOrHeight: number;
+  maxFileSizeBytes: number;
+}>;
+
 // NOTE at the moment, if action name corresponds to canvasAction prop, its
 // truthiness value will determine whether the action is rendered or not
 // (see manager renderAction). We also override canvasAction values in
@@ -738,6 +754,11 @@ export type CanvasActions = Partial<{
   export: false | ExportOpts;
   loadScene: boolean;
   saveToActiveFile: boolean;
+  /**
+   * defaults to true if `props.theme` is omitted or `props.onThemeChange`
+   * is supplied (at which point the theme is considered as host-app controlled),
+   * else default to false
+   * */
   toggleTheme: boolean | null;
   saveAsImage: boolean;
 }>;
@@ -769,6 +790,7 @@ export type AppProps = Merge<
         canvasActions: Required<CanvasActions> & { export: ExportOpts };
       }
     >;
+    imageOptions: Required<ImageOptions>;
     detectScroll: boolean;
     handleKeyboardGlobally: boolean;
     isCollaborating: boolean;
@@ -873,8 +895,13 @@ export type PointerDownState = Readonly<{
     // Whether selected element(s) were duplicated, might change during the
     // pointer interaction
     hasBeenDuplicated: boolean;
+    // Whether the pointer is hitting the common bounding box of selected
+    // elements, which is useful for discriminating between selecitng
+    // the entire selection vs a specific element
     hasHitCommonBoundingBoxOfSelectedElements: boolean;
   };
+  // This is determined on the initial pointer down event to
+  // set various interaction modalities
   withCmdOrCtrl: boolean;
   drag: {
     // Might change during the pointer interaction
@@ -900,6 +927,7 @@ export type PointerDownState = Readonly<{
     onKeyUp: null | ((event: KeyboardEvent) => void);
   };
   boxSelection: {
+    // If the box selection tool is activated on pointer down
     hasOccurred: boolean;
   };
 }>;

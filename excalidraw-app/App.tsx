@@ -22,7 +22,6 @@ import Trans from "@excalidraw/excalidraw/components/Trans";
 import {
   APP_NAME,
   EVENT,
-  THEME,
   VERSION_TIMEOUT,
   debounce,
   getVersion,
@@ -1300,6 +1299,7 @@ const ExcalidrawWrapper = () => {
         handleKeyboardGlobally={true}
         autoFocus={true}
         theme={editorTheme}
+        onThemeChange={setAppTheme}
         renderTopRightUI={(isMobile) => {
           if (isMobile || !collabAPI || isCollabDisabled) {
             return null;
@@ -1337,7 +1337,6 @@ const ExcalidrawWrapper = () => {
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
-          setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
         />
         <AppWelcomeScreen
@@ -1576,14 +1575,6 @@ const ExcalidrawWrapper = () => {
                     excalidrawAPI.getName(),
                   );
                 }
-              },
-            },
-            {
-              ...CommandPalette.defaultItems.toggleTheme,
-              perform: () => {
-                setAppTheme(
-                  editorTheme === THEME.DARK ? THEME.LIGHT : THEME.DARK,
-                );
               },
             },
             {

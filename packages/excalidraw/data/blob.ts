@@ -314,6 +314,48 @@ export const dataURLToString = (dataURL: DataURL) => {
   return base64ToString(dataURL.slice(dataURL.indexOf(",") + 1));
 };
 
+const getImageFileDimensions = async (file: File) => {
+  const browserURL = typeof window !== "undefined" ? window.URL : undefined;
+  let objectURL: string | null = null;
+  let imageSource: string;
+
+  try {
+    imageSource = browserURL?.createObjectURL
+      ? (objectURL = browserURL.createObjectURL(file))
+      : await getDataURL(file);
+  } catch {
+    objectURL = null;
+    imageSource = await getDataURL(file);
+  }
+
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new Image();
+
+    const cleanup = () => {
+      image.onload = null;
+      image.onerror = null;
+
+      if (objectURL && browserURL?.revokeObjectURL) {
+        browserURL.revokeObjectURL(objectURL);
+      }
+    };
+
+    image.onload = () => {
+      cleanup();
+      resolve({
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+      });
+    };
+    image.onerror = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    image.src = imageSource;
+  });
+};
+
 export const resizeImageFile = async (
   file: File,
   opts: {
@@ -325,6 +367,20 @@ export const resizeImageFile = async (
   // SVG files shouldn't a can't be resized
   if (file.type === MIME_TYPES.svg) {
     return file;
+  }
+
+  if (!isSupportedImageFile(file)) {
+    throw new Error("Error: unsupported file type", { cause: "UNSUPPORTED" });
+  }
+
+  if (!opts.outputType || opts.outputType === file.type) {
+    const dimensions = await getImageFileDimensions(file);
+
+    if (
+      Math.max(dimensions.width, dimensions.height) <= opts.maxWidthOrHeight
+    ) {
+      return file;
+    }
   }
 
   const [pica, imageBlobReduce] = await Promise.all([
@@ -348,10 +404,6 @@ export const resizeImageFile = async (
         return env;
       });
     };
-  }
-
-  if (!isSupportedImageFile(file)) {
-    throw new Error("Error: unsupported file type", { cause: "UNSUPPORTED" });
   }
 
   return new File(

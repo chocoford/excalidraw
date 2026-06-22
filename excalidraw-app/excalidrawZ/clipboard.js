@@ -27,18 +27,46 @@ async function clipboardItemsToBase64(clipboardItems) {
   const results = await Promise.all(base64Promises);
   return results.flat(); // 返回一个扁平化的数组，包含所有类型的Base64字符串
 }
-navigator.clipboard.write = async (data) => {
-  const items = await clipboardItemsToBase64(data);
-  // console.log(data, items)
-  window.webkit.messageHandlers.excalidrawZ.postMessage({
-    event: "copy",
-    data: items,
-  });
+const excalidrawZMessageHandler =
+  typeof window !== "undefined"
+    ? window.webkit?.messageHandlers?.excalidrawZ
+    : null;
+
+const getClipboard = () => {
+  if (typeof navigator === "undefined" || !excalidrawZMessageHandler) {
+    return null;
+  }
+
+  if (!navigator.clipboard) {
+    try {
+      Object.defineProperty(navigator, "clipboard", {
+        value: {},
+        configurable: true,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  return navigator.clipboard;
 };
-navigator.clipboard.writeText = async (string) => {
-  // console.log(string)
-  window.webkit.messageHandlers.excalidrawZ.postMessage({
-    event: "copy",
-    data: [{ type: "text", data: string }],
-  });
-};
+
+const clipboard = getClipboard();
+
+if (clipboard) {
+  clipboard.write = async (data) => {
+    const items = await clipboardItemsToBase64(data);
+    // console.log(data, items)
+    excalidrawZMessageHandler.postMessage({
+      event: "copy",
+      data: items,
+    });
+  };
+  clipboard.writeText = async (string) => {
+    // console.log(string)
+    excalidrawZMessageHandler.postMessage({
+      event: "copy",
+      data: [{ type: "text", data: string }],
+    });
+  };
+}

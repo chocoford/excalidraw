@@ -3,6 +3,7 @@
 exports[`Test MobileMenu > should initialize with welcome screen and hide once user interacts 1`] = `
 <div
   class="welcome-screen-center"
+  style="margin-top: 0px;"
 >
   <div
     class="welcome-screen-center__logo excalifont welcome-screen-decor"
@@ -50,14 +51,13 @@ exports[`Test MobileMenu > should initialize with welcome screen and hide once u
   <div
     class="welcome-screen-center__heading welcome-screen-decor excalifont"
   >
-    Your drawings are saved in your browser's storage.
+    Your drawings are saved in the app.
     <br />
-    Browser storage can be cleared unexpectedly.
     <br />
-    Save your work to a file regularly to avoid losing it.
   </div>
   <div
     class="welcome-screen-menu"
+    style="display: none;"
   >
     <button
       class="welcome-screen-menu-item "

@@ -610,7 +610,9 @@ describe("history", () => {
         expect.objectContaining({ id: "A", isDeleted: false }),
         expect.objectContaining({ id: "B", isDeleted: true }),
       ]);
-      expect(h.state.viewBackgroundColor).toBe("#FFF");
+      expect(h.state.viewBackgroundColor).toBe(
+        getDefaultAppState().viewBackgroundColor,
+      );
 
       API.executeAction(redoAction);
       expect(h.state.viewBackgroundColor).toBe("#000");

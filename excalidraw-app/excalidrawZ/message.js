@@ -1,19 +1,22 @@
 export const sendMessage = ({ event, data }) => {
-  if (
-    window.webkit &&
-    window.webkit.messageHandlers &&
-    window.webkit.messageHandlers.excalidrawZ
-  ) {
-    console.info("sendMessage", { event, data });
-    try {
-      window.webkit.messageHandlers.excalidrawZ.postMessage({
-        event,
-        data,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  } else {
-    console.error("can not send message", { event, data });
+  const messageHandler =
+    typeof window !== "undefined"
+      ? window.webkit?.messageHandlers?.excalidrawZ
+      : null;
+
+  if (!messageHandler) {
+    return false;
+  }
+
+  console.info("sendMessage", { event, data });
+  try {
+    messageHandler.postMessage({
+      event,
+      data,
+    });
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
   }
 };

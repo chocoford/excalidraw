@@ -138,8 +138,8 @@ export const t = (
 
   const parts = path.split(".");
   let translation =
-    findPartsForData(currentLangData, parts) ||
-    findPartsForData(fallbackLangData, parts) ||
+    findPartsForData(currentLangData, parts) ??
+    findPartsForData(fallbackLangData, parts) ??
     fallback;
   if (translation === undefined) {
     const errorMessage = `Can't find translation for ${path}`;

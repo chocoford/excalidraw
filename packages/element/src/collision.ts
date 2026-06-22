@@ -62,6 +62,8 @@ import { distanceToElement } from "./distance";
 
 import { getBindingGap } from "./binding";
 
+import { hasBackground } from "./comparisons";
+
 import type {
   ElementsMap,
   ExcalidrawArrowElement,
@@ -84,7 +86,7 @@ export const shouldTestInside = (element: ExcalidrawElement) => {
   }
 
   const isDraggableFromInside =
-    !isTransparent(element.backgroundColor) ||
+    (hasBackground(element.type) && !isTransparent(element.backgroundColor)) ||
     hasBoundTextElement(element) ||
     isIframeLikeElement(element) ||
     isTextElement(element);
@@ -326,7 +328,10 @@ export const getAllHoveredElementAtPoint = (
     ) {
       candidateElements.push(element);
 
-      if (!isTransparent(element.backgroundColor)) {
+      if (
+        hasBackground(element.type) &&
+        !isTransparent(element.backgroundColor)
+      ) {
         break;
       }
     }

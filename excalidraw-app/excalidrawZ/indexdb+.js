@@ -45,6 +45,10 @@ export const insertMedias = async (filesJSONString) => {
 };
 
 export const getAllFiles = async () => {
+  if (!filesStoreConnection?.objectStoreNames?.contains("files-store")) {
+    return [];
+  }
+
   /**
    * @type {{
    *  created: Date;
