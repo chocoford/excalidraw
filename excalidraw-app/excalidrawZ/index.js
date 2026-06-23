@@ -7,7 +7,6 @@ import {
 } from "./interaction";
 import {
   connectFileStore,
-  getRelativeFiles,
   getAllMedias,
   insertMedias,
 } from "./indexdb+";
@@ -21,6 +20,8 @@ import {
   loadImage,
   saveFile,
   getCurrentFileSnapshot,
+  requestCurrentFileSaveStream,
+  consumePendingFileLoadRequest,
   loadLibraryItem,
   onLoadLibrary,
 } from "./load+save";
@@ -181,8 +182,149 @@ export const didToggleToolLock = (isLocked) => {
   });
 };
 
+const WATCH_STATE_SLOW_MS = 100;
+
+let watchStatePerfId = 0;
+let watchStateRevision = 0;
+let lastContentSignature = null;
+let lastAppStateSignature = null;
+let watchStateSuppressionDepth = 0;
+let watchStateSuppressionGeneration = 0;
+
+const getPerformanceNow = () =>
+  typeof performance !== "undefined" &&
+  typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const roundDuration = (duration) => Math.round(duration * 10) / 10;
+
+const getFileElementCount = (elements) =>
+  elements.reduce((total, element) => total + (element?.fileId ? 1 : 0), 0);
+
+const getDeletedElementCount = (elements) =>
+  elements.reduce((total, element) => total + (element?.isDeleted ? 1 : 0), 0);
+
+const getObjectKeyCount = (value) =>
+  value && typeof value === "object" ? Object.keys(value).length : 0;
+
+const updateHash = (hash, value) => {
+  const text = String(value ?? "");
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash << 5) + hash + text.charCodeAt(i);
+  }
+  return hash >>> 0;
+};
+
+const getContentSignature = (elements) => {
+  let hash = updateHash(5381, elements.length);
+  elements.forEach((element) => {
+    hash = updateHash(hash, element?.id);
+    hash = updateHash(hash, element?.version);
+    hash = updateHash(hash, element?.versionNonce);
+    hash = updateHash(hash, element?.isDeleted ? 1 : 0);
+    hash = updateHash(hash, element?.index);
+    hash = updateHash(hash, element?.fileId);
+  });
+  return `${elements.length}:${hash}`;
+};
+
+const stringifyAppStateForSignature = (appState) => {
+  try {
+    return JSON.stringify(appState ?? {});
+  } catch (error) {
+    console.warn("[watchExcalidrawState] failed to stringify appState", error);
+    return `unserializable:${Date.now()}`;
+  }
+};
+
+const getNextStateRevision = () => {
+  watchStateRevision += 1;
+  if (window.excalidrawZHelper) {
+    window.excalidrawZHelper.lastStateChangeRevision = watchStateRevision;
+  }
+  return watchStateRevision;
+};
+
+const setWatchStateSignatures = (elements, appState) => {
+  lastContentSignature = getContentSignature(elements);
+  lastAppStateSignature = stringifyAppStateForSignature(appState);
+};
+
+const resetWatchStateBaseline = () => {
+  const api = window.excalidrawZHelper?._api;
+  if (!api) {
+    return false;
+  }
+
+  const elements =
+    api.getSceneElementsIncludingDeleted?.() ?? api.getSceneElements?.() ?? [];
+  const appState = api.getAppState?.() ?? {};
+  setWatchStateSignatures(elements, appState);
+  return true;
+};
+
+const beginStateChangeSuppression = () => {
+  watchStateSuppressionDepth += 1;
+  watchStateSuppressionGeneration += 1;
+
+  let ended = false;
+  return () => {
+    if (ended) {
+      return;
+    }
+    ended = true;
+    watchStateSuppressionDepth = Math.max(0, watchStateSuppressionDepth - 1);
+    if (watchStateSuppressionDepth === 0) {
+      resetWatchStateBaseline();
+      watchStateSuppressionGeneration += 1;
+    }
+  };
+};
+
+const createStateChangedPayload = (elements, appState) => {
+  const contentSignature = getContentSignature(elements);
+  const appStateSignature = stringifyAppStateForSignature(appState);
+  const contentDirty = contentSignature !== lastContentSignature;
+  const appStateDirty = appStateSignature !== lastAppStateSignature;
+
+  if (!contentDirty && !appStateDirty) {
+    return null;
+  }
+
+  lastContentSignature = contentSignature;
+  lastAppStateSignature = appStateSignature;
+
+  return {
+    revision: getNextStateRevision(),
+    changedAt: Date.now(),
+    dirty: true,
+    contentDirty,
+    appStateDirty,
+    appState,
+    elementCount: elements.length,
+    deletedElementCount: getDeletedElementCount(elements),
+    fileElementCount: getFileElementCount(elements),
+    appStateKeyCount: getObjectKeyCount(appState),
+    appStateChars: appStateSignature.length,
+    currentFileId: window.excalidrawZHelper?.currentFileId ?? null,
+  };
+};
+
+const logWatchStatePerformance = (summary) => {
+  console.info("[watchExcalidrawState:perf]", summary);
+  if (summary.totalMs >= WATCH_STATE_SLOW_MS) {
+    console.warn("[watchExcalidrawState:slow]", summary);
+  }
+};
+
 /**
- * Watch scene/appState changes and broadcast to the host as `onStateChanged`.
+ * Watch scene/appState changes and broadcast a lightweight `onStateChanged`.
+ *
+ * The event sends the full appState, but intentionally avoids sending
+ * elements/files/dataString through the WebKit bridge on every edit. Hosts can
+ * pull full content on demand through `getCurrentFileSnapshot()` when
+ * `contentDirty` is true.
  *
  * Event-driven (api.onChange) + 1s throttle:
  *   - first change after a quiet period fires immediately (leading edge)
@@ -199,19 +341,50 @@ const startWatchExcalidrawState = () => {
     return;
   }
 
-  const dispatch = throttle(async (elements, appState) => {
+  resetWatchStateBaseline();
+
+  const dispatch = throttle((elements, appState, suppressionGeneration) => {
     try {
-      const filesDict = await getRelativeFiles(elements);
+      if (
+        watchStateSuppressionDepth > 0 ||
+        suppressionGeneration !== watchStateSuppressionGeneration
+      ) {
+        return;
+      }
+
+      const perfId = ++watchStatePerfId;
+      const totalStartedAt = getPerformanceNow();
+
+      const payloadStartedAt = getPerformanceNow();
+      const payload = createStateChangedPayload(elements, appState);
+      const payloadMs = getPerformanceNow() - payloadStartedAt;
+      if (!payload) {
+        return;
+      }
+
+      const sendStartedAt = getPerformanceNow();
       sendMessage({
         event: "onStateChanged",
         data: {
-          data: {
-            dataString: JSON.stringify({ elements, appState }),
-            elements,
-            files: filesDict,
-            appState,
-          },
+          data: payload,
         },
+      });
+      const sendMessageMs = getPerformanceNow() - sendStartedAt;
+      const totalMs = getPerformanceNow() - totalStartedAt;
+
+      logWatchStatePerformance({
+        id: perfId,
+        totalMs: roundDuration(totalMs),
+        buildPayloadMs: roundDuration(payloadMs),
+        sendMessageMs: roundDuration(sendMessageMs),
+        revision: payload.revision,
+        contentDirty: payload.contentDirty,
+        appStateDirty: payload.appStateDirty,
+        elementCount: payload.elementCount,
+        deletedElementCount: payload.deletedElementCount,
+        fileElementCount: payload.fileElementCount,
+        appStateKeyCount: payload.appStateKeyCount,
+        appStateChars: payload.appStateChars,
       });
     } catch (error) {
       console.error("[watchExcalidrawState]", error);
@@ -219,7 +392,11 @@ const startWatchExcalidrawState = () => {
   }, 1000);
 
   api.onChange((elements, appState) => {
-    dispatch(elements, appState);
+    if (watchStateSuppressionDepth > 0) {
+      return;
+    }
+
+    dispatch(elements, appState, watchStateSuppressionGeneration);
   });
 };
 
@@ -411,6 +588,7 @@ window.excalidrawZHelper = {
   loadFileString,
   saveFile,
   getCurrentFileSnapshot,
+  requestCurrentFileSaveStream,
 
   loadImageBuffer,
   loadImage,
@@ -424,6 +602,9 @@ window.excalidrawZHelper = {
 
   toggleToolbarAction,
   lastToggleToolKey: null,
+  lastStateChangeRevision: 0,
+  _beginStateChangeSuppression: beginStateChangeSuppression,
+  _consumePendingFileLoadRequest: consumePendingFileLoadRequest,
 
   didSetActiveTool,
 

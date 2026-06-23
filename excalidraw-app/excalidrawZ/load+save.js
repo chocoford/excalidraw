@@ -3,34 +3,148 @@ import { getRelativeFiles } from "./indexdb+";
 
 const getAPI = () => window.excalidrawZHelper?._api;
 
-const DEFAULT_LOAD_TIMEOUT_MS = 5000;
+const DEFAULT_LOAD_TIMEOUT_MS = 30000;
+const DEFAULT_SAVE_STREAM_CHUNK_SIZE = 65536;
+const MIN_SAVE_STREAM_CHUNK_SIZE = 1024;
+const MAX_SAVE_STREAM_CHUNK_SIZE = 1024 * 1024;
+
+const getLoadContentSummary = (content) => ({
+  elementCount: content?.elements?.length ?? 0,
+  fileCount: Object.keys(content?.files ?? {}).length,
+  appStateKeyCount:
+    content?.appState && typeof content.appState === "object"
+      ? Object.keys(content.appState).length
+      : 0,
+});
+
+const normalizeChunkSize = (chunkSize) => {
+  const value = Number(chunkSize);
+  if (!Number.isFinite(value) || value <= 0) {
+    return DEFAULT_SAVE_STREAM_CHUNK_SIZE;
+  }
+
+  return Math.min(
+    MAX_SAVE_STREAM_CHUNK_SIZE,
+    Math.max(MIN_SAVE_STREAM_CHUNK_SIZE, Math.floor(value)),
+  );
+};
+
+const bytesToBase64 = (bytes) => {
+  let binary = "";
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + step));
+  }
+  return window.btoa(binary);
+};
+
+const bytesToHex = (bytes) =>
+  Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+const sha256Hex = async (bytes) => {
+  if (!window.crypto?.subtle?.digest) {
+    throw new Error("SHA-256 is not available in this WebView");
+  }
+
+  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+  return bytesToHex(new Uint8Array(digest));
+};
+
+const yieldToMainThread = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+const createLoadRequestId = () =>
+  `excalidrawz-load-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+
+let pendingFileLoadRequestId = null;
+
+const notifyFileLoadDone = (loadRequestId, detail) => {
+  if (!loadRequestId) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.dispatchEvent(
+      new CustomEvent("excalidrawz:fileLoadDone", {
+        detail: {
+          id: loadRequestId,
+          ...detail,
+        },
+      }),
+    );
+  });
+};
+
+export const consumePendingFileLoadRequest = () => {
+  const loadRequestId = pendingFileLoadRequestId;
+  pendingFileLoadRequestId = null;
+
+  if (!loadRequestId) {
+    return null;
+  }
+
+  let done = false;
+  return {
+    done: (detail) => {
+      if (done) {
+        return;
+      }
+      done = true;
+      notifyFileLoadDone(loadRequestId, detail);
+    },
+  };
+};
 
 /**
- * Wait until the scene reflects a load attempt (or time out).
+ * Wait until App.loadFileToCanvas reports that the requested file load has
+ * reached the post-sync completion point.
  *
- * Resolves on the first `onChange` fire after subscription. This is robust
- * because:
- *
- *   1. Excalidraw suppresses `onChange` while `appState.isLoading === true`
- *      (see App.tsx#onSceneUpdated). The drop handler sets isLoading=true
- *      before processing and back to false in `syncActionResult`, so the
- *      onChange we observe is post-load — not the in-flight render.
- *   2. Subscription and `dispatchEvent` happen synchronously with no `await`
- *      between them, so React cannot flush an unrelated state update in the
- *      gap.
- *   3. Pointer/cursor moves go through `onPointerUpdate`, not `onChange`.
- *   4. Even on parse failure, the drop handler calls
- *      `setState({ errorMessage, isLoading: false })`, so onChange still
- *      fires — distinguishing "load attempt completed" from "drop ignored".
- *
- * Critically, this works for empty → empty loads (which the previous
- * ID-set diff missed): we don't need any observable scene delta, just one
- * onChange fire from the post-load render.
- *
- * @param {object} api  excalidrawAPI
+ * @param {string} loadRequestId
  * @param {number} timeoutMs
- * @returns {Promise<readonly any[]>}  resolves with the new elements array
+ * @returns {Promise<{ elementCount: number }>}
  */
+const waitForFileLoadDone = (
+  loadRequestId,
+  timeoutMs = DEFAULT_LOAD_TIMEOUT_MS,
+) => {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener("excalidrawz:fileLoadDone", onDone);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(
+          "load timed out — file may be invalid, rejected, or empty",
+        ),
+      );
+    }, timeoutMs);
+
+    const onDone = (event) => {
+      const detail = event.detail ?? {};
+      if (detail.id !== loadRequestId) {
+        return;
+      }
+
+      cleanup();
+      if (detail.status === "error") {
+        reject(new Error(detail.errorMessage || "load failed"));
+        return;
+      }
+      resolve({ elementCount: detail.elementCount ?? 0 });
+    };
+
+    window.addEventListener("excalidrawz:fileLoadDone", onDone);
+  });
+};
+
 const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
   return new Promise((resolve, reject) => {
     if (!api || typeof api.onChange !== "function") {
@@ -74,10 +188,14 @@ export const loadFileBuffer = async (buffer, fileId) => {
   } catch (e) {
     throw new Error(`loadFileBuffer: invalid JSON — ${e.message}`);
   }
-  console.info("loadFileBuffer", buffer, jsonString, content);
+  console.info("loadFileBuffer", {
+    byteLength: uint8Array.byteLength,
+    ...getLoadContentSummary(content),
+  });
 
   // Check if loading the same file to preserve viewport
-  const isSameFile = fileId && window.excalidrawZHelper.currentFileId === fileId;
+  const isSameFile =
+    fileId && window.excalidrawZHelper.currentFileId === fileId;
 
   if (isSameFile) {
     const state = JSON.parse(localStorage.getItem("excalidraw-state") || "{}");
@@ -113,7 +231,7 @@ export const loadFileBuffer = async (buffer, fileId) => {
     type: "application/vnd.excalidraw+json",
   });
 
-  return _dispatchAndWait(file, { startedAt, fileId });
+  return _dispatchAndWait(file, { startedAt, fileId, content });
 };
 
 /**
@@ -132,7 +250,7 @@ export const loadFileString = async (dataString) => {
   }
   const files = await getRelativeFiles(content.elements);
   content.files = { ...content.files, ...files };
-  console.info("loadFileString", content);
+  console.info("loadFileString", getLoadContentSummary(content));
   const blob = new Blob([JSON.stringify(content)], {
     type: "application/vnd.excalidraw+json",
   });
@@ -140,7 +258,7 @@ export const loadFileString = async (dataString) => {
     type: "application/vnd.excalidraw+json",
   });
 
-  return _dispatchAndWait(file, { startedAt });
+  return _dispatchAndWait(file, { startedAt, content });
 };
 
 /**
@@ -154,32 +272,58 @@ const _dispatchAndWait = async (file, meta = {}) => {
   }
 
   const api = getAPI();
-  // Prepare the wait BEFORE dispatching so we don't miss the change
-  const waitPromise = api ? waitForSceneChange(api) : null;
-
-  const dataTransfer = new DataTransfer();
-  dataTransfer.items.add(file);
-
-  const fakeDropEvent = new DragEvent("drop", {
-    bubbles: true,
-    cancelable: true,
-  });
-  Object.defineProperty(fakeDropEvent, "dataTransfer", {
-    value: dataTransfer,
-  });
-  node.dispatchEvent(fakeDropEvent);
-
-  if (waitPromise) {
-    const elements = await waitPromise;
-    return {
-      ...meta,
-      elementCount: elements.length,
-      durationMs: Date.now() - (meta.startedAt || Date.now()),
-    };
+  const loadRequestId = api && meta.content ? createLoadRequestId() : null;
+  const endStateChangeSuppression =
+    loadRequestId &&
+    window.excalidrawZHelper?._beginStateChangeSuppression?.();
+  if (loadRequestId) {
+    pendingFileLoadRequestId = loadRequestId;
   }
-  // Fallback when API isn't ready — return immediately with no stats
-  console.warn("[loadFile] excalidrawAPI not ready, completion not awaited");
-  return { ...meta, elementCount: 0, durationMs: 0 };
+
+  const resultMeta = { ...meta };
+  delete resultMeta.content;
+  // Prepare the wait BEFORE dispatching so we don't miss the change
+  const waitPromise =
+    loadRequestId
+      ? waitForFileLoadDone(loadRequestId)
+      : api
+        ? waitForSceneChange(api)
+        : null;
+
+  try {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+
+    const fakeDropEvent = new DragEvent("drop", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(fakeDropEvent, "dataTransfer", {
+      value: dataTransfer,
+    });
+    node.dispatchEvent(fakeDropEvent);
+
+    if (waitPromise) {
+      const result = await waitPromise;
+      return {
+        ...resultMeta,
+        elementCount: result.elementCount ?? result.length ?? 0,
+        durationMs: Date.now() - (resultMeta.startedAt || Date.now()),
+      };
+    }
+
+    // Fallback when API isn't ready — return immediately with no stats
+    console.warn("[loadFile] excalidrawAPI not ready, completion not awaited");
+    return { ...resultMeta, elementCount: 0, durationMs: 0 };
+  } finally {
+    if (
+      loadRequestId &&
+      pendingFileLoadRequestId === loadRequestId
+    ) {
+      pendingFileLoadRequestId = null;
+    }
+    endStateChangeSuppression?.();
+  }
 };
 
 /**
@@ -277,15 +421,15 @@ export const saveFile = async () => {
 };
 
 /**
- * Snapshot the live scene + its referenced files into the same payload
- * shape the host receives via `onStateChanged` broadcasts.
+ * Snapshot the live scene + its referenced files into a full document payload.
  *
- * Use this when the host needs guaranteed up-to-date data: the broadcast
- * is throttled (~1s) so cached host state can lag behind the editor.
- * `getCurrentFileSnapshot()` always reflects the current scene at call time.
+ * Use this when the host needs guaranteed up-to-date data. `onStateChanged`
+ * only sends a lightweight dirty notification; this API intentionally carries
+ * the heavier scene/files payload and should be called at controlled moments
+ * such as save, app backgrounding, document switching, or after editor idle.
  *
  * @returns {Promise<{
- *   dataString: string,
+ *   revision: number | null,
  *   elements: readonly any[],
  *   appState: any,
  *   files: { [id: string]: any },
@@ -301,11 +445,111 @@ export const getCurrentFileSnapshot = async () => {
   const appState = api.getAppState();
   const files = await getRelativeFiles(elements);
   return {
-    dataString: JSON.stringify({ elements, appState }),
+    revision: window.excalidrawZHelper?.lastStateChangeRevision ?? null,
     elements,
     appState,
     files,
   };
+};
+
+const streamCurrentFileSave = async ({
+  streamId,
+  chunkSize,
+  includeFiles,
+}) => {
+  try {
+    if (!streamId) {
+      throw new Error("streamId is required");
+    }
+
+    const api = getAPI();
+    if (!api) {
+      throw new Error("requestCurrentFileSaveStream: excalidrawAPI not ready");
+    }
+
+    const elements = api.getSceneElementsIncludingDeleted();
+    const appState = api.getAppState();
+    const files = includeFiles ? await getRelativeFiles(elements) : {};
+    const revision = window.excalidrawZHelper?.lastStateChangeRevision ?? null;
+    const elementCount = elements.length;
+    const fileCount = Object.keys(files).length;
+    const json = JSON.stringify({ elements, appState, files });
+    const bytes = new TextEncoder().encode(json);
+    const totalBytes = bytes.byteLength;
+    const hashPromise = sha256Hex(bytes).then(
+      (sha256) => ({ sha256 }),
+      (error) => ({ error }),
+    );
+
+    sendMessage({
+      event: "currentFileSaveStreamStarted",
+      data: {
+        streamId,
+        revision,
+        elementCount,
+        fileCount,
+        totalBytes,
+      },
+    });
+
+    for (let offset = 0, index = 0; offset < totalBytes; index += 1) {
+      const end = Math.min(offset + chunkSize, totalBytes);
+      const base64 = bytesToBase64(bytes.subarray(offset, end));
+      sendMessage({
+        event: "currentFileSaveStreamChunk",
+        data: {
+          streamId,
+          index,
+          base64,
+        },
+      });
+      offset = end;
+      await yieldToMainThread();
+    }
+
+    const hashResult = await hashPromise;
+    if (hashResult.error) {
+      throw hashResult.error;
+    }
+
+    sendMessage({
+      event: "currentFileSaveStreamFinished",
+      data: {
+        streamId,
+        revision,
+        elementCount,
+        fileCount,
+        totalBytes,
+        sha256: hashResult.sha256,
+      },
+    });
+  } catch (error) {
+    sendMessage({
+      event: "currentFileSaveStreamFailed",
+      data: {
+        streamId,
+        message: error?.message || String(error),
+      },
+    });
+  }
+};
+
+/**
+ * Streams the current document JSON bytes through native messages.
+ *
+ * The decoded chunk bytes concatenate to a UTF-8 JSON document with shape:
+ * `{ elements, appState, files }`.
+ *
+ * @param {{ streamId: string, chunkSize?: number, includeFiles?: boolean }} options
+ * @returns {{ supported: true }}
+ */
+export const requestCurrentFileSaveStream = (options = {}) => {
+  const streamId = options?.streamId;
+  const chunkSize = normalizeChunkSize(options?.chunkSize);
+  const includeFiles = options?.includeFiles !== false;
+
+  void streamCurrentFileSave({ streamId, chunkSize, includeFiles });
+  return { supported: true };
 };
 
 /**
