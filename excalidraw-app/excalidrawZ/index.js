@@ -25,7 +25,11 @@ import {
   loadLibraryItem,
   onLoadLibrary,
 } from "./load+save";
-import { exportElementsToBlob, exportElementsToSvg } from "./export";
+import {
+  exportElementsToBlob,
+  exportElementsToSvg,
+  exportViewportToBlob,
+} from "./export";
 import { mermaidToElements, insertFromMermaid } from "./mermaid";
 import { createMathImage, insertMathImage, updateMathImage } from "./math";
 import {
@@ -610,6 +614,7 @@ window.excalidrawZHelper = {
 
   exportElementsToBlob,
   exportElementsToSvg,
+  exportViewportToBlob,
 
   // Mermaid
   mermaidToElements,

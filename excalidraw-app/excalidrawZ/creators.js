@@ -4,7 +4,11 @@ import {
   getFontString,
   getLineHeight,
 } from "@excalidraw/common";
-import { convertToExcalidrawElements, measureText } from "@excalidraw/element";
+import {
+  convertToExcalidrawElements,
+  measureText,
+  wrapText,
+} from "@excalidraw/element";
 
 import { insertElements } from "./placement";
 
@@ -37,7 +41,68 @@ import { insertElements } from "./placement";
  */
 export const createElements = (skeletons, opts = {}) => {
   const { regenerateIds = true } = opts;
-  return convertToExcalidrawElements(skeletons, { regenerateIds });
+  const elements = convertToExcalidrawElements(skeletons, { regenerateIds });
+  return applyExplicitTextBoxDimensions(elements, skeletons);
+};
+
+const toPositiveFiniteNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+
+/**
+ * `convertToExcalidrawElements()` creates standalone text from measured text
+ * metrics, so skeleton-level `width` is otherwise ignored. For ExcalidrawZ
+ * skeletons we treat explicit text width as a fixed text box because callers
+ * rely on it for centered titles and for stable emoji/CJK fallback rendering.
+ */
+const applyExplicitTextBoxDimensions = (elements, skeletons) => {
+  const skeletonList = Array.isArray(skeletons) ? skeletons : [];
+
+  return elements.map((element, index) => {
+    const skeleton = skeletonList[index];
+    if (element?.type !== "text" || skeleton?.type !== "text") {
+      return element;
+    }
+
+    const width = toPositiveFiniteNumber(skeleton.width);
+    const height = toPositiveFiniteNumber(skeleton.height);
+    if (width === null && height === null) {
+      return element;
+    }
+
+    const originalText = element.originalText ?? element.text ?? "";
+    const nextWidth = width ?? element.width;
+    const shouldAutoResize = skeleton.autoResize ?? (width === null);
+
+    if (shouldAutoResize) {
+      return {
+        ...element,
+        x: Number.isFinite(Number(skeleton.x)) ? Number(skeleton.x) : element.x,
+        y: Number.isFinite(Number(skeleton.y)) ? Number(skeleton.y) : element.y,
+        width: nextWidth,
+        height: height ?? element.height,
+      };
+    }
+
+    const wrappedText = wrapText(originalText, getFontString(element), nextWidth);
+    const metrics = measureText(
+      wrappedText,
+      getFontString(element),
+      element.lineHeight,
+    );
+
+    return {
+      ...element,
+      x: Number.isFinite(Number(skeleton.x)) ? Number(skeleton.x) : element.x,
+      y: Number.isFinite(Number(skeleton.y)) ? Number(skeleton.y) : element.y,
+      text: wrappedText,
+      originalText,
+      width: nextWidth,
+      height: height ?? metrics.height,
+      autoResize: false,
+    };
+  });
 };
 
 /**
