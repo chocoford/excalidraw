@@ -75,16 +75,51 @@ export const getAllFiles = async () => {
 
   return files;
 };
+
+export const getFilesByIds = async (fileIds) => {
+  const ids = Array.from(fileIds ?? []).filter(Boolean);
+  if (!ids.length) {
+    return [];
+  }
+
+  const files = await new Promise((resolve, reject) => {
+    const transaction = filesStoreConnection.transaction(
+      ["files-store"],
+      "readonly",
+    );
+    const objectStore = transaction.objectStore("files-store");
+    const files = [];
+
+    ids.forEach((id) => {
+      const request = objectStore.get(id);
+      request.onsuccess = function (event) {
+        if (event.target.result) {
+          files.push(event.target.result);
+        }
+      };
+    });
+
+    transaction.oncomplete = function () {
+      resolve(files);
+    };
+    transaction.onerror = function (event) {
+      reject(`获取指定文件出错: ${event.target.error}`);
+    };
+  });
+
+  return files;
+};
+
 /// extracts relative files from indexed-db.
 export const getRelativeFiles = async (elements) => {
-  const files = await getAllFiles();
-
-  const usedFiles = files.filter((file) => {
-    if (elements.find((e) => e.fileId === file.id)) {
-      return true;
+  const fileIds = elements.reduce((ids, element) => {
+    if (element?.fileId) {
+      ids.add(element.fileId);
     }
-    return false;
-  });
+    return ids;
+  }, new Set());
+
+  const usedFiles = await getFilesByIds(fileIds);
 
   /**
    * @type {{[id: string]: {
@@ -95,12 +130,10 @@ export const getRelativeFiles = async (elements) => {
    *  mimeType: string;
    * }}}
    */
-  const filesDict = usedFiles.reduce((pre, cur) => {
-    return {
-      ...pre,
-      [cur.id]: cur,
-    };
-  }, {});
+  const filesDict = {};
+  usedFiles.forEach((file) => {
+    filesDict[file.id] = file;
+  });
 
   return filesDict;
 };

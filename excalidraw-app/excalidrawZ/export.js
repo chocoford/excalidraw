@@ -1,3 +1,12 @@
+import rough from "roughjs/bin/rough";
+
+import { THEME, arrayToMap, toBrandedType } from "../../packages/common/src";
+import {
+  getElementAbsoluteCoords,
+  getInitializedImageElements,
+  updateImageCache,
+} from "../../packages/element/src";
+import { renderStaticScene } from "../../packages/excalidraw/renderer/staticScene";
 import { exportToBlob, exportToSvg } from "../../packages/utils/src";
 
 import { getRelativeFiles } from "./indexdb+";
@@ -29,6 +38,80 @@ const blobToBase64 = (blob) =>
 // macOS Safari is more lenient than iOS; conservative values that work on both.
 const MAX_CANVAS_DIMENSION = 16384; // single-axis hard limit
 const MAX_CANVAS_AREA = 256 * 1024 * 1024; // 256M pixels (~16384²)
+
+const clampCanvasScale = (width, height, requestedScale) => {
+  const safeRequestedScale =
+    Number.isFinite(Number(requestedScale)) && Number(requestedScale) > 0
+      ? Number(requestedScale)
+      : 1;
+  const targetW = width * safeRequestedScale;
+  const targetH = height * safeRequestedScale;
+  const targetArea = targetW * targetH;
+
+  const dimRatio = Math.min(
+    MAX_CANVAS_DIMENSION / targetW,
+    MAX_CANVAS_DIMENSION / targetH,
+    1,
+  );
+  const areaRatio =
+    targetArea > MAX_CANVAS_AREA
+      ? Math.sqrt(MAX_CANVAS_AREA / targetArea)
+      : 1;
+  const safetyRatio = Math.min(dimRatio, areaRatio);
+
+  return {
+    actualScale: safeRequestedScale * safetyRatio,
+    scaleClamped: safetyRatio < 1,
+    requestedWidth: targetW,
+    requestedHeight: targetH,
+  };
+};
+
+const canvasToBlob = (canvas, mimeType, quality) =>
+  new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Canvas export failed. The canvas may be too large."));
+          return;
+        }
+        resolve(blob);
+      },
+      mimeType,
+      quality,
+    );
+  });
+
+const getViewportExportBounds = ({
+  width,
+  height,
+  scrollX,
+  scrollY,
+  zoom,
+  marginPx,
+}) => {
+  const margin = marginPx / zoom;
+  return {
+    minX: -scrollX - margin,
+    minY: -scrollY - margin,
+    maxX: width / zoom - scrollX + margin,
+    maxY: height / zoom - scrollY + margin,
+  };
+};
+
+const elementOverlapsBounds = (element, elementsMap, bounds) => {
+  const [x1, y1, x2, y2] = getElementAbsoluteCoords(
+    element,
+    elementsMap,
+    true,
+  );
+  return (
+    x2 >= bounds.minX &&
+    x1 <= bounds.maxX &&
+    y2 >= bounds.minY &&
+    y1 <= bounds.maxY
+  );
+};
 
 /**
  * Export elements to a blob (PNG, JXL, JPEG, etc.).
@@ -83,27 +166,16 @@ export const exportElementsToBlob = async (...args) => {
       // multiplier — and pre-flight clamp it if the canvas would exceed
       // WebKit's limits.
       getDimensions: (width, height) => {
-        const targetW = width * exportScale;
-        const targetH = height * exportScale;
-        const targetArea = targetW * targetH;
+        const scale = clampCanvasScale(width, height, exportScale);
+        actualScale = scale.actualScale;
+        scaleClamped = scale.scaleClamped;
 
-        const dimRatio = Math.min(
-          MAX_CANVAS_DIMENSION / targetW,
-          MAX_CANVAS_DIMENSION / targetH,
-          1,
-        );
-        const areaRatio =
-          targetArea > MAX_CANVAS_AREA
-            ? Math.sqrt(MAX_CANVAS_AREA / targetArea)
-            : 1;
-        const safetyRatio = Math.min(dimRatio, areaRatio);
-
-        if (safetyRatio < 1) {
-          actualScale = exportScale * safetyRatio;
-          scaleClamped = true;
+        if (scaleClamped) {
           console.warn(
             `[export] requested ${exportScale}x would produce ` +
-              `${Math.round(targetW)}×${Math.round(targetH)} canvas; ` +
+              `${Math.round(scale.requestedWidth)}×${Math.round(
+                scale.requestedHeight,
+              )} canvas; ` +
               `clamped to ${actualScale.toFixed(2)}x to fit browser limits`,
           );
         }
@@ -136,6 +208,156 @@ export const exportElementsToBlob = async (...args) => {
     }
     throw error;
   }
+};
+
+/**
+ * Export the current camera viewport as a clean rendered image.
+ * Pass `{ elements, appState, files }` to render a snapshot without mutating
+ * the live scene. Omit the argument to export the current live scene.
+ * Export settings are intentionally fixed: background enabled, current/snapshot
+ * theme, PNG output, and 1x scale.
+ *
+ * @param {{
+ *   elements?: ExcalidrawElement[],
+ *   appState?: AppState,
+ *   files?: BinaryFiles,
+ * }} [source]
+ * @returns {Promise<{
+ *   blobData: string,
+ *   width: number,
+ *   height: number,
+ *   actualScale: number,
+ *   scaleClamped: boolean,
+ *   elementCount: number,
+ *   fileCount: number,
+ * }>}
+ */
+export const exportViewportToBlob = async (source = {}) => {
+  source = source || {};
+  const api = window.excalidrawZHelper?._api;
+  const hasSourceElements = Array.isArray(source.elements);
+  const hasSourceAppState =
+    source.appState && typeof source.appState === "object";
+
+  if ((!hasSourceElements || !hasSourceAppState) && !api) {
+    throw new Error("exportViewportToBlob: excalidrawAPI not ready");
+  }
+
+  const liveAppState = api?.getAppState?.() || {};
+  const appState = hasSourceAppState
+    ? { ...liveAppState, ...source.appState }
+    : liveAppState;
+  const exportScale = 1;
+  const mimeType = "image/png";
+  const viewBackgroundColor =
+    appState.viewBackgroundColor ?? getLiveViewBackgroundColor() ?? "#ffffff";
+  const exportTheme = appState.theme === THEME.DARK ? THEME.DARK : THEME.LIGHT;
+  const elements = hasSourceElements
+    ? source.elements
+    : (api.getSceneElementsIncludingDeleted?.() ??
+      api.getSceneElements?.() ??
+      []);
+  const allElements = elements.filter((element) => !element.isDeleted);
+  const allElementsMap = arrayToMap(allElements);
+  const zoomValue = Number(appState.zoom?.value ?? 1);
+  const zoom =
+    Number.isFinite(zoomValue) && zoomValue > 0 ? zoomValue : 1;
+  const width = Math.max(1, Math.floor(appState.width ?? 1));
+  const height = Math.max(1, Math.floor(appState.height ?? 1));
+  const scrollX = appState.scrollX ?? 0;
+  const scrollY = appState.scrollY ?? 0;
+  const bounds = getViewportExportBounds({
+    width,
+    height,
+    scrollX,
+    scrollY,
+    zoom,
+    marginPx: 0,
+  });
+  const visibleElements = allElements.filter((element) =>
+    elementOverlapsBounds(element, allElementsMap, bounds),
+  );
+  const files = source.files ?? (await getRelativeFiles(visibleElements));
+  const { imageCache } = await updateImageCache({
+    imageCache: new Map(),
+    fileIds: getInitializedImageElements(visibleElements).map(
+      (element) => element.fileId,
+    ),
+    files,
+  });
+  const scale = clampCanvasScale(width, height, exportScale);
+  const actualScale = scale.actualScale;
+  const scaleClamped = scale.scaleClamped;
+
+  if (scaleClamped) {
+    console.warn(
+      `[exportViewport] requested ${exportScale}x would produce ` +
+        `${Math.round(scale.requestedWidth)}×${Math.round(
+          scale.requestedHeight,
+        )} canvas; ` +
+        `clamped to ${actualScale.toFixed(2)}x to fit browser limits`,
+    );
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.ceil(width * actualScale));
+  canvas.height = Math.max(1, Math.ceil(height * actualScale));
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  renderStaticScene({
+    canvas,
+    rc: rough.canvas(canvas),
+    elementsMap: toBrandedType(allElementsMap),
+    allElementsMap: toBrandedType(allElementsMap),
+    visibleElements,
+    scale: actualScale,
+    appState: {
+      ...appState,
+      width,
+      height,
+      scrollX,
+      scrollY,
+      zoom: { ...appState.zoom, value: zoom },
+      theme: exportTheme,
+      viewBackgroundColor,
+      exportScale: actualScale,
+      exportBackground: true,
+      exportWithDarkMode: exportTheme === THEME.DARK,
+      selectedElementIds: {},
+      hoveredElementIds: {},
+      frameToHighlight: null,
+      editingGroupId: null,
+      croppingElementId: null,
+      suggestedBinding: null,
+      selectedElementsAreBeingDragged: false,
+      openDialog: null,
+      shouldCacheIgnoreZoom: false,
+    },
+    renderConfig: {
+      canvasBackgroundColor: viewBackgroundColor,
+      imageCache,
+      renderGrid: false,
+      isExporting: true,
+      embedsValidationStatus: new Map(),
+      elementsPendingErasure: new Set(),
+      pendingFlowchartNodes: null,
+      theme: exportTheme,
+    },
+  });
+
+  const blob = await canvasToBlob(canvas, mimeType);
+  const blobData = await blobToBase64(blob);
+  return {
+    blobData,
+    width,
+    height,
+    actualScale,
+    scaleClamped,
+    elementCount: visibleElements.length,
+    fileCount: Object.keys(files).length,
+    mimeType: blob.type || mimeType,
+  };
 };
 
 /**

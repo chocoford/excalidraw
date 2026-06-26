@@ -166,3 +166,48 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `"fitContent"` and `"fitViewport"` keep the existing zoom-to-fit behavior surfaces.
 - Expose `focusElements()` on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 58-69 and line 510-518.
 - Extend `insertElements()` focus handling in `excalidraw-app/excalidrawZ/placement.js` line 111-122 and line 137-159 so callers can pass `focus: "center"` or `focus: { mode: "center" }`; `focus: true` remains the existing animated fit-to-viewport behavior.
+
+### Skeleton Text Boxes
+
+- Normalize standalone text skeletons with explicit `width` / `height` in `excalidraw-app/excalidrawZ/creators.js` line 42-106 after `convertToExcalidrawElements()` runs.
+- Treat explicit text `width` as a fixed text box by default (`autoResize: false` unless the skeleton explicitly sets `autoResize: true`), preserve skeleton `(x, y)` as top-left, and rewrap text through Excalidraw's text wrapping helpers. This keeps centered titles and emoji/CJK fallback text from inheriting unstable measured widths.
+
+### State Change Bridge
+
+- Change `onStateChanged` to split content/appState dirty tracking in `excalidraw-app/excalidrawZ/index.js` line 189-323 and line 341-405:
+  - Sends revision, dirty flag, `contentDirty`, `appStateDirty`, full `appState`, element counts, file element count, appState size, and current file id.
+  - Avoids sending full `elements`, `dataString`, and image file data through the WebKit bridge on every edit; hosts should pull content only when `contentDirty` is true.
+  - Suppresses dirty broadcasts during file loads through `_beginStateChangeSuppression` at line 271-286, skips per-change signature work while suppressed, resets the watcher baseline after load, and uses a suppression generation to ignore stale throttled callbacks at line 350-356 and line 398-404.
+  - Keeps performance probes for the lightweight event and stores the latest revision on `window.excalidrawZHelper.lastStateChangeRevision` at line 607-611.
+- Keep full document transfer as an explicit pull via `getCurrentFileSnapshot()` in `excalidraw-app/excalidrawZ/load+save.js` line 439-453. The snapshot includes `revision` so the host can match it to the latest dirty notification, and it no longer returns `dataString` to avoid synchronously stringifying large scenes before crossing the WebKit bridge.
+- Optimize snapshot file lookup in `excalidraw-app/excalidrawZ/indexdb+.js` line 75-135 by collecting scene `fileId`s and reading only those files from IndexedDB instead of loading all stored files and filtering afterward.
+- Summarize `onStateChanged` bridge logs in `excalidraw-app/excalidrawZ/message.js` line 1-76 so console logging stays small while preserving the actual message sent to the host.
+
+### Viewport Image Export
+
+- Add Promise-only `window.excalidrawZHelper.exportViewportToBlob(source?)` in `excalidraw-app/excalidrawZ/export.js` line 235-361 and expose it from `excalidraw-app/excalidrawZ/index.js` line 28-32 and line 615-617.
+- `source` may contain `{ elements, appState, files }`; when present, the helper renders that snapshot in an offscreen canvas without mutating the live scene. When omitted, it exports the current live scene.
+- Render the source viewport through Excalidraw's static renderer instead of DOM screenshotting, using helper-side canvas limit clamping and viewport element filtering in `excalidraw-app/excalidrawZ/export.js` line 42-114.
+- Return `{ blobData, width, height, actualScale, scaleClamped, elementCount, fileCount, mimeType }` directly to the caller; no legacy `id` callback event is supported.
+- The first version intentionally has no public export-style options: it reads viewport size, camera, zoom, theme, and background from the source `appState`, uses PNG output, and fixes scale at 1x except for safety clamping when WebKit canvas limits would be exceeded.
+- Do not expose grid rendering for viewport export; the helper passes `renderGrid: false` at `excalidraw-app/excalidrawZ/export.js` line 337-346 to match Excalidraw image export behavior.
+
+### Current File Save Stream
+
+- Add `window.excalidrawZHelper.requestCurrentFileSaveStream(options)` in `excalidraw-app/excalidrawZ/load+save.js` line 455-553 and expose it from `excalidraw-app/excalidrawZ/index.js` line 16-26 and line 588-596.
+- The API returns `{ supported: true }` immediately, then sends ordered native messages through `sendMessage`:
+  - `currentFileSaveStreamStarted` with `streamId`, `revision`, `elementCount`, `fileCount`, and `totalBytes`.
+  - `currentFileSaveStreamChunk` with `streamId`, sequential `index`, and base64-encoded bytes.
+  - `currentFileSaveStreamFinished` with the same summary fields plus `sha256`, or `currentFileSaveStreamFailed` with `message`.
+- Chunk bytes concatenate into a UTF-8 JSON document with shape `{ elements, appState, files }`; `revision`, byte count, and hash are stream metadata only.
+- Clamp `chunkSize` to 1 KB...1 MB with a 64 KB default in `excalidraw-app/excalidrawZ/load+save.js` line 7-58, and yield between chunks so WebKit receives smaller ordered messages instead of one large snapshot object.
+- Summarize chunk logging in `excalidraw-app/excalidrawZ/message.js` line 24-34 so base64 payloads are not printed to the console.
+
+### File Load Completion
+
+- Update `loadFileBuffer()` and `loadFileString()` completion waiting in `excalidraw-app/excalidrawZ/load+save.js` line 6-145 and line 180-325:
+  - File loads now wait for the internal `excalidrawz:fileLoadDone` event instead of resolving on the first `onChange`.
+  - Keep the pending request id and internal event dispatch in the ExcalidrawZ helper through `consumePendingFileLoadRequest()` at line 65-102.
+  - Avoids pre-restoring or hashing every element in the helper, keeping large-file load overhead low.
+  - Increases the load timeout to 30 seconds and summarizes large load logs instead of printing full file JSON to the console.
+- Let `packages/excalidraw/components/App.tsx` line 12255-12365 consume the optional helper request and call `done()` after `.excalidraw` data has been applied, or on load errors, so helper promises do not hang.

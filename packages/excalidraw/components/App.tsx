@@ -12424,6 +12424,9 @@ class App extends React.Component<AppProps, AppState> {
     file: File,
     fileHandle: FileSystemFileHandle | null,
   ) => {
+    const excalidrawZFileLoadRequest = (window as any).excalidrawZHelper
+      ?._consumePendingFileLoadRequest?.();
+
     file = await normalizeFile(file);
     try {
       const elements = this.scene.getElementsIncludingDeleted();
@@ -12446,6 +12449,10 @@ class App extends React.Component<AppProps, AppState> {
             isLoading: false,
             errorMessage: t("errors.imageToolNotSupported"),
           });
+          excalidrawZFileLoadRequest?.done({
+            status: "error",
+            errorMessage: t("errors.imageToolNotSupported"),
+          });
           return;
         }
         const errorMessage = imageSceneDataError
@@ -12455,8 +12462,16 @@ class App extends React.Component<AppProps, AppState> {
           isLoading: false,
           errorMessage,
         });
+        excalidrawZFileLoadRequest?.done({
+          status: "error",
+          errorMessage,
+        });
       }
       if (!ret) {
+        excalidrawZFileLoadRequest?.done({
+          status: "error",
+          errorMessage: t("alerts.couldNotLoadInvalidFile"),
+        });
         return;
       }
 
@@ -12486,11 +12501,20 @@ class App extends React.Component<AppProps, AppState> {
         setTimeout(() => {
           this.resetHistory();
         }, 200);
+        excalidrawZFileLoadRequest?.done({
+          status: "success",
+          elementCount: ret.data.elements.length,
+        });
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         if ((window as any).webkit?.messageHandlers?.excalidrawZ) {
           (window as any).excalidrawZHelper.onLoadLibrary(ret.data);
-          return; // [ExcalidrawZ] Disable loading library from drop.
         }
+        excalidrawZFileLoadRequest?.done({
+          status: "error",
+          errorMessage: "Loaded file is an Excalidraw library",
+        });
+        return; // [ExcalidrawZ] Disable loading library from drop.
+        
         await this.library
           .updateLibrary({
             libraryItems: file,
@@ -12504,6 +12528,10 @@ class App extends React.Component<AppProps, AppState> {
       }
     } catch (error: any) {
       this.setState({ isLoading: false, errorMessage: error.message });
+      excalidrawZFileLoadRequest?.done({
+        status: "error",
+        errorMessage: error.message,
+      });
     }
   };
 
