@@ -26,7 +26,22 @@ export const togglePenMode = (flag) => {
   }
 };
 export const togglePencilInterationMode = (mode) => {
-  window.excalidrawZHelper.pencilInterationMode = mode;
+  const normalizedMode = Number(mode);
+  window.excalidrawZHelper.pencilInterationMode = Number.isFinite(
+    normalizedMode,
+  )
+    ? normalizedMode
+    : 0;
+};
+
+const dispatchSpaceKey = (type) => {
+  document.dispatchEvent(
+    new KeyboardEvent(type, {
+      ...keybardEvents.Space,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 };
 
 document.addEventListener(
@@ -77,9 +92,7 @@ document.addEventListener(
         if (window.excalidrawZHelper.pencilInterationMode === 0) {
           toggleToolbarAction("V");
         } else {
-          document.dispatchEvent(
-            new KeyboardEvent("keydown", keybardEvents.Space),
-          );
+          dispatchSpaceKey("keydown");
         }
       }
     } else if (event.pointerType === "mouse") {
@@ -94,7 +107,7 @@ document.addEventListener("pointerup", (event) => {
     if (window.excalidrawZHelper.inPencilMode) {
       if (window.excalidrawZHelper.pencilInterationMode === 0) {
       } else {
-        document.dispatchEvent(new KeyboardEvent("keyup", keybardEvents.Space));
+        dispatchSpaceKey("keyup");
       }
     }
   }

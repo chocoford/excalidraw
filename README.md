@@ -172,6 +172,11 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Normalize standalone text skeletons with explicit `width` / `height` in `excalidraw-app/excalidrawZ/creators.js` line 42-106 after `convertToExcalidrawElements()` runs.
 - Treat explicit text `width` as a fixed text box by default (`autoResize: false` unless the skeleton explicitly sets `autoResize: true`), preserve skeleton `(x, y)` as top-left, and rewrap text through Excalidraw's text wrapping helpers. This keeps centered titles and emoji/CJK fallback text from inheriting unstable measured widths.
 
+### Pencil Interaction Mode
+
+- Normalize `togglePencilInterationMode(mode)` input to a number in `excalidraw-app/excalidrawZ/interaction.js` line 28-35 so native callers can pass either numeric or string modes.
+- Dispatch synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` in `excalidraw-app/excalidrawZ/interaction.js` line 37-45 and line 87-110 so non-selection finger mode reaches Excalidraw's document-level keyboard handler and triggers space-drag panning.
+
 ### State Change Bridge
 
 - Change `onStateChanged` to split content/appState dirty tracking in `excalidraw-app/excalidrawZ/index.js` line 189-323 and line 341-405:
