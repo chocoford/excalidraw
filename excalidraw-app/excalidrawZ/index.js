@@ -1,6 +1,8 @@
 import "./clipboard";
 import {
   connectPencil,
+  getPointerInputPolicy,
+  setPointerInputPolicy,
   toggleActionsMenu,
   togglePenMode,
   togglePencilInterationMode,
@@ -659,10 +661,14 @@ window.excalidrawZHelper = {
   // pencil
   pencilConnected: false,
   pencilInterationMode: 0,
+  pointerInputPolicy: { oneFingerAction: "select" },
   inPencilMode: false,
   connectPencil,
   togglePenMode,
   togglePencilInterationMode,
+  setPointerInputPolicy,
+  getPointerInputPolicy,
+  _pointerInputHook: null,
 
   shouldHideActionsMenu: false,
   toggleActionsMenu,
