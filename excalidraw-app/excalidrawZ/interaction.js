@@ -25,14 +25,6 @@ export const togglePenMode = (flag) => {
     toggleToolbarAction("Q");
   }
 };
-export const togglePencilInterationMode = (mode) => {
-  const normalizedMode = Number(mode);
-  window.excalidrawZHelper.pencilInterationMode = Number.isFinite(
-    normalizedMode,
-  )
-    ? normalizedMode
-    : 0;
-};
 
 const dispatchSpaceKey = (type) => {
   document.dispatchEvent(
@@ -44,9 +36,97 @@ const dispatchSpaceKey = (type) => {
   );
 };
 
+let oneFingerMoveActive = false;
+
+const normalizeOneFingerAction = (value) => {
+  const action = typeof value === "string" ? value.toLowerCase() : value;
+
+  if (action === 0 || action === "0" || action === "select") {
+    return "select";
+  }
+  if (
+    action === 1 ||
+    action === "1" ||
+    action === "move" ||
+    action === "pan"
+  ) {
+    return "move";
+  }
+  if (action === 2 || action === "2" || action === "none") {
+    return "none";
+  }
+
+  return "select";
+};
+
+const oneFingerActionToLegacyMode = (action) => {
+  if (action === "move") {
+    return 1;
+  }
+  if (action === "none") {
+    return 2;
+  }
+  return 0;
+};
+
+const syncPointerInputPolicy = (oneFingerAction) => {
+  const policy = {
+    ...(window.excalidrawZHelper.pointerInputPolicy || {}),
+    oneFingerAction,
+  };
+  window.excalidrawZHelper.pointerInputPolicy = policy;
+  window.excalidrawZHelper.pencilInterationMode =
+    oneFingerActionToLegacyMode(oneFingerAction);
+
+  if (oneFingerAction !== "move") {
+    endOneFingerMove();
+  }
+
+  return policy;
+};
+
+export const setPointerInputPolicy = (policy = {}) => {
+  const oneFingerAction = normalizeOneFingerAction(
+    policy?.oneFingerAction ?? policy?.oneFingerMode ?? policy?.mode ?? policy,
+  );
+  return syncPointerInputPolicy(oneFingerAction);
+};
+
+export const getPointerInputPolicy = () => {
+  const oneFingerAction = normalizeOneFingerAction(
+    window.excalidrawZHelper.pencilInterationMode ??
+      window.excalidrawZHelper.pointerInputPolicy?.oneFingerAction,
+  );
+  return { oneFingerAction };
+};
+
+export const togglePencilInterationMode = (mode) => {
+  setPointerInputPolicy({ oneFingerAction: mode });
+};
+
+const beginOneFingerMove = () => {
+  if (!oneFingerMoveActive) {
+    dispatchSpaceKey("keydown");
+    oneFingerMoveActive = true;
+  }
+};
+
+function endOneFingerMove() {
+  if (oneFingerMoveActive) {
+    dispatchSpaceKey("keyup");
+    oneFingerMoveActive = false;
+  }
+}
+
+const runPointerInputHookCapture = (phase, event) => {
+  window.excalidrawZHelper?._runPointerInputHook?.(phase, event);
+};
+
 document.addEventListener(
   "pointerdown",
   (event) => {
+    runPointerInputHookCapture("onPointerDown", event);
+
     if (event.pointerType === "pen") {
       /**
        * if pencil is already connected,
@@ -89,10 +169,11 @@ document.addEventListener(
         window.excalidrawZHelper.inPencilMode &&
         window.excalidrawZHelper.pencilConnected
       ) {
-        if (window.excalidrawZHelper.pencilInterationMode === 0) {
+        const { oneFingerAction } = getPointerInputPolicy();
+        if (oneFingerAction === "select") {
           toggleToolbarAction("V");
-        } else {
-          dispatchSpaceKey("keydown");
+        } else if (oneFingerAction === "move") {
+          beginOneFingerMove();
         }
       }
     } else if (event.pointerType === "mouse") {
@@ -103,13 +184,16 @@ document.addEventListener(
 );
 
 document.addEventListener("pointerup", (event) => {
+  runPointerInputHookCapture("onPointerUp", event);
   if (event.pointerType === "touch") {
-    if (window.excalidrawZHelper.inPencilMode) {
-      if (window.excalidrawZHelper.pencilInterationMode === 0) {
-      } else {
-        dispatchSpaceKey("keyup");
-      }
-    }
+    endOneFingerMove();
+  }
+});
+
+document.addEventListener("pointercancel", (event) => {
+  runPointerInputHookCapture("onPointerCancel", event);
+  if (event.pointerType === "touch") {
+    endOneFingerMove();
   }
 });
 

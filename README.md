@@ -174,8 +174,9 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### Pencil Interaction Mode
 
-- Normalize `togglePencilInterationMode(mode)` input to a number in `excalidraw-app/excalidrawZ/interaction.js` line 28-35 so native callers can pass either numeric or string modes.
-- Dispatch synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` in `excalidraw-app/excalidrawZ/interaction.js` line 37-45 and line 87-110 so non-selection finger mode reaches Excalidraw's document-level keyboard handler and triggers space-drag panning.
+- Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
+- Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
+- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 671 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3341-3344, line 3418-3423, line 4461-4483, line 7126-7130, line 7927-7928, line 8368-8369, and line 8424-8429 invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
 
 ### State Change Bridge
 

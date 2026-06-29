@@ -2604,7 +2604,7 @@ class App extends React.Component<AppProps, AppState> {
                             onClick={this.handleCanvasClick}
                             onPointerMove={this.handleCanvasPointerMove}
                             onPointerUp={this.handleCanvasPointerUp}
-                            onPointerCancel={this.removePointer}
+                            onPointerCancel={this.handleCanvasPointerCancel}
                             onTouchMove={this.handleTouchMove}
                             onPointerDown={this.handleCanvasPointerDown}
                             onDoubleClick={this.handleCanvasDoubleClick}
@@ -3338,6 +3338,11 @@ class App extends React.Component<AppProps, AppState> {
       this.history.record(increment.delta);
     });
 
+    if ((window as any).excalidrawZHelper) {
+      (window as any).excalidrawZHelper._runPointerInputHook =
+        this.runExcalidrawZPointerInputHook;
+    }
+
     // per. optimmisation, only subscribe if there is the `onIncrement` prop registered, to avoid unnecessary computation
     if (this.props.onIncrement) {
       this.store.onStoreIncrementEmitter.on((increment) => {
@@ -3409,6 +3414,13 @@ class App extends React.Component<AppProps, AppState> {
     this.editorLifecycleEvents.emit("editor:unmount");
     this.props.onUnmount?.();
     this.props.onExcalidrawAPI?.(null);
+
+    if (
+      (window as any).excalidrawZHelper?._runPointerInputHook ===
+      this.runExcalidrawZPointerInputHook
+    ) {
+      delete (window as any).excalidrawZHelper._runPointerInputHook;
+    }
 
     (window as any).launchQueue?.setConsumer(() => {});
 
@@ -4444,6 +4456,30 @@ class App extends React.Component<AppProps, AppState> {
     callback,
   ) => {
     this.setState(state, callback);
+  };
+
+  private runExcalidrawZPointerInputHook = (
+    phase:
+      | "onPointerDown"
+      | "onPointerMove"
+      | "onPointerUp"
+      | "onPointerCancel",
+    event: React.PointerEvent<HTMLElement> | PointerEvent,
+  ) => {
+    const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
+    const hook = (window as any).excalidrawZHelper?._pointerInputHook;
+
+    try {
+      if (typeof hook === "function") {
+        hook(phase, nativeEvent);
+      } else {
+        hook?.[phase]?.(nativeEvent);
+      }
+    } catch (error) {
+      console.error("[ExcalidrawZ pointer input hook]", error);
+    }
+
+    return null;
   };
 
   removePointer = (event: React.PointerEvent<HTMLElement> | PointerEvent) => {
@@ -7090,6 +7126,8 @@ class App extends React.Component<AppProps, AppState> {
   private handleCanvasPointerMove = (
     event: React.PointerEvent<HTMLCanvasElement>,
   ) => {
+    this.runExcalidrawZPointerInputHook("onPointerMove", event);
+
     this.savePointer(event.clientX, event.clientY, this.state.cursorButton);
     this.lastPointerMoveEvent = event.nativeEvent;
     const scenePointer = viewportCoordsToSceneCoords(event, this.state);
@@ -7886,6 +7924,7 @@ class App extends React.Component<AppProps, AppState> {
       target.setPointerCapture(event.pointerId);
     }
 
+    this.runExcalidrawZPointerInputHook("onPointerDown", event);
     this.maybeCleanupAfterMissingPointerUp(event.nativeEvent);
     this.maybeUnfollowRemoteUser();
 
@@ -8327,6 +8366,7 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     this.removePointer(event);
+    this.runExcalidrawZPointerInputHook("onPointerUp", event);
     this.lastPointerUpIsDoubleClick = this.isDoubleClick(
       this.lastPointerUpEvent,
       event,
@@ -8379,6 +8419,13 @@ class App extends React.Component<AppProps, AppState> {
         selectedElementIds: {},
       });
     }
+  };
+
+  private handleCanvasPointerCancel = (
+    event: React.PointerEvent<HTMLCanvasElement>,
+  ) => {
+    this.removePointer(event);
+    this.runExcalidrawZPointerInputHook("onPointerCancel", event);
   };
 
   private maybeOpenContextMenuAfterPointerDownOnTouchDevices = (
