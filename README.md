@@ -172,6 +172,12 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Normalize standalone text skeletons with explicit `width` / `height` in `excalidraw-app/excalidrawZ/creators.js` line 42-106 after `convertToExcalidrawElements()` runs.
 - Treat explicit text `width` as a fixed text box by default (`autoResize: false` unless the skeleton explicitly sets `autoResize: true`), preserve skeleton `(x, y)` as top-left, and rewrap text through Excalidraw's text wrapping helpers. This keeps centered titles and emoji/CJK fallback text from inheriting unstable measured widths.
 
+### Pencil Interaction Mode
+
+- Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
+- Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
+- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 671 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3341-3344, line 3418-3423, line 4461-4483, line 7126-7130, line 7927-7928, line 8368-8369, and line 8424-8429 invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
+
 ### State Change Bridge
 
 - Change `onStateChanged` to split content/appState dirty tracking in `excalidraw-app/excalidrawZ/index.js` line 189-323 and line 341-405:

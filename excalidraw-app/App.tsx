@@ -31,6 +31,9 @@ import {
   resolvablePromise,
   isRunningInIframe,
   isDevEnv,
+  STROKE_WIDTH,
+  STROKE_WIDTH_KEYS,
+  type StrokeWidthKey,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -194,6 +197,14 @@ window.addEventListener(
 );
 
 let isSelfEmbedding = false;
+
+const getStrokeWidthKeyFromLegacyValue = (
+  strokeWidth: unknown,
+): StrokeWidthKey | null => {
+  return typeof strokeWidth === "number" && Number.isFinite(strokeWidth)
+    ? STROKE_WIDTH_KEYS.find((key) => STROKE_WIDTH[key] === strokeWidth) ?? null
+    : null;
+};
 
 if (window.self !== window.top) {
   try {
@@ -745,10 +756,17 @@ const ExcalidrawWrapper = () => {
       // Get default values for resetting fields
       const defaultAppState = getDefaultAppState();
       const processedSettings: Partial<AppState> = {};
+      const normalizedSettings = {
+        ...settings,
+        currentItemStrokeWidthKey:
+          settings.currentItemStrokeWidthKey ??
+          getStrokeWidthKeyFromLegacyValue(settings.currentItemStrokeWidth),
+      };
 
       // All drawing preference keys to process
       const drawingPrefKeys = [
-        "currentItemStrokeWidth",
+        "currentItemStrokeWidthKey",
+        "currentItemStrokeVariability",
         "currentItemStrokeColor",
         "currentItemBackgroundColor",
         "currentItemStrokeStyle",
@@ -766,7 +784,7 @@ const ExcalidrawWrapper = () => {
 
       // Process each drawing preference field
       for (const key of drawingPrefKeys) {
-        const value = settings[key];
+        const value = normalizedSettings[key];
         if (value !== null && value !== undefined) {
           // Use provided value
           (processedSettings as any)[key] = value;
