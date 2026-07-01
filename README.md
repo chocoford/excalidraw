@@ -217,3 +217,14 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Avoids pre-restoring or hashing every element in the helper, keeping large-file load overhead low.
   - Increases the load timeout to 30 seconds and summarizes large load logs instead of printing full file JSON to the console.
 - Let `packages/excalidraw/components/App.tsx` line 12255-12365 consume the optional helper request and call `done()` after `.excalidraw` data has been applied, or on load errors, so helper promises do not hang.
+
+### ExcalidrawZ File AppState
+
+- Keep ExcalidrawZ's intentional `APP_STATE_STORAGE_CONF` divergence from upstream in `packages/excalidraw/appState.ts` line 155-251:
+  - Upstream Excalidraw treats these as non-exported browser state. ExcalidrawZ treats them as file state because Native save/load depends on them surviving `cleanAppStateForExport()`.
+  - Do not restore these fields to upstream `export: false` during merges unless the Native save/load contract is changed at the same time.
+  - Persist current drawing defaults as per-file settings: `currentItemBackgroundColor`, `currentItemEndArrowhead`, `currentItemFillStyle`, `currentItemFontFamily`, `currentItemFontSize`, `currentItemRoundness`, `currentItemArrowType`, `currentItemOpacity`, `currentItemRoughness`, `currentItemStrokeVariability`, `currentItemStartArrowhead`, `currentItemStrokeColor`, `currentItemStrokeStyle`, `currentItemStrokeWidthKey`, and `currentItemTextAlign`.
+  - Note the upstream field is now `currentItemStrokeWidthKey`; do not reintroduce the old `currentItemStrokeWidth` storage config entry.
+  - Persist viewport camera state as file state: `scrollX`, `scrollY`, and `zoom`.
+  - Other transient appState fields are still stripped by `cleanAppStateForExport()`.
+  - `.excalidraw` file loads in `packages/excalidraw/data/blob.ts` line 170-181 continue to auto-center only when the imported file does not provide a complete scroll position.
