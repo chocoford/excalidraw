@@ -225,6 +225,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Do not restore these fields to upstream `export: false` during merges unless the Native save/load contract is changed at the same time.
   - Persist current drawing defaults as per-file settings: `currentItemBackgroundColor`, `currentItemEndArrowhead`, `currentItemFillStyle`, `currentItemFontFamily`, `currentItemFontSize`, `currentItemRoundness`, `currentItemArrowType`, `currentItemOpacity`, `currentItemRoughness`, `currentItemStrokeVariability`, `currentItemStartArrowhead`, `currentItemStrokeColor`, `currentItemStrokeStyle`, `currentItemStrokeWidthKey`, and `currentItemTextAlign`.
   - Note the upstream field is now `currentItemStrokeWidthKey`; do not reintroduce the old `currentItemStrokeWidth` storage config entry.
+  - Keep ExcalidrawZ user settings aligned with this field rename in `excalidraw-app/excalidrawZ/userSettings.js` line 7-40: emit `currentItemStrokeWidthKey`, preserve `currentItemStrokeWidth` only as a legacy fallback when the key field is missing.
   - Persist viewport camera state as file state: `scrollX`, `scrollY`, and `zoom`.
   - Other transient appState fields are still stripped by `cleanAppStateForExport()`.
   - `.excalidraw` file loads in `packages/excalidraw/data/blob.ts` line 170-181 continue to auto-center only when the imported file does not provide a complete scroll position.

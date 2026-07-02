@@ -5,7 +5,8 @@ import { getAppState } from "./_helpers";
  * 这些是用户可以自定义并跨文件保持的设置
  */
 const SETTING_KEYS = [
-  "currentItemStrokeWidth",
+  "currentItemStrokeWidthKey",
+  "currentItemStrokeVariability",
   "currentItemStrokeColor",
   "currentItemBackgroundColor",
   "currentItemStrokeStyle",
@@ -21,6 +22,24 @@ const SETTING_KEYS = [
   "currentItemEndArrowhead",
 ];
 
+const collectUserSettings = (source) => {
+  const settings = {};
+  SETTING_KEYS.forEach((key) => {
+    if (source[key] !== undefined) {
+      settings[key] = source[key];
+    }
+  });
+
+  if (
+    settings.currentItemStrokeWidthKey === undefined &&
+    source.currentItemStrokeWidth !== undefined
+  ) {
+    settings.currentItemStrokeWidth = source.currentItemStrokeWidth;
+  }
+
+  return settings;
+};
+
 /**
  * Get the current user settings from the live appState (zero latency).
  * Falls back to reading localStorage if the API isn't ready yet.
@@ -29,13 +48,7 @@ const SETTING_KEYS = [
 export const getUserSettings = () => {
   const appState = getAppState();
   if (appState) {
-    const settings = {};
-    SETTING_KEYS.forEach((key) => {
-      if (appState[key] !== undefined) {
-        settings[key] = appState[key];
-      }
-    });
-    return settings;
+    return collectUserSettings(appState);
   }
 
   // Fallback: API not ready yet — read from localStorage
@@ -43,13 +56,7 @@ export const getUserSettings = () => {
     const raw = localStorage.getItem("excalidraw-state");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const settings = {};
-    SETTING_KEYS.forEach((key) => {
-      if (parsed[key] !== undefined) {
-        settings[key] = parsed[key];
-      }
-    });
-    return settings;
+    return collectUserSettings(parsed);
   } catch (error) {
     console.error("[ExcalidrawZ] Failed to get user settings:", error);
     return null;
@@ -79,4 +86,3 @@ export const applyUserSettings = (settings) => {
     console.error("[ExcalidrawZ] Failed to apply user settings:", error);
   }
 };
-
