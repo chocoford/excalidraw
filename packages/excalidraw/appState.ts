@@ -91,6 +91,7 @@ export const getDefaultAppState = (): Omit<
     scrolledOutside: false,
     scrollX: 0,
     scrollY: 0,
+    scrollConstraints: null,
     selectedElementIds: {},
     hoveredElementIds: {},
     selectedGroupIds: {},
@@ -228,6 +229,7 @@ const APP_STATE_STORAGE_CONF = (<
   // [ExcalidrawZ] Persist viewport in files so Native can restore camera state.
   scrollX: { browser: true, export: true, server: false },
   scrollY: { browser: true, export: true, server: false },
+  scrollConstraints: { browser: false, export: false, server: false },
   selectedElementIds: { browser: true, export: false, server: false },
   hoveredElementIds: { browser: false, export: false, server: false },
   selectedGroupIds: { browser: true, export: false, server: false },

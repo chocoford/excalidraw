@@ -963,13 +963,14 @@ const ExcalidrawWrapper = () => {
         elements: [...currentElements, ...newElements],
       });
 
-      // Auto-scroll viewport to inserted content using Excalidraw's built-in API
+      // Auto-scroll viewport to inserted content using Excalidraw's viewport API
       if (autoScroll && newElements.length > 0) {
         setTimeout(() => {
-          excalidrawAPI.scrollToContent(newElements, {
-            fitToContent: true,
-            animate: true,
-            duration: 300,
+          excalidrawAPI.setViewport({
+            target: newElements,
+            fit: "scale-down",
+            animation: { duration: 300 },
+            offsets: { ui: true },
           });
         }, 100);
       }
@@ -1345,7 +1346,11 @@ const ExcalidrawWrapper = () => {
         onLinkOpen={(element, event) => {
           if (element.link && isElementLink(element.link)) {
             event.preventDefault();
-            excalidrawAPI?.scrollToContent(element.link, { animate: true });
+            excalidrawAPI?.setViewport({
+              target: element.link,
+              fit: "scale-down",
+              animation: true,
+            });
           }
         }}
         validateEmbeddable={true}
