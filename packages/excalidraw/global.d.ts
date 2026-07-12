@@ -34,6 +34,7 @@ interface Window {
       bottom: number;
       left: number;
     };
+    clearPreviousSelection?: () => boolean;
     getUserSettings: () => Record<string, any> | null;
     applyUserSettings: (settings: Record<string, any>) => void;
   };

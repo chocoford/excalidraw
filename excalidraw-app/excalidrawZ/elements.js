@@ -326,6 +326,28 @@ export const setSelectedElementIds = (ids) => {
 };
 
 /**
+ * Clear Excalidraw's cached selection used to restore selected elements after
+ * touch pan/zoom gestures. This does not change the current selection.
+ *
+ * Call this after explicitly deselecting elements when the host does not want
+ * a later touch gesture to restore the previous selection.
+ *
+ * @returns {boolean} true when the state was updated
+ */
+export const clearPreviousSelection = () => {
+  const api = getAPI();
+  if (!api) {
+    return false;
+  }
+  api.updateScene({
+    appState: {
+      previousSelectedElementIds: {},
+    },
+  });
+  return true;
+};
+
+/**
  * Start broadcasting element changes to the native client.
  * Emits `onElementsChanged` whenever the scene elements change.
  * Should be called once after excalidrawAPI is ready.

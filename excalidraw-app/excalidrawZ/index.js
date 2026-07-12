@@ -107,6 +107,7 @@ import {
   replaceAllElements,
   getSelectedElementIds,
   setSelectedElementIds,
+  clearPreviousSelection,
   startElementsTracking,
 } from "./elements";
 
@@ -744,5 +745,6 @@ window.excalidrawZHelper = {
   replaceAllElements,
   getSelectedElementIds,
   setSelectedElementIds,
+  clearPreviousSelection,
   startElementsTracking,
 };
