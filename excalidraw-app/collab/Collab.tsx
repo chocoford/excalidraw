@@ -677,8 +677,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
               appState: zoomToFitBounds({
                 appState,
                 bounds: sceneBounds,
-                fitToViewport: true,
-                viewportZoomFactor: 1,
+                fit: "contain",
               }).appState,
             });
 

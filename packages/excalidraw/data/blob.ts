@@ -13,7 +13,7 @@ import type { ExcalidrawElement, FileId } from "@excalidraw/element/types";
 import { cleanAppStateForExport } from "../appState";
 
 import { CanvasError, ImageSceneDataError } from "../errors";
-import { calculateScrollCenter } from "../scene";
+import { getScrollToContentState } from "../scene";
 import { decodeSvgBase64Payload } from "../scene/export";
 
 import { base64ToString, stringToBase64, toByteString } from "./encode";
@@ -174,7 +174,7 @@ export const loadSceneOrLibraryFromBlob = async (
               ...(localAppState &&
                 (data.appState?.scrollX === undefined ||
                   data.appState?.scrollY === undefined)
-                ? calculateScrollCenter(data.elements || [], localAppState)
+                ? getScrollToContentState(data.elements || [], localAppState)
                 : {}),
             },
             localAppState,
