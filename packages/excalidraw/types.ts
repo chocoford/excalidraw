@@ -230,6 +230,7 @@ export type InteractiveCanvasAppState = Readonly<
     newElement: AppState["newElement"];
     isBindingEnabled: AppState["isBindingEnabled"];
     isMidpointSnappingEnabled: AppState["isMidpointSnappingEnabled"];
+    gridModeEnabled: AppState["gridModeEnabled"];
     suggestedBinding: AppState["suggestedBinding"];
     isRotating: AppState["isRotating"];
     elementsToHighlight: AppState["elementsToHighlight"];
@@ -373,7 +374,7 @@ export interface AppState {
     clip: boolean;
   };
   editingFrame: string | null;
-  elementsToHighlight: NonDeleted<ExcalidrawElement>[] | null;
+  elementsToHighlight: readonly NonDeletedExcalidrawElement[] | null;
   /**
    * set when a new text is created or when an existing text is being edited
    */
@@ -917,6 +918,7 @@ export type AppClassProperties = {
   onStateChange: App["onStateChange"];
 
   lastPointerMoveCoords: App["lastPointerMoveCoords"];
+  lastPointerMoveEvent: App["lastPointerMoveEvent"];
   bindModeHandler: App["bindModeHandler"];
 
   setAppState: App["setAppState"];
@@ -1131,7 +1133,7 @@ export type EmbedsValidationStatus = Map<
 
 export type ElementsPendingErasure = Set<ExcalidrawElement["id"]>;
 
-export type PendingExcalidrawElements = ExcalidrawElement[];
+export type PendingExcalidrawElements = NonDeletedExcalidrawElement[];
 
 /** Runtime gridSize value. Null indicates disabled grid. */
 export type NullableGridSize =
@@ -1139,8 +1141,8 @@ export type NullableGridSize =
   | null;
 
 export type GenerateDiagramToCode = (props: {
-  frame: ExcalidrawMagicFrameElement;
-  children: readonly ExcalidrawElement[];
+  frame: NonDeleted<ExcalidrawMagicFrameElement>;
+  children: readonly NonDeletedExcalidrawElement[];
 }) => MaybePromise<{ html: string }>;
 
 export type Offsets = Partial<{

@@ -898,13 +898,9 @@ export const computeSearchMatches = (
   const flags = opts.caseSensitive ? "g" : "gi";
   const regex = new RegExp(escapeSpecialCharacters(searchQuery), flags);
 
-  const texts = elements
-    .filter((el): el is ExcalidrawTextElement => isTextElement(el))
-    .sort((a, b) => a.y - b.y);
+  const texts = elements.filter(isTextElement).sort((a, b) => a.y - b.y);
 
-  const frames = elements
-    .filter((el): el is ExcalidrawFrameLikeElement => isFrameLikeElement(el))
-    .sort((a, b) => a.y - b.y);
+  const frames = elements.filter(isFrameLikeElement).sort((a, b) => a.y - b.y);
 
   const textMatches: SearchMatchResult[] = [];
   for (const textEl of texts) {
