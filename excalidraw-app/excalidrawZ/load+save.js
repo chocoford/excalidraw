@@ -1,3 +1,9 @@
+import { MIME_TYPES } from "@excalidraw/common";
+import {
+  loadSceneOrLibraryFromBlob,
+  normalizeFile,
+} from "@excalidraw/excalidraw/data/blob";
+
 import { sendMessage } from "./message";
 import { getRelativeFiles } from "./indexdb+";
 
@@ -62,87 +68,125 @@ const createLoadRequestId = () =>
     .toString(36)
     .slice(2)}`;
 
-let pendingFileLoadRequestId = null;
+let latestFileLoadRequestId = null;
+const fileLoadRequests = new Map();
 
-const notifyFileLoadDone = (loadRequestId, detail) => {
-  if (!loadRequestId) {
-    return;
-  }
-
-  window.requestAnimationFrame(() => {
-    window.dispatchEvent(
-      new CustomEvent("excalidrawz:fileLoadDone", {
-        detail: {
-          id: loadRequestId,
-          ...detail,
-        },
-      }),
-    );
-  });
+const createFileLoadError = (status, message, requestId, fileId) => {
+  const error = new Error(message);
+  error.name = "ExcalidrawZFileLoadError";
+  error.code = `EXCALIDRAWZ_FILE_LOAD_${status.toUpperCase()}`;
+  error.status = status;
+  error.requestId = requestId;
+  error.fileId = fileId;
+  return error;
 };
 
-export const consumePendingFileLoadRequest = () => {
-  const loadRequestId = pendingFileLoadRequestId;
-  pendingFileLoadRequestId = null;
-
-  if (!loadRequestId) {
-    return null;
+const registerFileLoadRequest = ({ requestId, fileId, startedAt }) => {
+  if (typeof requestId !== "string" || !requestId.trim()) {
+    throw new Error("loadFileBuffer: requestId is required");
   }
 
-  let done = false;
-  return {
-    done: (detail) => {
-      if (done) {
+  const normalizedRequestId = requestId.trim();
+  const previousRequest = fileLoadRequests.get(latestFileLoadRequestId);
+  previousRequest?.cancel(
+    "superseded",
+    `load superseded by request ${normalizedRequestId}`,
+  );
+
+  latestFileLoadRequestId = normalizedRequestId;
+
+  let rejectCancellation;
+  const cancellationPromise = new Promise((_, reject) => {
+    rejectCancellation = reject;
+  });
+  // The promise is normally consumed through `wait()`. Keep it handled during
+  // synchronous stages as well so superseding cannot produce a console-level
+  // unhandled rejection.
+  cancellationPromise.catch(() => {});
+
+  const request = {
+    requestId: normalizedRequestId,
+    fileId,
+    startedAt,
+    settled: false,
+    error: null,
+    timer: null,
+    isCurrent: () =>
+      latestFileLoadRequestId === normalizedRequestId && !request.settled,
+    wait: (promise) => Promise.race([promise, cancellationPromise]),
+    assertCurrent: () => {
+      if (request.isCurrent()) {
         return;
       }
-      done = true;
-      notifyFileLoadDone(loadRequestId, detail);
+      if (request.error) {
+        throw request.error;
+      }
+      const error = createFileLoadError(
+        "superseded",
+        `load request ${normalizedRequestId} is no longer current`,
+        normalizedRequestId,
+        fileId,
+      );
+      request.cancel("superseded", error.message);
+      throw error;
+    },
+    cancel: (status, message) => {
+      if (request.settled) {
+        return request.error;
+      }
+      request.settled = true;
+      request.error = createFileLoadError(
+        status,
+        message,
+        normalizedRequestId,
+        fileId,
+      );
+      clearTimeout(request.timer);
+      fileLoadRequests.delete(normalizedRequestId);
+      rejectCancellation(request.error);
+      return request.error;
+    },
+    fail: (error) => {
+      if (request.settled) {
+        return request.error || error;
+      }
+      request.settled = true;
+      request.error =
+        error?.name === "ExcalidrawZFileLoadError"
+          ? error
+          : createFileLoadError(
+              "error",
+              error?.message || String(error),
+              normalizedRequestId,
+              fileId,
+            );
+      clearTimeout(request.timer);
+      fileLoadRequests.delete(normalizedRequestId);
+      return request.error;
+    },
+    succeed: (elementCount) => {
+      request.assertCurrent();
+      request.settled = true;
+      clearTimeout(request.timer);
+      fileLoadRequests.delete(normalizedRequestId);
+      return {
+        requestId: normalizedRequestId,
+        fileId,
+        elementCount,
+        durationMs: Date.now() - startedAt,
+      };
     },
   };
-};
 
-/**
- * Wait until App.loadFileToCanvas reports that the requested file load has
- * reached the post-sync completion point.
- *
- * @param {string} loadRequestId
- * @param {number} timeoutMs
- * @returns {Promise<{ elementCount: number }>}
- */
-const waitForFileLoadDone = (
-  loadRequestId,
-  timeoutMs = DEFAULT_LOAD_TIMEOUT_MS,
-) => {
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      clearTimeout(timer);
-      window.removeEventListener("excalidrawz:fileLoadDone", onDone);
-    };
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(
-        new Error(
-          "load timed out — file may be invalid, rejected, or empty",
-        ),
-      );
-    }, timeoutMs);
+  request.timer = setTimeout(() => {
+    request.cancel(
+      "timeout",
+      "load timed out — file may be invalid, rejected, or empty",
+    );
+  }, DEFAULT_LOAD_TIMEOUT_MS);
 
-    const onDone = (event) => {
-      const detail = event.detail ?? {};
-      if (detail.id !== loadRequestId) {
-        return;
-      }
-
-      cleanup();
-      if (detail.status === "error") {
-        reject(new Error(detail.errorMessage || "load failed"));
-        return;
-      }
-      resolve({ elementCount: detail.elementCount ?? 0 });
-    };
-
-    window.addEventListener("excalidrawz:fileLoadDone", onDone);
-  });
+  fileLoadRequests.set(normalizedRequestId, request);
+  return request;
 };
 
 const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
@@ -170,169 +214,168 @@ const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
   });
 };
 
-/**
- *
- * @param {number[]} buffer
- * @param {string} [fileId] - Optional file identifier to track if loading the same file
- * @returns {Promise<{ fileId: string|undefined, elementCount: number, durationMs: number }>}
- * @throws if JSON parsing fails or the load times out
- */
-export const loadFileBuffer = async (buffer, fileId) => {
+const waitForNextPaint = () =>
+  new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+
+const loadSerializedFile = async ({
+  readSerializedData,
+  source,
+  fileId,
+  requestId,
+}) => {
   const startedAt = Date.now();
-  const uint8Array = new Uint8Array(buffer);
-  const jsonString = new TextDecoder("utf-8").decode(uint8Array);
-
-  let content;
-  try {
-    content = JSON.parse(jsonString);
-  } catch (e) {
-    throw new Error(`loadFileBuffer: invalid JSON — ${e.message}`);
-  }
-  console.info("loadFileBuffer", {
-    byteLength: uint8Array.byteLength,
-    ...getLoadContentSummary(content),
-  });
-
-  // Check if loading the same file to preserve viewport
-  const isSameFile =
-    fileId && window.excalidrawZHelper.currentFileId === fileId;
-
-  if (isSameFile) {
-    const state = JSON.parse(localStorage.getItem("excalidraw-state") || "{}");
-    const savedViewport = {
-      scrollX: state.scrollX,
-      scrollY: state.scrollY,
-      zoom: state.zoom,
-    };
-    console.info("[ExcalidrawZ] Preserving viewport for same file:", {
-      fileId,
-      savedViewport,
-      originalAppState: content.appState,
-    });
-    content.appState = {
-      ...content.appState,
-      ...savedViewport,
-    };
-  } else {
-    console.info("[ExcalidrawZ] Loading different file:", {
-      newFileId: fileId,
-      currentFileId: window.excalidrawZHelper.currentFileId,
-    });
-  }
-
-  window.excalidrawZHelper.currentFileId = fileId;
-
-  const files = await getRelativeFiles(content.elements);
-  content.files = { ...content.files, ...files };
-  const blob = new Blob([JSON.stringify(content)], {
-    type: "application/vnd.excalidraw+json",
-  });
-  const file = new File([blob], "file.excalidraw", {
-    type: "application/vnd.excalidraw+json",
-  });
-
-  return _dispatchAndWait(file, { startedAt, fileId, content });
-};
-
-/**
- *
- * @param {string} dataString
- * @returns {Promise<{ elementCount: number, durationMs: number }>}
- * @throws if JSON parsing fails or the load times out
- */
-export const loadFileString = async (dataString) => {
-  const startedAt = Date.now();
-  let content;
-  try {
-    content = JSON.parse(dataString);
-  } catch (e) {
-    throw new Error(`loadFileString: invalid JSON — ${e.message}`);
-  }
-  const files = await getRelativeFiles(content.elements);
-  content.files = { ...content.files, ...files };
-  console.info("loadFileString", getLoadContentSummary(content));
-  const blob = new Blob([JSON.stringify(content)], {
-    type: "application/vnd.excalidraw+json",
-  });
-  const file = new File([blob], "file.excalidraw", {
-    type: "application/vnd.excalidraw+json",
-  });
-
-  return _dispatchAndWait(file, { startedAt, content });
-};
-
-/**
- * Internal: dispatch a fake drop event, then await the scene change.
- * Resolves with stats; rejects on timeout or container missing.
- */
-const _dispatchAndWait = async (file, meta = {}) => {
-  const node = document.querySelector(".excalidraw-container");
-  if (!node) {
-    throw new Error("loadFile: .excalidraw-container not found");
-  }
-
-  const api = getAPI();
-  const loadRequestId = api && meta.content ? createLoadRequestId() : null;
+  const request = registerFileLoadRequest({ requestId, fileId, startedAt });
   const endStateChangeSuppression =
-    loadRequestId &&
     window.excalidrawZHelper?._beginStateChangeSuppression?.();
-  if (loadRequestId) {
-    pendingFileLoadRequestId = loadRequestId;
-  }
-
-  const resultMeta = { ...meta };
-  delete resultMeta.content;
-  // Prepare the wait BEFORE dispatching so we don't miss the change
-  const waitPromise =
-    loadRequestId
-      ? waitForFileLoadDone(loadRequestId)
-      : api
-        ? waitForSceneChange(api)
-        : null;
 
   try {
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
+    const api = getAPI();
+    if (!api?._excalidrawZ?.applyFileScene) {
+      throw new Error(`${source}: ExcalidrawZ file API not ready`);
+    }
 
-    const fakeDropEvent = new DragEvent("drop", {
-      bubbles: true,
-      cancelable: true,
-    });
-    Object.defineProperty(fakeDropEvent, "dataTransfer", {
-      value: dataTransfer,
-    });
-    node.dispatchEvent(fakeDropEvent);
+    const { dataString, byteLength } = readSerializedData();
+    let content;
+    try {
+      content = JSON.parse(dataString);
+    } catch (error) {
+      throw new Error(`${source}: invalid JSON — ${error.message}`);
+    }
 
-    if (waitPromise) {
-      const result = await waitPromise;
-      return {
-        ...resultMeta,
-        elementCount: result.elementCount ?? result.length ?? 0,
-        durationMs: Date.now() - (resultMeta.startedAt || Date.now()),
+    console.info(source, {
+      ...(byteLength == null ? {} : { byteLength }),
+      requestId: request.requestId,
+      fileId,
+      ...getLoadContentSummary(content),
+    });
+    request.assertCurrent();
+
+    // Reloading the active file preserves the live camera, not a potentially
+    // stale localStorage snapshot.
+    if (fileId && window.excalidrawZHelper.currentFileId === fileId) {
+      const appState = api.getAppState();
+      content.appState = {
+        ...content.appState,
+        scrollX: appState.scrollX,
+        scrollY: appState.scrollY,
+        zoom: appState.zoom,
       };
     }
 
-    // Fallback when API isn't ready — return immediately with no stats
-    console.warn("[loadFile] excalidrawAPI not ready, completion not awaited");
-    return { ...resultMeta, elementCount: 0, durationMs: 0 };
-  } finally {
-    if (
-      loadRequestId &&
-      pendingFileLoadRequestId === loadRequestId
-    ) {
-      pendingFileLoadRequestId = null;
+    const relativeFiles = await request.wait(
+      getRelativeFiles(content.elements || []),
+    );
+    request.assertCurrent();
+    content.files = { ...content.files, ...relativeFiles };
+
+    const blob = new Blob([JSON.stringify(content)], {
+      type: MIME_TYPES.excalidraw,
+    });
+    let file = new File([blob], "file.excalidraw", {
+      type: MIME_TYPES.excalidraw,
+    });
+
+    file = await request.wait(normalizeFile(file));
+    request.assertCurrent();
+
+    const restored = await request.wait(
+      loadSceneOrLibraryFromBlob(
+        file,
+        api.getAppState(),
+        api.getSceneElementsIncludingDeleted(),
+        null,
+      ),
+    );
+    request.assertCurrent();
+
+    if (restored.type === MIME_TYPES.excalidrawlib) {
+      window.excalidrawZHelper?.onLoadLibrary?.(restored.data);
+      throw createFileLoadError(
+        "library",
+        "Loaded file is an Excalidraw library",
+        request.requestId,
+        fileId,
+      );
     }
+    if (restored.type !== MIME_TYPES.excalidraw) {
+      throw new Error(`${source}: invalid Excalidraw file`);
+    }
+
+    // Final guard before the only operation that mutates the live scene.
+    request.assertCurrent();
+    const { elementCount } = api._excalidrawZ.applyFileScene(restored.data);
+
+    // The file identity changes only after the scene was synchronously handed
+    // to Excalidraw for application.
+    if (fileId !== undefined) {
+      window.excalidrawZHelper.currentFileId = fileId;
+    }
+
+    // Match the old completion contract: resolve after React has had a frame
+    // to commit and paint the applied scene.
+    await request.wait(waitForNextPaint());
+    request.assertCurrent();
+    return request.succeed(elementCount);
+  } catch (error) {
+    throw request.fail(error);
+  } finally {
     endStateChangeSuppression?.();
   }
 };
 
 /**
+ * Load a serialized Excalidraw file directly through the imperative API.
+ *
+ * @param {number[] | ArrayBuffer | Uint8Array} buffer
+ * @param {string} fileId
+ * @param {string} requestId
+ * @returns {Promise<{
+ *   requestId: string,
+ *   fileId: string,
+ *   elementCount: number,
+ *   durationMs: number,
+ * }>}
+ */
+export const loadFileBuffer = async (buffer, fileId, requestId) =>
+  loadSerializedFile({
+    source: "loadFileBuffer",
+    fileId,
+    requestId,
+    readSerializedData: () => {
+      const bytes = new Uint8Array(buffer);
+      return {
+        dataString: new TextDecoder("utf-8").decode(bytes),
+        byteLength: bytes.byteLength,
+      };
+    },
+  });
+
+/**
+ * @param {string} dataString
+ * @returns {Promise<{
+ *   requestId: string,
+ *   fileId: undefined,
+ *   elementCount: number,
+ *   durationMs: number,
+ * }>}
+ */
+export const loadFileString = async (dataString) =>
+  loadSerializedFile({
+    source: "loadFileString",
+    fileId: undefined,
+    requestId: createLoadRequestId(),
+    readSerializedData: () => ({ dataString }),
+  });
+
+/**
  * @param {File} file
- * @returns {Promise<void>}  Kept for backward compat — internal use only.
- *                            External callers should use loadFileBuffer / loadFileString.
+ * @returns {Promise<object>} Kept for internal compatibility.
  */
 export const loadFile = async (file) => {
-  await _dispatchAndWait(file);
+  const buffer = await file.arrayBuffer();
+  return loadFileBuffer(buffer, undefined, createLoadRequestId());
 };
 
 /**

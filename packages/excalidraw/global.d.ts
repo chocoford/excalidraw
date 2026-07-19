@@ -11,6 +11,16 @@ interface Window {
   excalidrawZHelper?: {
     sendMessage: (payload: { event: string; data?: any }) => void;
     currentFileId?: string;
+    loadFileBuffer: (
+      buffer: number[] | ArrayBuffer | Uint8Array,
+      fileId: string,
+      requestId: string,
+    ) => Promise<{
+      requestId: string;
+      fileId: string;
+      elementCount: number;
+      durationMs: number;
+    }>;
     nativeViewportInsets?: {
       top: number;
       right: number;

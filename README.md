@@ -212,12 +212,11 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### File Load Completion
 
-- Update `loadFileBuffer()` and `loadFileString()` completion waiting in `excalidraw-app/excalidrawZ/load+save.js` line 6-145 and line 180-325:
-  - File loads now wait for the internal `excalidrawz:fileLoadDone` event instead of resolving on the first `onChange`.
-  - Keep the pending request id and internal event dispatch in the ExcalidrawZ helper through `consumePendingFileLoadRequest()` at line 65-102.
-  - Avoids pre-restoring or hashing every element in the helper, keeping large-file load overhead low.
-  - Increases the load timeout to 30 seconds and summarizes large load logs instead of printing full file JSON to the console.
-- Let `packages/excalidraw/components/App.tsx` line 12255-12365 consume the optional helper request and call `done()` after `.excalidraw` data has been applied, or on load errors, so helper promises do not hang.
+- Load Native files directly through `window.excalidrawZHelper.loadFileBuffer(buffer, fileId, requestId)` in `excalidraw-app/excalidrawZ/load+save.js` line 218-350. Successful calls return exactly `{ requestId, fileId, elementCount, durationMs }`; parsing, hydration, normalization, restore, supersede, and timeout failures reject the Promise.
+- Keep concurrent load ownership in the request registry at `excalidraw-app/excalidrawZ/load+save.js` line 69-188. A new request marks the previous request as `superseded`; every asynchronous boundary races cancellation and verifies `isCurrent()` before the live scene can be mutated. The 30-second timeout remains a real failure.
+- Do not use synthetic drop events, `DataTransfer`, a global pending request id, or `excalidrawz:fileLoadDone` for Native file loading. Promise settlement is the completion receipt, and `currentFileId` changes only after the current request has applied its scene.
+- Add the private `_api._excalidrawZ.applyFileScene()` bridge in `packages/excalidraw/components/App.tsx` line 527-532 and line 850-853. Its implementation at line 12824-12858 atomically resets scene/store/history state, repairs fractional indices, replaces binary files, and refreshes image state through the existing `syncActionResult()` path. Physical file drops reuse the same method at line 12800.
+- Declare the Native `loadFileBuffer()` signature in `packages/excalidraw/global.d.ts` line 14-23. The private `_excalidrawZ` bridge is intentionally excluded from the public `ExcalidrawImperativeAPI` type.
 
 ### ExcalidrawZ File AppState
 

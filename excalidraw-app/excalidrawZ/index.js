@@ -23,7 +23,6 @@ import {
   saveFile,
   getCurrentFileSnapshot,
   requestCurrentFileSaveStream,
-  consumePendingFileLoadRequest,
   loadLibraryItem,
   onLoadLibrary,
 } from "./load+save";
@@ -611,7 +610,6 @@ window.excalidrawZHelper = {
   lastToggleToolKey: null,
   lastStateChangeRevision: 0,
   _beginStateChangeSuppression: beginStateChangeSuppression,
-  _consumePendingFileLoadRequest: consumePendingFileLoadRequest,
 
   didSetActiveTool,
 

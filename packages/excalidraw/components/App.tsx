@@ -523,6 +523,14 @@ import type { Action, ActionResult } from "../actions/types";
 // @ts-ignore
 import { didToggleToolLock } from "../../../excalidraw-app/excalidrawZ/index";
 
+type ExcalidrawZImperativeAPI = ExcalidrawImperativeAPI & {
+  _excalidrawZ: {
+    applyFileScene: (data: Awaited<ReturnType<typeof loadFromBlob>>) => {
+      elementCount: number;
+    };
+  };
+};
+
 const AppContext = React.createContext<AppClassProperties>(null!);
 const AppPropsContext = React.createContext<AppProps>(null!);
 
@@ -797,7 +805,7 @@ class App extends React.Component<AppProps, AppState> {
   api: ExcalidrawImperativeAPI;
 
   private createExcalidrawAPI(): ExcalidrawImperativeAPI {
-    const api: ExcalidrawImperativeAPI = {
+    const api: ExcalidrawZImperativeAPI = {
       isDestroyed: false,
       updateScene: this.updateScene,
       applyDeltas: this.applyDeltas,
@@ -837,6 +845,11 @@ class App extends React.Component<AppProps, AppState> {
       onUserFollow: (cb) => this.onUserFollowEmitter.on(cb),
       onStateChange: this.onStateChange,
       onEvent: this.onEvent,
+      // [ExcalidrawZ] Private bridge for atomically applying a restored file.
+      // Kept out of the public ExcalidrawImperativeAPI surface.
+      _excalidrawZ: {
+        applyFileScene: this.applyExcalidrawZFileScene,
+      },
     };
     return api;
   }
@@ -12747,9 +12760,6 @@ class App extends React.Component<AppProps, AppState> {
     file: File,
     fileHandle: FileSystemFileHandle | null,
   ) => {
-    const excalidrawZFileLoadRequest = (window as any).excalidrawZHelper
-      ?._consumePendingFileLoadRequest?.();
-
     file = await normalizeFile(file);
     try {
       const elements = this.scene.getElementsIncludingDeleted();
@@ -12772,10 +12782,6 @@ class App extends React.Component<AppProps, AppState> {
             isLoading: false,
             errorMessage: t("errors.imageToolNotSupported"),
           });
-          excalidrawZFileLoadRequest?.done({
-            status: "error",
-            errorMessage: t("errors.imageToolNotSupported"),
-          });
           return;
         }
         const errorMessage = imageSceneDataError
@@ -12785,56 +12791,16 @@ class App extends React.Component<AppProps, AppState> {
           isLoading: false,
           errorMessage,
         });
-        excalidrawZFileLoadRequest?.done({
-          status: "error",
-          errorMessage,
-        });
       }
       if (!ret) {
-        excalidrawZFileLoadRequest?.done({
-          status: "error",
-          errorMessage: t("alerts.couldNotLoadInvalidFile"),
-        });
         return;
       }
 
       if (ret.type === MIME_TYPES.excalidraw) {
-        this.resetScene();
-        // restore the fractional indices by mutating elements
-        syncInvalidIndices(elements.concat(ret.data.elements));
-
-        // don't capture and only update the store snapshot for old elements,
-        // otherwise we would end up with duplicated fractional indices on undo
-        this.store.scheduleMicroAction({
-          action: CaptureUpdateAction.NEVER,
-          elements,
-          appState: undefined,
-        });
-
-        this.setState({ isLoading: true });
-        this.syncActionResult({
-          ...ret.data,
-          appState: {
-            ...(ret.data.appState || this.state),
-            isLoading: false,
-          },
-          replaceFiles: true,
-          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-        });
-        setTimeout(() => {
-          this.resetHistory();
-        }, 200);
-        excalidrawZFileLoadRequest?.done({
-          status: "success",
-          elementCount: ret.data.elements.length,
-        });
+        this.applyExcalidrawZFileScene(ret.data);
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         if ((window as any).webkit?.messageHandlers?.excalidrawZ) {
           (window as any).excalidrawZHelper.onLoadLibrary(ret.data);
-          excalidrawZFileLoadRequest?.done({
-            status: "error",
-            errorMessage: "Loaded file is an Excalidraw library",
-          });
           return; // [ExcalidrawZ] Native handles library files itself.
         }
 
@@ -12851,11 +12817,43 @@ class App extends React.Component<AppProps, AppState> {
       }
     } catch (error: any) {
       this.setState({ isLoading: false, errorMessage: error.message });
-      excalidrawZFileLoadRequest?.done({
-        status: "error",
-        errorMessage: error.message,
-      });
     }
+  };
+
+  /** [ExcalidrawZ] Atomically applies an already-restored native file scene. */
+  private applyExcalidrawZFileScene = (
+    data: Awaited<ReturnType<typeof loadFromBlob>>,
+  ) => {
+    const previousElements = this.scene.getElementsIncludingDeleted();
+
+    this.resetScene();
+    // Restore fractional indices by mutating the incoming elements before the
+    // scene receives them.
+    syncInvalidIndices(previousElements.concat(data.elements));
+
+    // Only update the store snapshot for the old elements. Capturing the new
+    // scene here would duplicate fractional indices on undo.
+    this.store.scheduleMicroAction({
+      action: CaptureUpdateAction.NEVER,
+      elements: previousElements,
+      appState: undefined,
+    });
+
+    this.setState({ isLoading: true });
+    this.syncActionResult({
+      ...data,
+      appState: {
+        ...(data.appState || this.state),
+        isLoading: false,
+      },
+      replaceFiles: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    setTimeout(() => {
+      this.resetHistory();
+    }, 200);
+
+    return { elementCount: data.elements.length };
   };
 
   private handleCanvasContextMenu = (
