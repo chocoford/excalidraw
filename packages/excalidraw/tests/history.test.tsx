@@ -1285,6 +1285,7 @@ describe("history", () => {
 
       togglePopover("Stroke");
       UI.clickOnTestId("color-red");
+      mouse.reset();
       mouse.down(40, -20);
       mouse.up(50, 10);
 
