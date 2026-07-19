@@ -27,7 +27,7 @@ import { isInvisiblySmallElement } from "@excalidraw/element";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
-import type { GlobalPoint, LocalPoint } from "@excalidraw/math";
+import type { LocalPoint } from "@excalidraw/math";
 import type {
   ExcalidrawElement,
   ExcalidrawLinearElement,
@@ -38,7 +38,8 @@ import type {
 import { t } from "../i18n";
 import { resetCursor } from "../cursor";
 import { done } from "../components/icons";
-import { ToolButton } from "../components/ToolButton";
+import { TOGGLE_TOOLS } from "../components/Tools";
+import { IconButton } from "../components/IconButton";
 
 import { register } from "./register";
 
@@ -94,32 +95,40 @@ export const actionFinalize = register<FormData>({
             ? [element.points.length - 1] // New arrow creation
             : appState.selectedLinearElement.selectedPointsIndices;
 
+        const angleLocked = shouldRotateWithDiscreteAngle(event);
+        const effectiveGridSize = event[KEYS.CTRL_OR_CMD]
+          ? null
+          : app.getEffectiveGridSize();
+
         const draggedPoints: PointsPositionUpdates =
           selectedPointsIndices.reduce((map, index) => {
             map.set(index, {
-              point: LinearElementEditor.pointFromAbsoluteCoords(
-                element,
-                pointFrom<GlobalPoint>(
-                  sceneCoords.x - linearElementEditor.pointerOffset.x,
-                  sceneCoords.y - linearElementEditor.pointerOffset.y,
-                ),
-                elementsMap,
-              ),
+              point: angleLocked
+                ? element.points[index]
+                : LinearElementEditor.createPointAt(
+                    element,
+                    elementsMap,
+                    sceneCoords.x - linearElementEditor.pointerOffset.x,
+                    sceneCoords.y - linearElementEditor.pointerOffset.y,
+                    effectiveGridSize,
+                  ),
             });
 
             return map;
           }, new Map()) ?? new Map();
+
         bindOrUnbindBindingElement(
           element,
           draggedPoints,
-          sceneCoords.x - linearElementEditor.pointerOffset.x,
-          sceneCoords.y - linearElementEditor.pointerOffset.y,
+          sceneCoords.x,
+          sceneCoords.y,
           scene,
           appState,
           {
             newArrow,
             altKey: event.altKey,
-            angleLocked: shouldRotateWithDiscreteAngle(event),
+            angleLocked,
+            gridSize: app.getEffectiveGridSize(),
           },
         );
       } else if (isLineElement(element)) {
@@ -317,12 +326,12 @@ export const actionFinalize = register<FormData>({
     }
 
     let activeTool: AppState["activeTool"];
-    if (appState.activeTool.type === "eraser") {
+    if (TOGGLE_TOOLS.includes(appState.activeTool.type)) {
       activeTool = updateActiveTool(appState, {
         ...(appState.activeTool.lastActiveTool || {
           type: app.state.preferredSelectionTool.type,
         }),
-        lastActiveToolBeforeEraser: null,
+        lastActiveTool: null,
       });
     } else {
       activeTool = updateActiveTool(appState, {
@@ -390,7 +399,7 @@ export const actionFinalize = register<FormData>({
     ((event.key === KEYS.ESCAPE || event.key === KEYS.ENTER) &&
       appState.multiElement !== null),
   PanelComponent: ({ appState, updateData, data }) => (
-    <ToolButton
+    <IconButton
       type="button"
       icon={done}
       title={t("buttons.done")}
