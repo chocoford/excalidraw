@@ -14138,7 +14138,7 @@ exports[`history > singleplayer undo/redo > should create new history entry on s
     "appState": AppStateDelta {
       "delta": Delta {
         "deleted": {
-          "name": "Untitled-2026-07-13-1448",
+          "name": "Untitled-2026-07-20-1132",
           "viewBackgroundColor": "#000",
         },
         "inserted": {

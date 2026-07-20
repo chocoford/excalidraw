@@ -94,14 +94,14 @@ Uses browser native PDF rendering with **zero external dependencies**.
     - Pages format: `Array<{imageData: Blob|ArrayBuffer|string, width: number, height: number}>`.
     - **Smart features** (implemented in event handler):
       - Auto-finds empty space: If canvas has content, places PDF to the right; if empty, centers in viewport.
-      - Auto-scrolls viewport to show inserted content using `excalidrawAPI.scrollToContent()` with smooth animation.
+      - Auto-scrolls viewport to show inserted content using `excalidrawAPI.setViewport()` with smooth animation.
       - Grid layout with wrapping: Use `itemsPerLine` to create multi-column (vertical) or multi-row (horizontal) layouts.
       - Batch insertion for better performance.
     - **Use case**: PDF rendering done on Swift side, JS side only handles image insertion.
 - Event listeners in `excalidraw-app/App.tsx`:
-  - `excalidrawz:createPdfElement` at line 603-666: Creates PDF viewer element.
-  - `excalidrawz:createImageElements` at line 668-810: Batch creates image elements (for PDF pages) with smart positioning, grid layout, and auto-scroll (line 802-810 uses `scrollToContent` API).
-- Expose PDF APIs in `excalidraw-app/excalidrawZ/index.js` line 432-434:
+  - `excalidrawz:createPdfElement` at line 677-734: Creates PDF viewer element.
+  - `excalidrawz:createImageElements` at line 831-988: Batch creates image elements (for PDF pages) with smart positioning, grid layout, and auto-scroll (line 969-974 uses `setViewport`).
+- Expose PDF APIs in `excalidraw-app/excalidrawZ/index.js` line 689-691:
   - `window.excalidrawZHelper.loadPDFTiles(pages, { x, y, gap, direction, itemsPerLine, autoScroll })`
   - `window.excalidrawZHelper.loadPDFViewer(pdfData, { x, y, width, height, totalPages })`
   - `window.excalidrawZHelper.handlePDFDrop(file, sceneX, sceneY)` - Handle PDF file drop (sends to Swift via `sendMessage`)
@@ -131,8 +131,8 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `window.excalidrawZHelper.setNativeViewportInsets({ top, right, bottom, left })`
   - `window.excalidrawZHelper.getNativeViewportInsets()`
   - Stores normalized non-negative inset values, updates `nativeViewportInsets`, overrides CSS safe-area vars `--sat`, `--sar`, `--sab`, `--sal`, and dispatches `excalidrawz:nativeViewportInsetsChanged`.
-- Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 41-45 and expose the native inset APIs on `window.excalidrawZHelper` line 451-454.
-- Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.tsx` line 4797-4841 so zoom/scroll-to-content avoids Swift-provided safe areas.
+- Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 50-52 and expose the native inset APIs on `window.excalidrawZHelper` line 647-649.
+- Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.viewport.ts` line 507-599 so `setViewport` avoids Swift-provided safe areas.
 - Declare the helper API in `packages/excalidraw/global.d.ts` line 14-36.
 
 ### Tool Lock Unlock Behavior
@@ -161,10 +161,11 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### Insert Focus Modes
 
-- Add `focusElements()` in `excalidraw-app/excalidrawZ/camera.js` line 164-229 to focus element IDs in three modes:
+- Add `focusElements()` in `excalidraw-app/excalidrawZ/camera.js` line 182-223 to focus element IDs in three modes:
   - `"center"` centers the camera on the target elements while preserving the current zoom.
   - `"fitContent"` and `"fitViewport"` keep the existing zoom-to-fit behavior surfaces.
-- Expose `focusElements()` on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 58-69 and line 510-518.
+- Keep camera bridge viewport operations on `setViewport()` in `excalidraw-app/excalidrawZ/camera.js` line 76-80, line 124-145, line 158-163, and line 201-221, translating legacy bridge options into `animation` and `offsets`.
+- Expose `focusElements()` on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 71 and line 708.
 - Extend `insertElements()` focus handling in `excalidraw-app/excalidrawZ/placement.js` line 111-122 and line 137-159 so callers can pass `focus: "center"` or `focus: { mode: "center" }`; `focus: true` remains the existing animated fit-to-viewport behavior.
 
 ### Skeleton Text Boxes

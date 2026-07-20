@@ -12,6 +12,16 @@ const getAPI = () => {
   return api;
 };
 
+const getViewportAnimation = (animate, duration) =>
+  animate ? { duration } : false;
+
+const getViewportOffsets = (canvasOffsets) => ({
+  ui: true,
+  ...(canvasOffsets || {}),
+});
+
+const getSceneViewportTarget = (api) => api.getSceneElements();
+
 /**
  * Get current camera state.
  * @returns {{ scrollX: number, scrollY: number, zoom: number } | null}
@@ -56,17 +66,18 @@ export const setCamera = ({ scrollX, scrollY, zoom }) => {
 };
 
 /**
- * Scroll to center all content (without changing zoom).
+ * Fit all content into view.
  */
 export const scrollToCenter = () => {
   const api = getAPI();
   if (!api) {
     return;
   }
-  api.scrollToContent(undefined, {
-    fitToContent: true,
-    animate: true,
-    duration: 300,
+  api.setViewport({
+    target: getSceneViewportTarget(api),
+    fit: "scale-down",
+    animation: { duration: 300 },
+    offsets: getViewportOffsets(),
   });
 };
 
@@ -76,16 +87,13 @@ export const scrollToCenter = () => {
  * Three modes:
  *  - 'center'      — just center the element, keep current zoom unchanged
  *  - 'fitContent'  — zoom to fit element, capped at 100% (default)
- *  - 'fitViewport' — adaptive zoom, can exceed 100%, controlled by viewportZoomFactor
+ *  - 'fitViewport' — fit the element to the viewport
  *
  * @param {string} elementId
  * @param {{
  *   mode?: 'center' | 'fitContent' | 'fitViewport',
  *   animate?: boolean,
  *   duration?: number,
- *   viewportZoomFactor?: number,
- *   minZoom?: number,
- *   maxZoom?: number,
  *   canvasOffsets?: { top?: number, right?: number, bottom?: number, left?: number }
  * }} opts
  */
@@ -98,14 +106,9 @@ export const scrollToElement = (elementId, opts = {}) => {
     mode = "fitContent",
     animate = true,
     duration = 300,
-    viewportZoomFactor = 0.7,
-    minZoom,
-    maxZoom,
     canvasOffsets,
   } = opts;
 
-  // For 'center' mode, scrollToContent expects element objects (not a string id),
-  // because passing a string id internally forces fitToContent.
   let target = elementId;
   if (mode === "center") {
     const elements = api
@@ -119,45 +122,44 @@ export const scrollToElement = (elementId, opts = {}) => {
   }
 
   const baseOpts = {
-    animate,
-    duration,
-    minZoom,
-    maxZoom,
-    canvasOffsets,
+    target,
+    animation: getViewportAnimation(animate, duration),
+    offsets: getViewportOffsets(canvasOffsets),
   };
 
   if (mode === "center") {
-    // omit both fit flags → calculateScrollCenter, no zoom change
-    api.scrollToContent(target, baseOpts);
-  } else if (mode === "fitViewport") {
-    api.scrollToContent(target, {
+    api.setViewport({
       ...baseOpts,
-      fitToViewport: true,
-      viewportZoomFactor,
+      fit: "none",
+    });
+  } else if (mode === "fitViewport") {
+    api.setViewport({
+      ...baseOpts,
+      fit: "contain",
     });
   } else {
-    api.scrollToContent(target, {
+    api.setViewport({
       ...baseOpts,
-      fitToContent: true,
+      fit: "scale-down",
     });
   }
 };
 
 /**
  * Zoom to fit all elements in the viewport.
- * @param {{ animate?: boolean, duration?: number, viewportZoomFactor?: number }} opts
+ * @param {{ animate?: boolean, duration?: number, canvasOffsets?: { top?: number, right?: number, bottom?: number, left?: number } }} opts
  */
 export const zoomToFit = (opts = {}) => {
   const api = getAPI();
   if (!api) {
     return;
   }
-  const { animate = true, duration = 300, viewportZoomFactor = 0.9 } = opts;
-  api.scrollToContent(undefined, {
-    fitToViewport: true,
-    viewportZoomFactor,
-    animate,
-    duration,
+  const { animate = true, duration = 300, canvasOffsets } = opts;
+  api.setViewport({
+    target: getSceneViewportTarget(api),
+    fit: "contain",
+    animation: getViewportAnimation(animate, duration),
+    offsets: getViewportOffsets(canvasOffsets),
   });
 };
 
@@ -167,16 +169,13 @@ export const zoomToFit = (opts = {}) => {
  * Modes:
  *  - 'center'      — just center the elements, keep current zoom unchanged
  *  - 'fitContent'  — zoom to fit elements, capped by Excalidraw defaults
- *  - 'fitViewport' — adaptive zoom, can exceed 100%, controlled by viewportZoomFactor
+ *  - 'fitViewport' — fit the elements to the viewport
  *
  * @param {string[]} elementIds
  * @param {{
  *   mode?: 'center' | 'fitContent' | 'fitViewport',
  *   animate?: boolean,
  *   duration?: number,
- *   viewportZoomFactor?: number,
- *   minZoom?: number,
- *   maxZoom?: number,
  *   canvasOffsets?: { top?: number, right?: number, bottom?: number, left?: number }
  * }} opts
  */
@@ -190,9 +189,6 @@ export const focusElements = (elementIds, opts = {}) => {
     mode = "fitViewport",
     animate = true,
     duration = 300,
-    viewportZoomFactor = 0.7,
-    minZoom,
-    maxZoom,
     canvasOffsets,
   } = opts;
   const allElements = api.getSceneElements();
@@ -202,28 +198,26 @@ export const focusElements = (elementIds, opts = {}) => {
     return;
   }
 
-  const baseOpts = {
-    animate,
-    duration,
-    minZoom,
-    maxZoom,
-    canvasOffsets,
-  };
-
   if (mode === "center") {
-    // omit both fit flags -> calculateScrollCenter, no zoom change
-    api.scrollToContent(targets, baseOpts);
+    api.setViewport({
+      target: targets,
+      fit: "none",
+      animation: getViewportAnimation(animate, duration),
+      offsets: getViewportOffsets(canvasOffsets),
+    });
   } else if (mode === "fitContent") {
-    api.scrollToContent(targets, {
-      ...baseOpts,
-      fitToContent: true,
-      viewportZoomFactor,
+    api.setViewport({
+      target: targets,
+      fit: "scale-down",
+      animation: getViewportAnimation(animate, duration),
+      offsets: getViewportOffsets(canvasOffsets),
     });
   } else {
-    api.scrollToContent(targets, {
-      ...baseOpts,
-      fitToViewport: true,
-      viewportZoomFactor,
+    api.setViewport({
+      target: targets,
+      fit: "contain",
+      animation: getViewportAnimation(animate, duration),
+      offsets: getViewportOffsets(canvasOffsets),
     });
   }
 };
@@ -231,7 +225,7 @@ export const focusElements = (elementIds, opts = {}) => {
 /**
  * Zoom to fit specific elements by their IDs.
  * @param {string[]} elementIds
- * @param {{ animate?: boolean, duration?: number, viewportZoomFactor?: number }} opts
+ * @param {{ animate?: boolean, duration?: number, canvasOffsets?: { top?: number, right?: number, bottom?: number, left?: number } }} opts
  */
 export const zoomToFitElements = (elementIds, opts = {}) => {
   return focusElements(elementIds, { ...opts, mode: "fitViewport" });
