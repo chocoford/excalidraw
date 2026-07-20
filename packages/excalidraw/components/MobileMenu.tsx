@@ -16,12 +16,7 @@ import { Island } from "./Island";
 import { PenModeButton } from "./PenModeButton";
 
 import type { ActionManager } from "../actions/manager";
-import type {
-  AppClassProperties,
-  AppProps,
-  AppState,
-  UIAppState,
-} from "../types";
+import type { AppClassProperties, AppState, UIAppState } from "../types";
 import type { JSX } from "react";
 
 type MobileMenuProps = {
@@ -43,7 +38,8 @@ type MobileMenuProps = {
   ) => JSX.Element | null;
   renderSidebars: () => JSX.Element | null;
   renderWelcomeScreen: boolean;
-  UIOptions: AppProps["UIOptions"];
+  defaultUIEnabled: boolean;
+  scrollBackToContentUIEnabled: boolean;
   app: AppClassProperties;
 };
 
@@ -56,7 +52,8 @@ export const MobileMenu = ({
   renderTopRightUI,
   renderSidebars,
   renderWelcomeScreen,
-  UIOptions,
+  defaultUIEnabled,
+  scrollBackToContentUIEnabled,
   app,
   onPenModeToggle,
 }: MobileMenuProps) => {
@@ -75,19 +72,23 @@ export const MobileMenu = ({
         {renderTopRightUI?.(true, appState) ??
           (!appState.viewModeEnabled && (
             <>
-              <PenModeButton
-                checked={appState.penMode}
-                onChange={() => onPenModeToggle(null)}
-                title={t("toolBar.penMode")}
-                isMobile
-                penDetected={appState.penDetected}
-              />
+              {defaultUIEnabled && (
+                <PenModeButton
+                  checked={appState.penMode}
+                  onChange={() => onPenModeToggle(null)}
+                  title={t("toolBar.penMode")}
+                  isMobile
+                  penDetected={appState.penDetected}
+                />
+              )}
               <DefaultSidebarTriggerTunnel.Out />
             </>
           ))}
-        {appState.viewModeEnabled && (
-          <ExitViewModeButton actionManager={actionManager} />
-        )}
+        {defaultUIEnabled &&
+          appState.viewModeEnabled &&
+          app.isInteractionEnabled() && (
+            <ExitViewModeButton actionManager={actionManager} />
+          )}
       </div>
     );
 
@@ -117,6 +118,27 @@ export const MobileMenu = ({
     return <MobileToolbar app={app} setAppState={setAppState} />;
   };
 
+  const shouldRenderScrollBackToContent =
+    scrollBackToContentUIEnabled && appState.scrolledOutside;
+  const shouldRenderDefaultBottomBar =
+    defaultUIEnabled && !appState.viewModeEnabled;
+  const scrollBackToContentButton =
+    shouldRenderScrollBackToContent &&
+    !appState.openMenu &&
+    !appState.openSidebar ? (
+      <button
+        type="button"
+        className="scroll-back-to-content"
+        onClick={() => {
+          setAppState((appState) => ({
+            ...getScrollToContentState(elements, appState),
+          }));
+        }}
+      >
+        {t("buttons.scrollBackToContent")}
+      </button>
+    ) : null;
+
   return (
     <>
       {renderSidebars()}
@@ -126,7 +148,7 @@ export const MobileMenu = ({
         {renderWelcomeScreen && <WelcomeScreenCenterTunnel.Out />}
       </div>
 
-      {!appState.viewModeEnabled && (
+      {shouldRenderDefaultBottomBar && (
         <div
           className="App-bottom-bar"
           style={{
@@ -143,26 +165,15 @@ export const MobileMenu = ({
           />
 
           <Island className="App-toolbar">
-            {!appState.viewModeEnabled &&
-              appState.openDialog?.name !== "elementLinkSelector" &&
+            {appState.openDialog?.name !== "elementLinkSelector" &&
               renderToolbar()}
-            {appState.scrolledOutside &&
-              !appState.openMenu &&
-              !appState.openSidebar && (
-                <button
-                  type="button"
-                  className="scroll-back-to-content"
-                  onClick={() => {
-                    setAppState((appState) => ({
-                      ...getScrollToContentState(elements, appState),
-                    }));
-                  }}
-                >
-                  {t("buttons.scrollBackToContent")}
-                </button>
-              )}
+            {scrollBackToContentButton}
           </Island>
         </div>
+      )}
+
+      {!shouldRenderDefaultBottomBar && scrollBackToContentButton && (
+        <div className="floating-status-stack">{scrollBackToContentButton}</div>
       )}
 
       <FixedSideContainer side="top" className="App-top-bar">
