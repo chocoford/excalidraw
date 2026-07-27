@@ -2,6 +2,21 @@ import { sendMessage } from "./message";
 
 const getAPI = () => window.excalidrawZHelper?._api;
 
+const TRANSPARENT_CANVAS_CLASS = "excalidrawz-transparent-canvas";
+
+let canvasTransparent = false;
+let canvasTransparencyApplied = false;
+let viewBackgroundColorBeforeTransparency = null;
+
+export const isCanvasTransparent = () => canvasTransparent;
+
+const setDocumentSurfaceTransparent = (transparent) => {
+  document.documentElement.classList.toggle(
+    TRANSPARENT_CANVAS_CLASS,
+    transparent,
+  );
+};
+
 /**
  * Bitmap values for `stats.panels` — match upstream STATS_PANELS.
  * Combine with bitwise OR. Example: GENERAL_STATS | ELEMENT_PROPERTIES = 3.
@@ -165,6 +180,90 @@ export const setCanvasPreferences = (partial) => {
   }
 
   return true;
+};
+
+/**
+ * Temporarily make both the Excalidraw canvas and the surrounding document
+ * surface transparent. The previous canvas background is restored when the
+ * mode is disabled.
+ *
+ * This is intended for transparent native WebView overlays. The native view
+ * itself must also be configured as non-opaque with a clear background.
+ *
+ * @param {boolean} enabled
+ * @param {{ force?: boolean }} [options]
+ * @returns {{
+ *   enabled: boolean,
+ *   applied: boolean,
+ *   viewBackgroundColor: string | null,
+ * }}
+ */
+export const setCanvasTransparent = (enabled, options = {}) => {
+  const nextEnabled = !!enabled;
+  const force = options.force === true;
+  const api = getAPI();
+  const currentBackgroundColor =
+    api?.getAppState?.().viewBackgroundColor ?? null;
+  const transparencyMatchesAppState =
+    !nextEnabled || currentBackgroundColor === "transparent";
+
+  if (
+    !force &&
+    canvasTransparent === nextEnabled &&
+    (!nextEnabled ||
+      (canvasTransparencyApplied && transparencyMatchesAppState) ||
+      !api)
+  ) {
+    setDocumentSurfaceTransparent(nextEnabled);
+    return {
+      enabled: canvasTransparent,
+      applied: canvasTransparencyApplied,
+      viewBackgroundColor:
+        api?.getAppState?.().viewBackgroundColor ?? null,
+    };
+  }
+
+  canvasTransparent = nextEnabled;
+  setDocumentSurfaceTransparent(nextEnabled);
+
+  if (!api) {
+    canvasTransparencyApplied = false;
+    return {
+      enabled: canvasTransparent,
+      applied: false,
+      viewBackgroundColor: null,
+    };
+  }
+
+  let targetBackgroundColor;
+  if (nextEnabled) {
+    if (
+      currentBackgroundColor !== "transparent" ||
+      viewBackgroundColorBeforeTransparency === null
+    ) {
+      viewBackgroundColorBeforeTransparency = currentBackgroundColor;
+    }
+    targetBackgroundColor = "transparent";
+    api.updateScene({
+      appState: { viewBackgroundColor: targetBackgroundColor },
+      captureUpdate: "NEVER",
+    });
+  } else {
+    targetBackgroundColor =
+      viewBackgroundColorBeforeTransparency ?? currentBackgroundColor;
+    viewBackgroundColorBeforeTransparency = null;
+    api.updateScene({
+      appState: { viewBackgroundColor: targetBackgroundColor },
+      captureUpdate: "NEVER",
+    });
+  }
+  canvasTransparencyApplied = true;
+
+  return {
+    enabled: canvasTransparent,
+    applied: true,
+    viewBackgroundColor: targetBackgroundColor,
+  };
 };
 
 // ---------------------------------------------------------------------------

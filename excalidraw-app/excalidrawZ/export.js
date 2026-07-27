@@ -143,6 +143,7 @@ export const exportElementsToBlob = async (...args) => {
     quality,
     exportScale = 1,
     viewBackgroundColor = getLiveViewBackgroundColor(),
+    exportingFrame = null,
   } = options;
 
   let actualScale = exportScale;
@@ -150,7 +151,10 @@ export const exportElementsToBlob = async (...args) => {
 
   try {
     const blob = await exportToBlob({
-      elements: elements.filter((el) => !el.isDeleted),
+      elements: elements.filter(
+        (element) => !element.isDeleted && element.id !== exportingFrame?.id,
+      ),
+      exportingFrame,
       files: files || (await getRelativeFiles(elements)),
       appState: {
         exportEmbedScene,

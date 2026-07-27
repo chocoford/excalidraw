@@ -507,9 +507,11 @@ import { didToggleToolLock } from "../../../excalidraw-app/excalidrawZ/index";
 
 type ExcalidrawZImperativeAPI = ExcalidrawImperativeAPI & {
   _excalidrawZ: {
-    applyFileScene: (data: Awaited<ReturnType<typeof loadFromBlob>>) => {
+    applyFileScene: (
+      data: Awaited<ReturnType<typeof loadFromBlob>>,
+    ) => Promise<{
       elementCount: number;
-    };
+    }>;
   };
 };
 
@@ -666,6 +668,7 @@ class App extends React.Component<AppProps, AppState> {
 
   public files: BinaryFiles = {};
   public imageCache: AppClassProperties["imageCache"] = new Map();
+  private latestImageCacheUpdate: Promise<void> = Promise.resolve();
   private iFrameRefs = new Map<ExcalidrawElement["id"], HTMLIFrameElement>();
   /**
    * Indicates whether the embeddable's url has been validated for rendering.
@@ -3227,7 +3230,7 @@ class App extends React.Component<AppProps, AppState> {
 
     if (actionResult.files) {
       this.addMissingFiles(actionResult.files, actionResult.replaceFiles);
-      this.addNewImagesToImageCache();
+      this.latestImageCacheUpdate = this.addNewImagesToImageCache();
     }
 
     if (actionResult.appState || editingTextElement || this.state.contextMenu) {
@@ -13209,7 +13212,7 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (ret.type === MIME_TYPES.excalidraw) {
-        this.applyExcalidrawZFileScene(ret.data);
+        await this.applyExcalidrawZFileScene(ret.data);
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         if ((window as any).webkit?.messageHandlers?.excalidrawZ) {
           (window as any).excalidrawZHelper.onLoadLibrary(ret.data);
@@ -13233,7 +13236,7 @@ class App extends React.Component<AppProps, AppState> {
   };
 
   /** [ExcalidrawZ] Atomically applies an already-restored native file scene. */
-  private applyExcalidrawZFileScene = (
+  private applyExcalidrawZFileScene = async (
     data: Awaited<ReturnType<typeof loadFromBlob>>,
   ) => {
     const previousElements = this.scene.getElementsIncludingDeleted();
@@ -13252,6 +13255,7 @@ class App extends React.Component<AppProps, AppState> {
     });
 
     this.setState({ isLoading: true });
+    this.latestImageCacheUpdate = Promise.resolve();
     this.syncActionResult({
       ...data,
       appState: {
@@ -13260,6 +13264,11 @@ class App extends React.Component<AppProps, AppState> {
       },
       replaceFiles: true,
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    const imageCacheUpdate = this.latestImageCacheUpdate;
+    await imageCacheUpdate;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
     });
     setTimeout(() => {
       this.resetHistory();

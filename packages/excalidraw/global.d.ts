@@ -1,3 +1,47 @@
+type ExcalidrawZScreenAnnotationDocument = {
+  type: "excalidraw";
+  version: number;
+  source: string;
+  elements: Record<string, any>[];
+  appState: Record<string, any>;
+  files: Record<
+    string,
+    {
+      id: string;
+      dataURL: string;
+      mimeType: string;
+      created: number;
+      lastRetrieved?: number;
+      version?: number;
+    }
+  >;
+};
+
+type ExcalidrawZScreenAnnotationRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type ExcalidrawZCanvasTool =
+  | "selection"
+  | "lasso"
+  | "rectangle"
+  | "diamond"
+  | "ellipse"
+  | "arrow"
+  | "line"
+  | "freedraw"
+  | "text"
+  | "image"
+  | "eraser"
+  | "hand"
+  | "frame"
+  | "magicframe"
+  | "embeddable"
+  | "laser";
+
 interface Window {
   ClipboardItem: any;
   __EXCALIDRAW_SHA__: string | undefined;
@@ -43,6 +87,82 @@ interface Window {
       right: number;
       bottom: number;
       left: number;
+    };
+    setCanvasTransparent?: (enabled: boolean) => {
+      enabled: boolean;
+      applied: boolean;
+      viewBackgroundColor: string | null;
+    };
+    prepareCanvas?: (options?: {
+      reset?: boolean;
+      clearHistory?: boolean;
+      transparent?: boolean;
+      activeTool?: ExcalidrawZCanvasTool;
+      appState?: Record<string, any>;
+    }) => Promise<{
+      reset: boolean;
+      historyCleared: boolean;
+      transparent: boolean;
+      activeTool: ExcalidrawZCanvasTool | null;
+      appliedAppStateKeys: string[];
+    }>;
+    clearCanvas?: (options?: {
+      clearHistory?: boolean;
+    }) => Promise<{
+      cleared: true;
+      historyCleared: boolean;
+    }>;
+    createScreenAnnotationDocument?: (
+      options: {
+        mode?: "raw" | "bitmap";
+        image: {
+          dataURL: string;
+          mimeType: string;
+          width: number;
+          height: number;
+          created?: number;
+        };
+      } & (
+        | {
+            viewportRect: ExcalidrawZScreenAnnotationRect;
+            selectionRect?: ExcalidrawZScreenAnnotationRect;
+          }
+        | {
+            viewportRect?: ExcalidrawZScreenAnnotationRect;
+            selectionRect: ExcalidrawZScreenAnnotationRect;
+          }
+      ),
+    ) => ExcalidrawZScreenAnnotationDocument;
+    insertScreenAnnotationDocument?: (
+      document: ExcalidrawZScreenAnnotationDocument,
+      options?: {
+        columns?: number;
+        gap?: number;
+        focus?:
+          | boolean
+          | {
+              mode?: "center" | "fitContent" | "fitViewport";
+              animate?: boolean;
+              duration?: number;
+              canvasOffsets?: {
+                top?: number;
+                right?: number;
+                bottom?: number;
+                left?: number;
+              };
+            };
+        captureUpdate?: "IMMEDIATELY" | "EVENTUALLY" | "NEVER";
+      },
+    ) => {
+      frameId: string;
+      elementIds: string[];
+      index: number;
+      bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
     };
     clearPreviousSelection?: () => boolean;
     getUserSettings: () => Record<string, any> | null;

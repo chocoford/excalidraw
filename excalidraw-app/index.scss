@@ -1,5 +1,16 @@
 @import "../packages/excalidraw/css/variables.module.scss";
 
+html.excalidrawz-transparent-canvas {
+  &,
+  body,
+  #root,
+  .excalidraw-app,
+  .excalidraw {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+}
+
 .excalidraw {
   --color-primary-contrast-offset: #625ee0; // to offset Chubb illusion
 

@@ -44,6 +44,10 @@ import {
   createImage,
 } from "./creators";
 import { insertElements } from "./placement";
+import {
+  createScreenAnnotationDocument,
+  insertScreenAnnotationDocument,
+} from "./screenAnnotation";
 import { connectElements } from "./connect";
 import {
   nativeViewportInsets,
@@ -82,9 +86,12 @@ import {
 } from "./search";
 import {
   getCanvasPreferences,
+  setCanvasTransparent,
   setCanvasPreferences,
   startCanvasPreferencesTracking,
 } from "./canvasPreferences";
+import { prepareCanvas } from "./prepareCanvas";
+import { clearCanvas } from "./clearCanvas";
 import {
   beginAICameraSession,
   updateAICameraTarget,
@@ -638,6 +645,8 @@ window.excalidrawZHelper = {
   // One-shot insertion
   insertElements,
   insertFromSkeleton,
+  createScreenAnnotationDocument,
+  insertScreenAnnotationDocument,
 
   // Connect existing elements
   connectElements,
@@ -720,6 +729,9 @@ window.excalidrawZHelper = {
   // Canvas Preferences
   getCanvasPreferences,
   setCanvasPreferences,
+  setCanvasTransparent,
+  prepareCanvas,
+  clearCanvas,
   startCanvasPreferencesTracking,
 
   // AI Camera Session

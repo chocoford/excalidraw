@@ -6,6 +6,7 @@ import {
 
 import { sendMessage } from "./message";
 import { getRelativeFiles } from "./indexdb+";
+import { getReferencedFiles } from "./referencedFiles";
 
 const getAPI = () => window.excalidrawZHelper?._api;
 
@@ -64,9 +65,7 @@ const yieldToMainThread = () =>
   });
 
 const createLoadRequestId = () =>
-  `excalidrawz-load-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  `excalidrawz-load-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 let latestFileLoadRequestId = null;
 const fileLoadRequests = new Map();
@@ -200,9 +199,7 @@ const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
     const timer = setTimeout(() => {
       unsubscribe?.();
       reject(
-        new Error(
-          "load timed out — file may be invalid, rejected, or empty",
-        ),
+        new Error("load timed out — file may be invalid, rejected, or empty"),
       );
     }, timeoutMs);
 
@@ -213,11 +210,6 @@ const waitForSceneChange = (api, timeoutMs = DEFAULT_LOAD_TIMEOUT_MS) => {
     });
   });
 };
-
-const waitForNextPaint = () =>
-  new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
 
 const loadSerializedFile = async ({
   readSerializedData,
@@ -305,18 +297,17 @@ const loadSerializedFile = async ({
 
     // Final guard before the only operation that mutates the live scene.
     request.assertCurrent();
-    const { elementCount } = api._excalidrawZ.applyFileScene(restored.data);
+    const { elementCount } = await request.wait(
+      api._excalidrawZ.applyFileScene(restored.data),
+    );
+    request.assertCurrent();
 
-    // The file identity changes only after the scene was synchronously handed
-    // to Excalidraw for application.
+    // The file identity changes only after the scene, its image cache, and the
+    // final rendered frame have completed.
     if (fileId !== undefined) {
       window.excalidrawZHelper.currentFileId = fileId;
     }
 
-    // Match the old completion contract: resolve after React has had a frame
-    // to commit and paint the applied scene.
-    await request.wait(waitForNextPaint());
-    request.assertCurrent();
     return request.succeed(elementCount);
   } catch (error) {
     throw request.fail(error);
@@ -486,7 +477,7 @@ export const getCurrentFileSnapshot = async () => {
   }
   const elements = api.getSceneElementsIncludingDeleted();
   const appState = api.getAppState();
-  const files = await getRelativeFiles(elements);
+  const files = await getReferencedFiles(api, elements);
   return {
     revision: window.excalidrawZHelper?.lastStateChangeRevision ?? null,
     elements,
@@ -495,11 +486,7 @@ export const getCurrentFileSnapshot = async () => {
   };
 };
 
-const streamCurrentFileSave = async ({
-  streamId,
-  chunkSize,
-  includeFiles,
-}) => {
+const streamCurrentFileSave = async ({ streamId, chunkSize, includeFiles }) => {
   try {
     if (!streamId) {
       throw new Error("streamId is required");
@@ -512,7 +499,7 @@ const streamCurrentFileSave = async ({
 
     const elements = api.getSceneElementsIncludingDeleted();
     const appState = api.getAppState();
-    const files = includeFiles ? await getRelativeFiles(elements) : {};
+    const files = includeFiles ? await getReferencedFiles(api, elements) : {};
     const revision = window.excalidrawZHelper?.lastStateChangeRevision ?? null;
     const elementCount = elements.length;
     const fileCount = Object.keys(files).length;

@@ -16,7 +16,7 @@
 - Chnage `CJK_HAND_DRAWN_FALLBACK_FONT` to `YDSZST`. Relavent files:
   - `packages/excalidraw/constants.ts` line 120.
   - `packages/excalidraw/Fonts.ts` line 414.
-- Remove Help&ImageExport keyboard shortcut in `packages/excalidraw/components/App.tsx` line 4184-4197. 
+- Remove Help&ImageExport keyboard shortcut in `packages/excalidraw/components/App.tsx` line 4184-4197.
 - Modify css style of `Excalidraw Modal` in `packages/excalidraw/components/Modal.scss` line 138-146.
 - Modify css style of `Excalidraw TTD-Dialog` in `packages/excalidraw/components/TTDDialog/TTDDialog.scss` line 15.
 - Add elements selection message in `packages/excalidraw/components/App.tsx` line 1536-1546.
@@ -37,7 +37,7 @@
 
 - Support dark `exportToBlob`: `packages/utils/export.ts` line 126-134.
 
-- Adjust the rendering thickness of freedraw to enhance the writing experience with the Apple Pencil. The code is located in `packages/excalidraw/renderer/renderElement.ts` line 1063. 
+- Adjust the rendering thickness of freedraw to enhance the writing experience with the Apple Pencil. The code is located in `packages/excalidraw/renderer/renderElement.ts` line 1063.
 
   - ```
     - size: element.strokeWidth * 4.25,
@@ -112,10 +112,12 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Implementation in `excalidraw-app/excalidrawZ/pdf.js` line 220-248: `handlePDFDrop()` function
 
 **Dependencies**: None.
+
 - For `loadPDFViewer`: Page count must be provided by caller.
 - For `loadPDFTiles`: PDF rendering (to images) must be done by caller (e.g., Swift side).
 
 **Persistence**: PDF files are persisted to IndexedDB and restored correctly.
+
 - `excalidraw-app/data/FileManager.ts`:
   - Line 100-102: Modified `saveFiles()` to handle both image and PDF elements.
   - Line 182-183: Modified `shouldPreventUnload()` to check both image and PDF elements.
@@ -133,7 +135,27 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Stores normalized non-negative inset values, updates `nativeViewportInsets`, overrides CSS safe-area vars `--sat`, `--sar`, `--sab`, `--sal`, and dispatches `excalidrawz:nativeViewportInsetsChanged`.
 - Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 50-52 and expose the native inset APIs on `window.excalidrawZHelper` line 647-649.
 - Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.viewport.ts` line 507-599 so `setViewport` avoids Swift-provided safe areas.
-- Declare the helper API in `packages/excalidraw/global.d.ts` line 14-36.
+- Declare the helper API in `packages/excalidraw/global.d.ts` line 50-72.
+
+### Transparent Canvas Overlay
+
+- Add reversible `window.excalidrawZHelper.setCanvasTransparent(enabled)` in `excalidraw-app/excalidrawZ/canvasPreferences.js` line 5-16 and line 183-251, and expose it from `excalidraw-app/excalidrawZ/index.js`.
+- Add async `window.excalidrawZHelper.prepareCanvas(options)` in `excalidraw-app/excalidrawZ/prepareCanvas.js`. It coordinates optional scene reset, non-undoable appState initialization, transparent WebView mode, active-tool selection, and a final history clear without modifying Excalidraw core. Callers must await the returned Promise. After `resetScene()`, it waits for React to commit before force-applying transparency, then validates the returned `transparent` value against live `api.getAppState().viewBackgroundColor`. The API is exposed from `excalidraw-app/excalidrawZ/index.js` and declared in `packages/excalidraw/global.d.ts`.
+- Add async `window.excalidrawZHelper.clearCanvas({ clearHistory })` in `excalidraw-app/excalidrawZ/clearCanvas.js`. It clears elements and element-backed selection/editing state through `updateScene()` without calling `resetScene()`, preserving the active tool and lock, drawing styles, viewport, transparent background, and all unrelated appState. With `clearHistory: true`, the clear is not captured as an undo step, history is cleared, and the Promise resolves after the next paint. The API is exposed from `excalidraw-app/excalidrawZ/index.js`, declared in `packages/excalidraw/global.d.ts`, and covered by `excalidraw-app/excalidrawZ/clearCanvas.test.js`.
+- Enabling the mode stores the current `viewBackgroundColor`, applies Excalidraw's supported `"transparent"` canvas background with `CaptureUpdateAction.NEVER`, and makes the surrounding document surface transparent. Disabling restores the stored canvas background.
+- Add the `excalidrawz-transparent-canvas` document class styling in `excalidraw-app/index.scss` line 3-12 so the dark-mode `html` background cannot remain behind an otherwise transparent canvas.
+- Declare the API in `packages/excalidraw/global.d.ts` line 73-77. Native integrations must also configure the WebView itself as non-opaque with clear WebView and scroll-view backgrounds; JavaScript cannot make the native compositing layer transparent.
+
+### Screen Annotation Documents
+
+- Implement the raw/bitmap screen-annotation document bridge in `excalidraw-app/excalidrawZ/screenAnnotation.js`:
+  - `window.excalidrawZHelper.createScreenAnnotationDocument(options)` converts `selectionRect` (preferred) or `viewportRect` from WebView/client coordinates through Excalidraw's coordinate utilities. It creates a local `(0, 0)` frame at the capture area's scene size, keeps the original-resolution screenshot file, places a locked screenshot image at the bottom, and translates intersecting editable elements and their binding dependencies without scaling their dimensions or points.
+  - `mode: "bitmap"` creates the same marked frame/document protocol but includes only the supplied final-render screenshot image, without collecting live canvas annotations. `selectionRect ?? viewportRect` provides the logical frame/image-element dimensions, while the original PNG/JPEG pixels and MIME type remain unchanged in `files`.
+  - Bitmap `image.width` / `image.height` describe source pixels only. Frame and image-element width/height use the logical capture rect directly; only the rect origin goes through viewport-to-scene conversion. The removed `flattened` mode is rejected.
+  - `window.excalidrawZHelper.insertScreenAnnotationDocument(document, options)` duplicates the document through Excalidraw's native duplication pipeline, remaps element/group/frame/binding IDs, resolves binary-file ID conflicts, and lays variable-size frames out in rows without scaling frame contents. It applies all inserted elements with one capture update.
+- Expose both methods from `excalidraw-app/excalidrawZ/index.js` line 47-50 and line 646-647, and declare their host contract in `packages/excalidraw/global.d.ts` line 1-129.
+- `viewportRect` is in WebView CSS/client pixels. Do not subtract native safe-area insets in Swift: they only pad editor controls, while Excalidraw's `offsetLeft`, `offsetTop`, `scrollX`, `scrollY`, and `zoom` are applied by the coordinate conversion.
+- Add focused bridge coverage in `excalidraw-app/excalidrawZ/screenAnnotation.test.js` for raw coordinate conversion/dependency preservation, Retina pixel-versus-scene sizing, bitmap-only documents, consecutive bitmap creation, PNG/JPEG preservation, ID and binding remapping, file conflicts, variable-size placement, and single-capture insertion.
 
 ### Tool Lock Unlock Behavior
 
@@ -178,7 +200,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
 - Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
 - Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 671 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3341-3344, line 3418-3423, line 4461-4483, line 7126-7130, line 7927-7928, line 8368-8369, and line 8424-8429 invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
-- Add `window.excalidrawZHelper.clearPreviousSelection()` in `excalidraw-app/excalidrawZ/elements.js` line 337-352 and expose it from `excalidraw-app/excalidrawZ/index.js` line 110 and line 748. It clears only Excalidraw's cached `previousSelectedElementIds`, leaving the current selection unchanged, so a host that explicitly deselects elements when entering edit mode can prevent a later touch pan/zoom gesture from restoring them. The helper is declared in `packages/excalidraw/global.d.ts` line 37.
+- Add `window.excalidrawZHelper.clearPreviousSelection()` in `excalidraw-app/excalidrawZ/elements.js` line 337-352 and expose it from `excalidraw-app/excalidrawZ/index.js` line 114 and line 754. It clears only Excalidraw's cached `previousSelectedElementIds`, leaving the current selection unchanged, so a host that explicitly deselects elements when entering edit mode can prevent a later touch pan/zoom gesture from restoring them. The helper is declared in `packages/excalidraw/global.d.ts` line 130.
 
 ### State Change Bridge
 
@@ -194,11 +216,13 @@ Uses browser native PDF rendering with **zero external dependencies**.
 ### Viewport Image Export
 
 - Add Promise-only `window.excalidrawZHelper.exportViewportToBlob(source?)` in `excalidraw-app/excalidrawZ/export.js` line 235-361 and expose it from `excalidraw-app/excalidrawZ/index.js` line 28-32 and line 615-617.
+
 - `source` may contain `{ elements, appState, files }`; when present, the helper renders that snapshot in an offscreen canvas without mutating the live scene. When omitted, it exports the current live scene.
 - Render the source viewport through Excalidraw's static renderer instead of DOM screenshotting, using helper-side canvas limit clamping and viewport element filtering in `excalidraw-app/excalidrawZ/export.js` line 42-114.
 - Return `{ blobData, width, height, actualScale, scaleClamped, elementCount, fileCount, mimeType }` directly to the caller; no legacy `id` callback event is supported.
 - The first version intentionally has no public export-style options: it reads viewport size, camera, zoom, theme, and background from the source `appState`, uses PNG output, and fixes scale at 1x except for safety clamping when WebKit canvas limits would be exceeded.
 - Do not expose grid rendering for viewport export; the helper passes `renderGrid: false` at `excalidraw-app/excalidrawZ/export.js` line 337-346 to match Excalidraw image export behavior.
+- Forward `options.exportingFrame` through `window.excalidrawZHelper.exportElementsToBlob()` in `excalidraw-app/excalidrawZ/export.js` line 131-190. The matching frame is removed from rendered elements while remaining the official export bounds, so Native frame previews are clipped to the exact frame size without drawing its outline. Cover the bridge contract in `excalidraw-app/excalidrawZ/export.test.js`.
 
 ### Current File Save Stream
 
@@ -211,13 +235,21 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Clamp `chunkSize` to 1 KB...1 MB with a 64 KB default in `excalidraw-app/excalidrawZ/load+save.js` line 7-58, and yield between chunks so WebKit receives smaller ordered messages instead of one large snapshot object.
 - Summarize chunk logging in `excalidraw-app/excalidrawZ/message.js` line 24-34 so base64 payloads are not printed to the console.
 
+### Referenced File Snapshots
+
+- Resolve snapshot files through `excalidraw-app/excalidrawZ/referencedFiles.js`: collect only `fileId` values referenced by the current elements, prefer files from the live `api.getFiles()` dictionary, and query IndexedDB only for missing references.
+- Use the same resolver in both `getCurrentFileSnapshot()` and `requestCurrentFileSaveStream({ includeFiles: true })` in `excalidraw-app/excalidrawZ/load+save.js`. This preserves files added through `api.addFiles()` before IndexedDB catches up while excluding stale, unreferenced files.
+- Cover live-only files, IndexedDB fallback, and unreferenced-file filtering in `excalidraw-app/excalidrawZ/load+save.snapshot.test.js`.
+
 ### File Load Completion
 
 - Load Native files directly through `window.excalidrawZHelper.loadFileBuffer(buffer, fileId, requestId)` in `excalidraw-app/excalidrawZ/load+save.js` line 218-350. Successful calls return exactly `{ requestId, fileId, elementCount, durationMs }`; parsing, hydration, normalization, restore, supersede, and timeout failures reject the Promise.
 - Keep concurrent load ownership in the request registry at `excalidraw-app/excalidrawZ/load+save.js` line 69-188. A new request marks the previous request as `superseded`; every asynchronous boundary races cancellation and verifies `isCurrent()` before the live scene can be mutated. The 30-second timeout remains a real failure.
 - Do not use synthetic drop events, `DataTransfer`, a global pending request id, or `excalidrawz:fileLoadDone` for Native file loading. Promise settlement is the completion receipt, and `currentFileId` changes only after the current request has applied its scene.
-- Add the private `_api._excalidrawZ.applyFileScene()` bridge in `packages/excalidraw/components/App.tsx` line 527-532 and line 850-853. Its implementation at line 12824-12858 atomically resets scene/store/history state, repairs fractional indices, replaces binary files, and refreshes image state through the existing `syncActionResult()` path. Physical file drops reuse the same method at line 12800.
-- Declare the Native `loadFileBuffer()` signature in `packages/excalidraw/global.d.ts` line 14-23. The private `_excalidrawZ` bridge is intentionally excluded from the public `ExcalidrawImperativeAPI` type.
+- Add the private async `_api._excalidrawZ.applyFileScene()` bridge in `packages/excalidraw/components/App.tsx` line 507-516 and line 13236-13278. It atomically resets scene/store/history state, repairs fractional indices, replaces binary files, and captures the exact image-cache hydration Promise started by `syncActionResult()`. It resolves only after image loading/decoding and one final animation frame; physical file drops reuse and await the same method.
+- Await async scene application in `excalidraw-app/excalidrawZ/load+save.js` before updating `currentFileId` or resolving `loadFileBuffer()`. The public method signature and success result remain unchanged, while a superseding request can still reject an older load that is waiting for image hydration.
+- Cover image hydration/final-paint completion in `packages/excalidraw/tests/excalidrawZFileLoad.test.tsx`, and cover file-identity timing plus superseded async application in `excalidraw-app/excalidrawZ/load+save.snapshot.test.js`.
+- Declare the Native `loadFileBuffer()` signature in `packages/excalidraw/global.d.ts` line 40-49. The private `_excalidrawZ` bridge is intentionally excluded from the public `ExcalidrawImperativeAPI` type.
 
 ### ExcalidrawZ File AppState
 
