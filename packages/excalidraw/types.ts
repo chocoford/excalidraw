@@ -162,7 +162,8 @@ export type ToolType =
   | "frame"
   | "magicframe"
   | "embeddable"
-  | "laser";
+  | "laser"
+  | "autoshape";
 
 export type ElementOrToolType = ExcalidrawElementType | ToolType | "custom";
 
@@ -1074,6 +1075,7 @@ export type AppClassProperties = {
   getName: App["getName"];
   dismissLinearEditor: App["dismissLinearEditor"];
   flowchart: App["flowchart"];
+  drawShape: App["drawShape"];
   cursor: App["cursor"];
   isToolLocked: App["isToolLocked"];
   getEffectiveGridSize: App["getEffectiveGridSize"];

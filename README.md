@@ -44,14 +44,14 @@
     + size: element.strokeWidth * 1.8,
     ```
 
-- Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 10397.
-- Return process while user drops `library file` in `packages/excalidraw/components/App.tsx` line 10423.
+- Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 13295-13296.
+- Return process while user drops `library file` in `packages/excalidraw/components/App.tsx` line 13325-13332.
 
 ### PDF Support
 
 Uses browser native PDF rendering with **zero external dependencies**.
 
-- Add PDF MIME type constant in `packages/common/src/constants.ts` line 254.
+- Add PDF MIME type constant in `packages/common/src/constants.ts` line 249.
 - Define `ExcalidrawPdfElement` type in `packages/element/src/types.ts` line 163-173.
   - Properties: `fileId`, `status`, `currentPage`, `totalPages`.
 - Add PDF element to union type in `packages/element/src/types.ts` line 236.
@@ -66,18 +66,18 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Add PDF to generateRoughOptions in `packages/element/src/shape.ts` line 240-244.
 - Add PDF to generateElementShape in `packages/element/src/shape.ts` line 827 (returns null, no shape needed).
 - Add PDF SVG export in `packages/excalidraw/renderer/staticSvgScene.ts` line 179-211 (renders placeholder).
-- Extend BinaryFileData type to support PDF in `packages/excalidraw/types.ts` line 115.
+- Extend BinaryFileData type to support PDF in `packages/excalidraw/types.ts` line 118-143.
 - Exclude PDF from image cache in `packages/element/src/image.ts` line 56.
 - Add PDF to collision detection in `packages/element/src/collision.ts`:
   - Import `isPdfElement` at line 45.
   - Add PDF to `shouldTestInside` at line 90 (makes entire PDF area draggable, not just edges).
   - Add PDF to line intersection test at line 229.
 - Integrate PDF rendering in `packages/excalidraw/components/App.tsx`:
-  - Import `isPdfElement` and `ExcalidrawPdfElement` at line 147, 259.
-  - Add PDF to `renderEmbeddables()` method at line 993-1305:
-    - Include `isPdfElement(el)` in filter at line 1008.
-    - Update type assertion to include `ExcalidrawPdfElement` at line 1003.
-    - Render PDF iframe from `this.files[el.fileId]?.dataURL` at line 1252-1273.
+  - Import `isPdfElement` and `ExcalidrawPdfElement` at line 156 and line 286.
+  - Add PDF to `renderEmbeddables()` at line 1756-2075:
+    - Include `isPdfElement(el)` in the filter at line 1772.
+    - Update the type assertion to include `ExcalidrawPdfElement` at line 1767.
+    - Render the PDF iframe from `this.files[element.fileId]?.dataURL` in `renderPdf()` at line 2169-2242.
     - **Benefits**: Automatic position updates on scroll/zoom, unified architecture with embeddables.
 - Create PDF loading utilities at `excalidraw-app/excalidrawZ/pdf.js`:
   - `loadPDFViewer(pdfData, options)` - Load PDF as interactive viewer element.
@@ -105,7 +105,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `window.excalidrawZHelper.loadPDFTiles(pages, { x, y, gap, direction, itemsPerLine, autoScroll })`
   - `window.excalidrawZHelper.loadPDFViewer(pdfData, { x, y, width, height, totalPages })`
   - `window.excalidrawZHelper.handlePDFDrop(file, sceneX, sceneY)` - Handle PDF file drop (sends to Swift via `sendMessage`)
-- PDF drag & drop support in `packages/excalidraw/components/App.tsx` line 10281-10302:
+- PDF drag & drop support in `packages/excalidraw/components/App.tsx` line 13089-13109:
   - Detects PDF file drops (checks `file?.type === PDF_MIME_TYPE`)
   - Calls `window.excalidrawZHelper.handlePDFDrop()` to send PDF data to Swift side
   - PDF data sent includes: fileName, fileSize, base64Data, sceneX, sceneY
@@ -121,8 +121,8 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Line 182-183: Modified `shouldPreventUnload()` to check both image and PDF elements.
   - Line 207-215: Added `shouldUpdatePdfElementStatus()` helper for PDF element status updates.
 - `packages/excalidraw/data/restore.ts`:
-  - Line 314-320: Added `case "pdf"` in `restoreElement()` to restore PDF elements with `status`, `fileId`, `currentPage`, and `totalPages` properties.
-- `excalidraw-app/App.tsx` line 887-888: Updated status checking to include PDF elements.
+  - Line 578-584: Added `case "pdf"` in `restoreElement()` to restore PDF elements with `status`, `fileId`, `currentPage`, and `totalPages` properties.
+- `excalidraw-app/App.tsx` line 1062-1065: Updated status checking to include PDF elements.
 - `excalidraw-app/collab/Portal.tsx` line 125-126: Updated collab status checking to include PDF elements.
 
 ### Native Viewport Insets
@@ -137,7 +137,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### Tool Lock Unlock Behavior
 
-- Update `packages/excalidraw/components/App.tsx` line 4345-4364 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
+- Update `packages/excalidraw/components/App.tsx` line 5236-5259 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
 - Add regression coverage in `packages/excalidraw/tests/selection.test.tsx` line 1050-1065 to ensure unlocking keeps the current drawing tool active.
 
 ### Math Image Editing
@@ -156,7 +156,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `updateMathImage()` at line 258-308 replaces an existing formula image with a fresh file id so Excalidraw's non-replacing `addFiles()` behavior does not keep stale SVG data.
 - Expose the math image APIs on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 29 and line 436-439.
 - Add a generic hover action overlay in `packages/excalidraw/components/ElementHoverActions.tsx` line 1-156. The first registered action is math image editing, which sends `requestEditMathImage` through `window.excalidrawZHelper.sendMessage` and renders outside the element's top-right bounds.
-- Track, retain, and render hover actions from `packages/excalidraw/components/App.tsx` line 1886-1965 and line 2566. The retention margin keeps externally positioned action buttons clickable while the pointer moves from the element to the button.
+- Track, retain, and render hover actions from `packages/excalidraw/components/App.tsx` line 2077-2167 and line 2847. The retention margin keeps externally positioned action buttons clickable while the pointer moves from the element to the button.
 - Add hover action styling in `packages/excalidraw/css/styles.scss` line 843-872.
 
 ### Insert Focus Modes
@@ -177,7 +177,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 - Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
 - Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
-- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 671 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3341-3344, line 3418-3423, line 4461-4483, line 7126-7130, line 7927-7928, line 8368-8369, and line 8424-8429 invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
+- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 671 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3906-3908, line 3983-3987, line 5192-5214, line 7784-7787, line 8552-8560, line 9013-9014, and line 9053-9057 invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
 
 ### State Change Bridge
 
