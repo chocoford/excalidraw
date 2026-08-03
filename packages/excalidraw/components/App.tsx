@@ -294,6 +294,8 @@ import type {
   ExcalidrawBindableElement,
 } from "@excalidraw/element/types";
 
+import type { ArrowEndpoint } from "@excalidraw/element";
+
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 
 import {
@@ -434,7 +436,9 @@ import ConvertElementTypePopup, {
 } from "./ConvertElementTypePopup";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
+import { AppArrowText } from "./App.arrowText";
 import { AppCursor } from "./App.cursor";
+import { AppDrawShape } from "./App.drawshape";
 import { AppFlowchart } from "./App.flowchart";
 import { AppViewport, RIGHT_SIDEBAR_WIDTH } from "./App.viewport";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -692,6 +696,7 @@ class App extends React.Component<AppProps, AppState> {
 
   public flowchart: AppFlowchart = new AppFlowchart(this);
   public cursor: AppCursor = new AppCursor(this);
+  public arrowText: AppArrowText = new AppArrowText(this);
   public viewport: AppViewport = new AppViewport(this, {
     getContainer: () => this.excalidrawContainerRef.current,
     getStylesPanelMode: () => this.stylesPanelMode,
@@ -721,6 +726,8 @@ class App extends React.Component<AppProps, AppState> {
   /** previous frame pointer coords */
   previousPointerMoveCoords: { x: number; y: number } | null = null;
   private hoveredElementWithActionsId: ExcalidrawElement["id"] | null = null;
+
+  drawShape = new AppDrawShape(this);
   laserTrails = new LaserTrails(this);
   eraserTrail = new EraserTrail(this);
   lassoTrail = new LassoTrail(this);
@@ -2638,6 +2645,7 @@ class App extends React.Component<AppProps, AppState> {
                               this.laserTrails,
                               this.lassoTrail,
                               this.eraserTrail,
+                              this.drawShape.trail,
                             ]}
                           />
                           {this.isDefaultUIEnabled() && <CursorHint />}
@@ -3243,20 +3251,16 @@ class App extends React.Component<AppProps, AppState> {
 
       // make sure editingTextElement points to latest element reference
       if (actionResult.elements && editingTextElement) {
-        actionResult.elements.forEach((element) => {
-          if (
-            editingTextElement?.id === element.id &&
-            editingTextElement !== element &&
-            isNonDeletedElement(element) &&
-            isTextElement(element)
-          ) {
-            editingTextElement = element;
-          }
-        });
-      }
-
-      if (editingTextElement?.isDeleted) {
-        editingTextElement = null;
+        const editingTextElementId = editingTextElement.id;
+        const nextElement = actionResult.elements.find(
+          (element) => element.id === editingTextElementId,
+        );
+        editingTextElement =
+          nextElement &&
+          isNonDeletedElement(nextElement) &&
+          isTextElement(nextElement)
+            ? nextElement
+            : null;
       }
 
       this.setState((prevAppState) => {
@@ -4002,6 +4006,7 @@ class App extends React.Component<AppProps, AppState> {
     this.removeEventListeners();
     this.library.destroy();
     this.laserTrails.stop();
+    this.drawShape.stop();
     this.eraserTrail.stop();
     this.onChangeEmitter.clear();
     this.store.onStoreIncrementEmitter.clear();
@@ -4418,10 +4423,44 @@ class App extends React.Component<AppProps, AppState> {
       });
     }
 
+    // selection may only contain non-deleted elements. Resolved post-commit,
+    // so the elements we filter against are the latest.
+    const selectedElementIds = Object.keys(this.state.selectedElementIds);
+    if (selectedElementIds.length) {
+      const staleSelectedElementIds = selectedElementIds.filter((id) => {
+        const element = this.scene.getElement(id);
+        return !element || element.isDeleted;
+      });
+
+      // only update when actually stale, so we retain the object identity
+      // `selectedElementIds` is cached on (e.g. `Scene.getSelectedElements`)
+      if (staleSelectedElementIds.length) {
+        this.setState((prevState) => {
+          const nextSelectedElementIds = { ...prevState.selectedElementIds };
+          for (const id of staleSelectedElementIds) {
+            delete nextSelectedElementIds[id];
+          }
+          return {
+            selectedElementIds: makeNextSelectedElementIds(
+              nextSelectedElementIds,
+              prevState,
+            ),
+          };
+        });
+      }
+    }
+
     // failsafe in case the state is being updated in incorrect order resulting
-    // in the editingTextElement being now a deleted element
-    if (this.state.editingTextElement?.isDeleted) {
-      this.setState({ editingTextElement: null });
+    // in the editingTextElement being now a deleted element. Resolved against
+    // the scene by id, since the state holds an immutable snapshot whose
+    // `isDeleted` never flips once the element is deleted.
+    if (this.state.editingTextElement) {
+      const sceneElement = this.scene.getElement(
+        this.state.editingTextElement.id,
+      );
+      if (!sceneElement || sceneElement.isDeleted) {
+        this.setState({ editingTextElement: null });
+      }
     }
 
     // Forced false while a viewport animation runs — the scroll-back-to-content
@@ -5701,14 +5740,11 @@ class App extends React.Component<AppProps, AppState> {
         !event.ctrlKey &&
         !event.altKey &&
         !event.metaKey &&
-        // so that an uppercase letter can only mean CapsLock (Shift+letter
-        // must not switch tools — findShapeByKey lowercases the key)
-        !event.shiftKey &&
         !this.state.newElement &&
         !this.state.selectionElement &&
         !this.state.selectedElementsAreBeingDragged
       ) {
-        const shape = findShapeByKey(event.key, this);
+        const shape = findShapeByKey(event.key, this, event.shiftKey);
 
         if (this.state.viewModeEnabled && !oneOf(shape, ["laser", "hand"])) {
           return;
@@ -5774,6 +5810,10 @@ class App extends React.Component<AppProps, AppState> {
             isBindingEnabled: this.state.bindingPreference !== "enabled",
           });
         });
+
+        // the toggle changes what a text-tool click at the current position
+        // would do, with no pointermove to refresh the affordance
+        this.arrowText.refresh();
 
         maybeHandleArrowPointlikeDrag({ app: this, event });
       }
@@ -5877,7 +5917,6 @@ class App extends React.Component<AppProps, AppState> {
             }
             const midPoint = getContainerCenter(
               selectedElement,
-              this.state,
               this.scene.getNonDeletedElementsMap(),
             );
             const sceneX = midPoint.x;
@@ -6056,6 +6095,8 @@ class App extends React.Component<AppProps, AppState> {
         flushSync(() => {
           this.setState({ isBindingEnabled: preferenceEnabled });
         });
+
+        this.arrowText.refresh();
       }
 
       maybeHandleArrowPointlikeDrag({ app: this, event });
@@ -6152,6 +6193,13 @@ class App extends React.Component<AppProps, AppState> {
       return;
     }
 
+    if (this.drawShape.hasPendingGesture()) {
+      // switching tools mid-sketch (e.g. paste resets to the selection tool)
+      // must not strand the gesture — commit it through the finalize funnel
+      // while the drawShape tool is still active
+      this.actionManager.executeAction(actionFinalize);
+    }
+
     const isToggleTool = TOGGLE_TOOLS.includes(tool.type);
     const toggle = opts.toggle === true && isToggleTool;
 
@@ -6196,6 +6244,9 @@ class App extends React.Component<AppProps, AppState> {
           ? prevState.selectedLinearElement
           : null,
         frameToHighlight: null,
+        // only the text tool offers arrow-endpoint binding, and the highlight
+        // is refreshed on pointermove — don't leave a stale one behind
+        hoveredArrowTextAnchor: null,
       } as const;
 
       if (nextActiveTool.type === "freedraw") {
@@ -6405,9 +6456,14 @@ class App extends React.Component<AppProps, AppState> {
 
         // keyboard-submit keeps focus on the edited object. For bound text, keep
         // the container selected even if the text becomes empty and is deleted.
-        const elementIdToSelect = viaKeyboard
-          ? element.containerId || (!isDeleted ? element.id : null)
-          : null;
+        // The autoshape tool stays active through the editing session and never
+        // selects anything — don't fight the finalize action's selection reset.
+        const elementIdToSelect =
+          viaKeyboard &&
+          !this.isToolLocked() &&
+          this.state.activeTool.type !== "autoshape"
+            ? element.containerId || (!isDeleted ? element.id : null)
+            : null;
 
         if (elementIdToSelect) {
           // needed to ensure state is updated before "finalize" action
@@ -6444,7 +6500,9 @@ class App extends React.Component<AppProps, AppState> {
           });
         });
 
-        if (this.isToolLocked()) {
+        // tools that survive the submit (locked, or autoshape's
+        // double-click-to-type flow) need their cursor back
+        if (this.isToolLocked() || this.state.activeTool.type === "autoshape") {
           this.cursor.applyForTool();
         }
 
@@ -6539,7 +6597,7 @@ class App extends React.Component<AppProps, AppState> {
     return selectedElement;
   }
 
-  private getTextElementAtPosition(
+  getTextElementAtPosition(
     x: number,
     y: number,
   ): NonDeleted<ExcalidrawTextElement> | null {
@@ -6605,7 +6663,7 @@ class App extends React.Component<AppProps, AppState> {
   };
 
   // NOTE: Hot path for hit testing, so avoid unnecessary computations
-  private getElementAtPosition(
+  getElementAtPosition(
     x: number,
     y: number,
     opts?: (
@@ -6782,7 +6840,7 @@ class App extends React.Component<AppProps, AppState> {
     });
   }
 
-  private getTextBindableContainerAtPosition(x: number, y: number) {
+  getTextBindableContainerAtPosition(x: number, y: number) {
     const elements = this.scene.getNonDeletedElements();
     const selectedElements = this.scene.getSelectedElements(this.state);
     if (selectedElements.length === 1) {
@@ -6826,6 +6884,23 @@ class App extends React.Component<AppProps, AppState> {
     return isTextBindableContainer(hitElement, false) ? hitElement : null;
   }
 
+  /**
+   * Whether a text element's content is still being authored.
+   *
+   * Creating a text reverts the tool to selection during pointerdown, so the
+   * pointerup that follows looks like an ordinary canvas click and would
+   * capture the still-empty element as a history entry of its own. Undo would
+   * then rewind only the typing, restoring an invisible, zero-content element
+   * (and, for an endpoint label, leaving the arrow bound to it) rather than
+   * removing it. The editor's own submit captures the finished text instead,
+   * so the whole create-and-type lands in a single entry.
+   */
+  private isEditingTextContent() {
+    return (
+      !!this.state.editingTextElement || isTextElement(this.state.newElement)
+    );
+  }
+
   private startTextEditing = ({
     sceneX,
     sceneY,
@@ -6833,6 +6908,7 @@ class App extends React.Component<AppProps, AppState> {
     container,
     autoEdit = true,
     initialCaretSceneCoords,
+    arrowEndpoint,
   }: {
     /** X position to insert text at */
     sceneX: number;
@@ -6843,8 +6919,34 @@ class App extends React.Component<AppProps, AppState> {
     container?: ExcalidrawTextContainer | null;
     autoEdit?: boolean;
     initialCaretSceneCoords?: { x: number; y: number };
+    /**
+     * creates the text as a label for this arrow endpoint: the binding then
+     * dictates the text's position and alignment, overriding (sceneX, sceneY)
+     */
+    arrowEndpoint?: ArrowEndpoint | null;
   }) => {
     let shouldBindToContainer = false;
+
+    // Resolved here rather than by the caller so that the stroke width the
+    // binding gap derives from (see `getBindingGap`) is, by construction, the
+    // one the text is created with below.
+    const arrowEndpointBinding =
+      arrowEndpoint &&
+      this.arrowText.getTextBinding(
+        arrowEndpoint,
+        this.getCurrentItemStrokeWidth("text"),
+      );
+
+    if (arrowEndpointBinding) {
+      // an arrow endpoint is not a text container — the text is a sibling the
+      // arrow binds to, not a label inside it
+      container = null;
+      insertAtParentCenter = false;
+      // the scene position of the text's bound side midpoint, not a caret
+      // position
+      sceneX = arrowEndpointBinding.anchor[0];
+      sceneY = arrowEndpointBinding.anchor[1];
+    }
 
     let parentCenterPosition =
       insertAtParentCenter &&
@@ -6863,9 +6965,14 @@ class App extends React.Component<AppProps, AppState> {
         shouldBindToContainer = true;
       }
     }
-    const existingTextElement =
-      this.getSelectedTextElement(container) ||
-      this.getTextElementAtPosition(sceneX, sceneY);
+    // The endpoint flow always creates a fresh text: the lookups below would
+    // otherwise adopt a currently selected text (wherever it sits on canvas)
+    // or one that happens to lie around the anchor — even a container-bound
+    // one — and bind the arrow to that instead.
+    const existingTextElement = arrowEndpointBinding
+      ? null
+      : this.getSelectedTextElement(container) ||
+        this.getTextElementAtPosition(sceneX, sceneY);
 
     const fontFamily =
       existingTextElement?.fontFamily || this.state.currentItemFontFamily;
@@ -6909,7 +7016,11 @@ class App extends React.Component<AppProps, AppState> {
 
     const textCreationGridPoint = this.getTextCreationGridPoint(sceneX, sceneY);
 
-    const newTextElementPosition = parentCenterPosition
+    const newTextElementPosition = arrowEndpointBinding
+      ? // the anchor is dictated by the arrow, so neither the grid nor the
+        // caret-centering fudge may nudge it
+        { x: sceneX, y: sceneY }
+      : parentCenterPosition
       ? {
           x: parentCenterPosition.elementCenterX,
           y: parentCenterPosition.elementCenterY,
@@ -6957,12 +7068,14 @@ class App extends React.Component<AppProps, AppState> {
         text: "",
         fontSize,
         fontFamily,
-        textAlign: parentCenterPosition
-          ? "center"
-          : this.state.currentItemTextAlign,
-        verticalAlign: parentCenterPosition
-          ? VERTICAL_ALIGN.MIDDLE
-          : DEFAULT_VERTICAL_ALIGN,
+        textAlign:
+          arrowEndpointBinding?.textAlign ??
+          (parentCenterPosition ? "center" : this.state.currentItemTextAlign),
+        verticalAlign:
+          arrowEndpointBinding?.verticalAlign ??
+          (parentCenterPosition
+            ? VERTICAL_ALIGN.MIDDLE
+            : DEFAULT_VERTICAL_ALIGN),
         containerId: shouldBindToContainer ? container?.id : undefined,
         groupIds: container?.groupIds ?? [],
         lineHeight,
@@ -6994,6 +7107,14 @@ class App extends React.Component<AppProps, AppState> {
       } else {
         this.insertNewElement(element);
       }
+    }
+
+    if (arrowEndpoint && arrowEndpointBinding) {
+      this.arrowText.bindText(
+        arrowEndpoint,
+        element,
+        arrowEndpointBinding.fixedPoint,
+      );
     }
 
     if (autoEdit || existingTextElement || container) {
@@ -7118,8 +7239,14 @@ class App extends React.Component<AppProps, AppState> {
     if (this.state.multiElement) {
       return;
     }
-    // we should only be able to double click when mode is selection
-    if (this.state.activeTool.type !== this.state.preferredSelectionTool.type) {
+    // double click only creates/edits text in selection mode, or with the
+    // autoshape tool (double-click-to-type without leaving the tool; all the
+    // selection-dependent branches below are inert there since autoshape
+    // never selects anything)
+    if (
+      this.state.activeTool.type !== this.state.preferredSelectionTool.type &&
+      this.state.activeTool.type !== "autoshape"
+    ) {
       return;
     }
 
@@ -7275,7 +7402,7 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     this.cursor.reset();
-    if (!event[KEYS.CTRL_OR_CMD] && !this.state.viewModeEnabled) {
+    if (!this.state.viewModeEnabled) {
       const hitElement = this.getElementAtPosition(sceneX, sceneY);
 
       if (isIframeLikeElement(hitElement)) {
@@ -7288,13 +7415,18 @@ class App extends React.Component<AppProps, AppState> {
       // shouldn't edit/create text when inside line editor (often false positive)
 
       if (!this.state.selectedLinearElement?.isEditing) {
-        const container = this.getTextBindableContainerAtPosition(
-          sceneX,
-          sceneY,
-        );
+        const container =
+          // skip binding to container on dblclick when holding ctrl
+          !event[KEYS.CTRL_OR_CMD] &&
+          this.getTextBindableContainerAtPosition(sceneX, sceneY);
 
         if (container) {
           if (
+            // with autoshape, any hit inside a bindable shape means "type in
+            // this shape" — unlike selection mode, a transparent unfilled
+            // container binds even when its stroke wasn't hit (Alt keeps the
+            // free-text-at-point escape hatch)
+            this.state.activeTool.type === "autoshape" ||
             hasBoundTextElement(container) ||
             !isTransparent(container.backgroundColor) ||
             hitElementItself({
@@ -7306,7 +7438,6 @@ class App extends React.Component<AppProps, AppState> {
           ) {
             const midPoint = getContainerCenter(
               container,
-              this.state,
               this.scene.getNonDeletedElementsMap(),
             );
 
@@ -7319,7 +7450,7 @@ class App extends React.Component<AppProps, AppState> {
           sceneX,
           sceneY,
           insertAtParentCenter: !event.altKey,
-          container,
+          container: container || null,
         });
       }
     }
@@ -7712,7 +7843,7 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  private insertNewElement = (element: ExcalidrawElement) => {
+  public insertNewElement = (element: ExcalidrawElement) => {
     this.insertNewElements([element]);
 
     const frame = element.frameId
@@ -8180,6 +8311,9 @@ class App extends React.Component<AppProps, AppState> {
       scenePointerY,
     });
 
+    const hoveredArrowTextAnchor =
+      this.arrowText.updateHoveredAnchor(scenePointer);
+
     if (
       !this.handleIframeLikeElementHover({
         hitElement,
@@ -8207,7 +8341,11 @@ class App extends React.Component<AppProps, AppState> {
         this.setState({ showHyperlinkPopup: "info" });
       } else if (this.state.activeTool.type === "text") {
         this.cursor.set(
-          isTextElement(hitElement) ? CURSOR_TYPE.TEXT : CURSOR_TYPE.CROSSHAIR,
+          hoveredArrowTextAnchor
+            ? CURSOR_TYPE.POINTER
+            : isTextElement(hitElement)
+            ? CURSOR_TYPE.TEXT
+            : CURSOR_TYPE.CROSSHAIR,
         );
       } else if (
         !event[KEYS.CTRL_OR_CMD] &&
@@ -8888,6 +9026,8 @@ class App extends React.Component<AppProps, AppState> {
         pointerDownState.lastCoords.x,
         pointerDownState.lastCoords.y,
       );
+    } else if (this.state.activeTool.type === "autoshape") {
+      this.drawShape.handlePointerDown(pointerDownState);
     } else if (
       this.state.activeTool.type !== "eraser" &&
       this.state.activeTool.type !== "hand" &&
@@ -9488,13 +9628,16 @@ class App extends React.Component<AppProps, AppState> {
           ) as any;
 
           if (arrow && isBindingElement(arrow)) {
-            const { hitFocusPoint, pointerOffset } =
-              handleFocusPointPointerDown(
-                arrow,
-                pointerDownState,
-                elementsMap,
-                this.state,
-              );
+            const {
+              hitFocusPoint,
+              pointerOffset,
+              arrowOtherEndpointInitialBinding,
+            } = handleFocusPointPointerDown(
+              arrow,
+              pointerDownState,
+              elementsMap,
+              this.state,
+            );
 
             // If focus point is hit, update state and prevent element selection
             if (hitFocusPoint) {
@@ -9504,6 +9647,10 @@ class App extends React.Component<AppProps, AppState> {
                   hoveredFocusPointBinding: hitFocusPoint,
                   draggedFocusPointBinding: hitFocusPoint,
                   pointerOffset,
+                  initialState: {
+                    ...linearElementEditor.initialState,
+                    arrowOtherEndpointInitialBinding,
+                  },
                 },
               });
               return false;
@@ -9845,26 +9992,49 @@ class App extends React.Component<AppProps, AppState> {
     let sceneX = pointerDownState.origin.x;
     let sceneY = pointerDownState.origin.y;
 
-    const element = this.getElementAtPosition(sceneX, sceneY, {
-      includeBoundTextElement: true,
-    });
+    // the click transitions into text editing either way, consuming (or
+    // bypassing) whatever anchor was highlighted — don't leave it lingering
+    // under the editor, which outlives the hover when the tool is locked
+    this.setState({ hoveredArrowTextAnchor: null });
 
-    // FIXME
-    let container = this.getTextBindableContainerAtPosition(sceneX, sceneY);
-
-    if (hasBoundTextElement(element)) {
-      container = element as NonDeleted<ExcalidrawTextContainer>;
-      sceneX = element.x + element.width / 2;
-      sceneY = element.y + element.height / 2;
-    }
-    this.startTextEditing({
+    // a free arrow endpoint takes precedence over adding a label *to* the
+    // arrow — it's the smaller, more deliberate target
+    const arrowEndpoint = this.arrowText.getBindableEndpointAtPosition(
       sceneX,
       sceneY,
-      insertAtParentCenter: !event.altKey,
-      container,
-      autoEdit: false,
-      initialCaretSceneCoords: { x: sceneX, y: sceneY },
-    });
+    );
+
+    if (arrowEndpoint) {
+      this.startTextEditing({
+        sceneX,
+        sceneY,
+        // the binding fixes the position, but the width is still the user's
+        // to drag out (see `getEndpointBoundTextDragAnchor`)
+        autoEdit: false,
+        arrowEndpoint,
+      });
+    } else {
+      const element = this.getElementAtPosition(sceneX, sceneY, {
+        includeBoundTextElement: true,
+      });
+
+      // FIXME
+      let container = this.getTextBindableContainerAtPosition(sceneX, sceneY);
+
+      if (hasBoundTextElement(element)) {
+        container = element as NonDeleted<ExcalidrawTextContainer>;
+        sceneX = element.x + element.width / 2;
+        sceneY = element.y + element.height / 2;
+      }
+      this.startTextEditing({
+        sceneX,
+        sceneY,
+        insertAtParentCenter: !event.altKey,
+        container,
+        autoEdit: false,
+        initialCaretSceneCoords: { x: sceneX, y: sceneY },
+      });
+    }
 
     if (!this.isToolLocked()) {
       this.setState(
@@ -10688,6 +10858,10 @@ class App extends React.Component<AppProps, AppState> {
 
       if (this.state.activeTool.type === "laser") {
         this.laserTrails.addPointToPath(pointerCoords.x, pointerCoords.y);
+      }
+
+      if (this.drawShape.handlePointerMove(pointerCoords)) {
+        return;
       }
 
       const [gridX, gridY] = getGridPoint(
@@ -11580,7 +11754,9 @@ class App extends React.Component<AppProps, AppState> {
           },
         );
 
-        this.store.scheduleCapture();
+        if (!this.isEditingTextContent()) {
+          this.store.scheduleCapture();
+        }
 
         if (hitLockedElement?.locked) {
           this.setState({
@@ -11682,6 +11858,10 @@ class App extends React.Component<AppProps, AppState> {
             selectedLinearElement: {
               ...this.state.selectedLinearElement,
               draggedFocusPointBinding: null,
+              initialState: {
+                ...this.state.selectedLinearElement.initialState,
+                arrowOtherEndpointInitialBinding: null,
+              },
             },
           });
         } else if (
@@ -11780,7 +11960,10 @@ class App extends React.Component<AppProps, AppState> {
         return;
       }
 
-      if (isLinearElement(newElement)) {
+      if (
+        isLinearElement(newElement) &&
+        this.state.activeTool.type !== "autoshape"
+      ) {
         const pointerCoords = viewportCoordsToSceneCoords(
           childEvent,
           this.state,
@@ -12441,12 +12624,16 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (
-        activeTool.type !== "selection" ||
-        isSomeElementSelected(this.scene.getNonDeletedElements(), this.state) ||
-        !isShallowEqual(
-          this.state.previousSelectedElementIds,
-          this.state.selectedElementIds,
-        )
+        !this.isEditingTextContent() &&
+        (activeTool.type !== "selection" ||
+          isSomeElementSelected(
+            this.scene.getNonDeletedElements(),
+            this.state,
+          ) ||
+          !isShallowEqual(
+            this.state.previousSelectedElementIds,
+            this.state.selectedElementIds,
+          ))
       ) {
         this.store.scheduleCapture();
       }
@@ -12469,6 +12656,11 @@ class App extends React.Component<AppProps, AppState> {
 
       if (activeTool.type === "laser") {
         this.laserTrails.endPath();
+        return;
+      }
+
+      if (activeTool.type === "autoshape") {
+        this.actionManager.executeAction(actionFinalize);
         return;
       }
 
@@ -13382,6 +13574,10 @@ class App extends React.Component<AppProps, AppState> {
       return;
     }
 
+    if (this.arrowText.maybeDragNewText(newElement, pointerCoords)) {
+      return;
+    }
+
     let [gridX, gridY] = getGridPoint(
       pointerCoords.x,
       pointerCoords.y,
@@ -13890,7 +14086,7 @@ class App extends React.Component<AppProps, AppState> {
     },
   );
 
-  private getTextWysiwygSnappedToCenterPosition(
+  getTextWysiwygSnappedToCenterPosition(
     x: number,
     y: number,
     appState: AppState,
@@ -13902,7 +14098,6 @@ class App extends React.Component<AppProps, AppState> {
 
       const elementCenter = getContainerCenter(
         container,
-        appState,
         this.scene.getNonDeletedElementsMap(),
       );
       if (elementCenter) {
