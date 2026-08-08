@@ -76,9 +76,7 @@ const distanceToRectanguloidElement = (
 
   return Math.min(
     ...sides.map((s) => distanceToLineSegment(rotatedPoint, s)),
-    ...corners
-      .map((a) => curvePointDistance(a, rotatedPoint))
-      .filter((d): d is number => d !== null),
+    ...corners.map((a) => curvePointDistance(a, rotatedPoint)),
   );
 };
 
@@ -105,9 +103,7 @@ const distanceToDiamondElement = (
 
   return Math.min(
     ...sides.map((s) => distanceToLineSegment(rotatedPoint, s)),
-    ...curves
-      .map((a) => curvePointDistance(a, rotatedPoint))
-      .filter((d): d is number => d !== null),
+    ...curves.map((a) => curvePointDistance(a, rotatedPoint)),
   );
 };
 
