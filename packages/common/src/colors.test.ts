@@ -2,6 +2,7 @@ import {
   applyDarkModeFilter,
   applyDarkModeFilterToRGB,
   COLOR_PALETTE,
+  removeDarkModeFilter,
   rgbToHex,
 } from "@excalidraw/common";
 
@@ -221,6 +222,24 @@ describe("applyDarkModeFilter", () => {
       const result2 = applyDarkModeFilter("#ff0000");
       expect(result1).toBe(result2);
     });
+  });
+});
+
+describe("removeDarkModeFilter", () => {
+  it("restores black and white", () => {
+    expect(removeDarkModeFilter("#ededed")).toBe("#000000");
+    expect(removeDarkModeFilter("#121212")).toBe("#ffffff");
+  });
+
+  it.each([
+    COLOR_PALETTE.black,
+    COLOR_PALETTE.white,
+    COLOR_PALETTE.red[4],
+    COLOR_PALETTE.green[4],
+    COLOR_PALETTE.blue[4],
+  ])("preserves the rendered dark-mode color for %s", (color) => {
+    const filtered = applyDarkModeFilter(color);
+    expect(applyDarkModeFilter(removeDarkModeFilter(filtered))).toBe(filtered);
   });
 });
 

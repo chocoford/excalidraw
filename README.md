@@ -7,33 +7,35 @@
 - Hide canvas actions at `packages/excalidraw/components/LayerUI.tsx`.
 - Hide footer at `packages/excalidraw/components/footer/Footer.tsx` line 38.
 - Hide welcome screen actions at `packages/excalidraw/components/welcome-screen/WelcomeScreen.Center.tsx`.
-- Watch activeTool changes at `excalidraw-app/App.tsx` line 596-600.
-- Reset history after load file to canvas at `packages/excalidraw/components/App.tsx` line 13429.
-- Remove the handler of `⌘P` at `packages/excalidraw/components/App.tsx` line 4137~4152.
-- Disable the pen mode detecting at `packages/excalidraw/components/App.tsx` line 6231~6238.
+- Watch activeTool changes at `excalidraw-app/App.tsx` line 1082-1083.
+- Reset history after load file to canvas at `packages/excalidraw/components/App.tsx` line 13413.
+- Remove the handler of `⌘P` at `packages/excalidraw/components/App.tsx` line 5645-5659.
+- Disable the pen mode detecting at `packages/excalidraw/components/App.tsx` line 8686-8695.
 - Add new ExcalidrawZFont in `packages/excalidraw/fonts`.
 - Add YDSZST font folder in `packages/excalidraw/fonts`.
 - Chnage `CJK_HAND_DRAWN_FALLBACK_FONT` to `YDSZST`. Relavent files:
   - `packages/excalidraw/constants.ts` line 120.
   - `packages/excalidraw/Fonts.ts` line 414.
-- Remove Help&ImageExport keyboard shortcut in `packages/excalidraw/components/App.tsx` line 4184-4197.
+- Remove Help&ImageExport keyboard shortcut in `packages/excalidraw/components/App.tsx` line 5708-5721.
 - Modify css style of `Excalidraw Modal` in `packages/excalidraw/components/Modal.scss` line 138-146.
 - Modify css style of `Excalidraw TTD-Dialog` in `packages/excalidraw/components/TTDDialog/TTDDialog.scss` line 15.
-- Add elements selection message in `packages/excalidraw/components/App.tsx` line 2524-2532.
+- Add elements selection message in `packages/excalidraw/components/App.tsx` line 2524-2535.
 
-- Add codes in `excalidraw-app/collab/Collab.tsx` to listen collaborators changes at line 848-871.
+- Add codes in `excalidraw-app/collab/Collab.tsx` to listen collaborators changes at line 900-953.
+
+- Keep the Native `followCollaborator` bridge on upstream's atom-backed follow flow through `setUserToFollow()` in `excalidraw-app/collab/Collab.tsx` line 213-224 and line 1039-1066.
 
 - Add codes in `excalidraw-app/collab/Collab.tsx` to trigger `onStateChanged`.
 
-- Move codes out of hidden in `packages/excalidraw/components/LayerUI.tsx` in line 365-366.
+- Keep the host-owned top-right chrome mounted but hidden in `packages/excalidraw/components/LayerUI.tsx` line 406-424; host-independent stats remain outside the hidden wrapper.
 
-- Hide `LiveCollaborationTrigger` in `excalidraw-app/App.tsx` at line 857.
+- Hide `LiveCollaborationTrigger` in `excalidraw-app/App.tsx` at line 1376-1383.
 
 - Use local fonts in `scripts/woff2/woff2-vite-plugins.js` line 1.
 
 - Disable `Sitemap` plugin in `excalidraw-app/vite.config.mts` at line 57-63.
 
-- Directly open url on click icon: `packages/excalidraw/components/App.tsx` line 5586-5591
+- Directly open url on click icon: `packages/excalidraw/components/App.tsx` line 7518-7525.
 
 - Support dark `exportToBlob`: `packages/utils/export.ts` line 126-134.
 
@@ -44,8 +46,8 @@
     + size: element.strokeWidth * 1.8,
     ```
 
-- Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 13406.
-- Return process while user drops `library file` in `packages/excalidraw/components/App.tsx` line 13435-13443.
+- Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 13390.
+- Return process while the Native host handles a dropped library file in `packages/excalidraw/components/App.tsx` line 13419-13426; normal web/test imports continue through upstream handling.
 
 ### PDF Support
 
@@ -134,8 +136,8 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `window.excalidrawZHelper.getNativeViewportInsets()`
   - Stores normalized non-negative inset values, updates `nativeViewportInsets`, overrides CSS safe-area vars `--sat`, `--sar`, `--sab`, `--sal`, and dispatches `excalidrawz:nativeViewportInsetsChanged`.
 - Import the viewport bridge in `excalidraw-app/excalidrawZ/index.js` line 50-52 and expose the native inset APIs on `window.excalidrawZHelper` line 647-649.
-- Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.viewport.ts` line 507-599 so `setViewport` avoids Swift-provided safe areas.
-- Declare the helper API in `packages/excalidraw/global.d.ts` line 50-72.
+- Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.viewport.ts` line 502-620 so `setViewport` avoids Swift-provided safe areas.
+- Declare the helper API in `packages/excalidraw/global.d.ts` line 68-90.
 
 ### Transparent Canvas Overlay
 
@@ -159,7 +161,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### Tool Lock Unlock Behavior
 
-- Update `packages/excalidraw/components/App.tsx` line 5240-5263 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
+- Update `packages/excalidraw/components/App.tsx` line 5232-5276 so `toggleLock()` only toggles `activeTool.locked`; unlocking preserves the currently selected tool instead of switching back to the preferred selection tool.
 - Add regression coverage in `packages/excalidraw/tests/selection.test.tsx` line 1362-1377 to ensure unlocking keeps the current drawing tool active.
 
 ### Math Image Editing
@@ -168,7 +170,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Treats image elements tagged with `customData.excalidrawZ.type === "math"` as semantic math images.
   - Enables a math-specific dark-mode color filter from the math tag and current theme, without depending on image cache MIME metadata.
 - Export the helper from `packages/element/src/index.ts` line 79 so UI integrations can share the same predicate.
-- Add `applyDarkModeFilterToRGB()` in `packages/common/src/colors.ts` line 106-119 so canvas image pixels can reuse the same `invert(93%) hue-rotate(180deg)` formula as `DARK_THEME_FILTER`; unit coverage is in `packages/common/src/colors.test.ts` line 1-22.
+- Add `applyDarkModeFilterToRGB()` in `packages/common/src/colors.ts` line 113-132 so canvas image pixels can reuse the same `invert(93%) hue-rotate(180deg)` formula as `DARK_THEME_FILTER`; the shared constants also support upstream's reverse dark-mode transform, with unit coverage in `packages/common/src/colors.test.ts`.
 - Apply the math color filter in canvas image rendering with a small pixel canvas fallback at `packages/element/src/renderElement.ts` line 388-463, then use it from the image draw path at line 549-560.
 - Apply the same CSS filter in static SVG export at `packages/excalidraw/renderer/staticSvgScene.ts` line 557-565.
 - Add unit coverage in `packages/element/tests/excalidrawZ.test.ts` line 1-60 for math tag detection and dark-theme filtering.
@@ -178,7 +180,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `updateMathImage()` at line 258-308 replaces an existing formula image with a fresh file id so Excalidraw's non-replacing `addFiles()` behavior does not keep stale SVG data.
 - Expose the math image APIs on `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 29 and line 436-439.
 - Add a generic hover action overlay in `packages/excalidraw/components/ElementHoverActions.tsx` line 1-156. The first registered action is math image editing, which sends `requestEditMathImage` through `window.excalidrawZHelper.sendMessage` and renders outside the element's top-right bounds.
-- Track, retain, and render hover actions from `packages/excalidraw/components/App.tsx` line 2081-2170 and line 2851. The retention margin keeps externally positioned action buttons clickable while the pointer moves from the element to the button.
+- Track, retain, and render hover actions from `packages/excalidraw/components/App.tsx` line 2087-2173 and line 2864. The retention margin keeps externally positioned action buttons clickable while the pointer moves from the element to the button.
 - Add hover action styling in `packages/excalidraw/css/styles.scss` line 843-872.
 
 ### Insert Focus Modes
@@ -199,7 +201,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 - Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
 - Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
-- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 679 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3926-3928, line 4003-4007, line 5212-5234, line 7877, line 8656, line 9111, and line 9154 wires and invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
+- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 679 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3941-3944, line 4018-4023, line 5198-5220, line 7828, line 8607, line 9077, and line 9120 wires and invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
 - Add `window.excalidrawZHelper.clearPreviousSelection()` in `excalidraw-app/excalidrawZ/elements.js` line 337-348 and expose it from `excalidraw-app/excalidrawZ/index.js` line 116 and line 758. It clears only Excalidraw's cached `previousSelectedElementIds`, leaving the current selection unchanged, so a host that explicitly deselects elements when entering edit mode can prevent a later touch pan/zoom gesture from restoring them. The helper is declared in `packages/excalidraw/global.d.ts` line 167.
 
 ### State Change Bridge
@@ -246,7 +248,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Load Native files directly through `window.excalidrawZHelper.loadFileBuffer(buffer, fileId, requestId)` in `excalidraw-app/excalidrawZ/load+save.js` line 214-361. Successful calls return exactly `{ requestId, fileId, elementCount, durationMs }`; parsing, hydration, normalization, restore, supersede, and timeout failures reject the Promise.
 - Keep concurrent load ownership in the request registry at `excalidraw-app/excalidrawZ/load+save.js` line 67-189. A new request marks the previous request as `superseded`; every asynchronous boundary races cancellation and verifies `isCurrent()` before the live scene can be mutated. The 30-second timeout remains a real failure.
 - Do not use synthetic drop events, `DataTransfer`, a global pending request id, or `excalidrawz:fileLoadDone` for Native file loading. Promise settlement is the completion receipt, and `currentFileId` changes only after the current request has applied its scene.
-- Add the private async `_api._excalidrawZ.applyFileScene()` bridge in `packages/excalidraw/components/App.tsx` line 512-520, line 823-827, and line 13430-13470. It atomically resets scene/store/history state, repairs fractional indices, replaces binary files, and captures the exact image-cache hydration Promise started by `syncActionResult()`. It resolves only after image loading/decoding and one final animation frame; physical file drops reuse and await the same method at line 13406-13407.
+- Add the private async `_api._excalidrawZ.applyFileScene()` bridge in `packages/excalidraw/components/App.tsx` line 514-520, line 824, and line 13414-13454. It atomically resets scene/store/history state, repairs fractional indices, replaces binary files, and captures the exact image-cache hydration Promise started by `syncActionResult()`. It resolves only after image loading/decoding and one final animation frame; physical file drops reuse and await the same method at line 13391.
 - Await async scene application in `excalidraw-app/excalidrawZ/load+save.js` before updating `currentFileId` or resolving `loadFileBuffer()`. The public method signature and success result remain unchanged, while a superseding request can still reject an older load that is waiting for image hydration.
 - Cover image hydration/final-paint completion in `packages/excalidraw/tests/excalidrawZFileLoad.test.tsx`, and cover file-identity timing plus superseded async application in `excalidraw-app/excalidrawZ/load+save.snapshot.test.js`.
 - Declare the Native `loadFileBuffer()` signature in `packages/excalidraw/global.d.ts` line 58-67. The private `_excalidrawZ` bridge is intentionally excluded from the public `ExcalidrawImperativeAPI` type.

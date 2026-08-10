@@ -208,6 +208,7 @@ export class API {
       ? ExcalidrawTextElement["containerId"]
       : never;
     points?: T extends "arrow" | "line" | "freedraw" ? readonly LocalPoint[] : never;
+    polygon?: T extends "line" ? boolean : never;
     strokeOptions?: T extends "freedraw"
       ? ExcalidrawFreeDrawElement["strokeOptions"]
       : never;
@@ -361,6 +362,7 @@ export class API {
             pointFrom<LocalPoint>(0, 0),
             pointFrom<LocalPoint>(100, 100),
           ],
+          polygon: rest.polygon,
         });
         break;
       case "image":
