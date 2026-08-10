@@ -13,6 +13,9 @@ import type { Degrees } from "@excalidraw/math";
 const DARK_MODE_COLORS_CACHE: Map<string, string> | null =
   typeof window !== "undefined" ? new Map() : null;
 
+const DARK_MODE_FILTER_INVERT_PERCENT = 93;
+const DARK_MODE_FILTER_HUE_ROTATE_DEGREES = 180 as Degrees;
+
 function cssHueRotate(
   red: number,
   green: number,
@@ -112,14 +115,57 @@ export const applyDarkModeFilterToRGB = (
   green: number,
   blue: number,
 ) => {
-  const inverted = cssInvert(red, green, blue, 93);
+  const inverted = cssInvert(
+    red,
+    green,
+    blue,
+    DARK_MODE_FILTER_INVERT_PERCENT,
+  );
 
   return cssHueRotate(
     inverted.r,
     inverted.g,
     inverted.b,
-    180 as Degrees,
+    DARK_MODE_FILTER_HUE_ROTATE_DEGREES,
   );
+};
+
+const _reverseDarkModeInvert = (
+  r: number,
+  g: number,
+  b: number,
+): { r: number; g: number; b: number } => {
+  const p = DARK_MODE_FILTER_INVERT_PERCENT / 100;
+  const denominator = 1 - 2 * p;
+  const restore = (color: number) =>
+    Math.round(clamp((color - 255 * p) / denominator, 0, 255));
+
+  return {
+    r: restore(r),
+    g: restore(g),
+    b: restore(b),
+  };
+};
+
+export const removeDarkModeFilter = (color: string): string => {
+  const tc = tinycolor(color);
+  const alpha = tc.getAlpha();
+  const rgb = tc.toRgb();
+
+  // 180deg hue rotation is its own inverse, so undo it before the inversion.
+  const rotatedBack = cssHueRotate(
+    rgb.r,
+    rgb.g,
+    rgb.b,
+    DARK_MODE_FILTER_HUE_ROTATE_DEGREES,
+  );
+  const restored = _reverseDarkModeInvert(
+    rotatedBack.r,
+    rotatedBack.g,
+    rotatedBack.b,
+  );
+
+  return rgbToHex(restored.r, restored.g, restored.b, alpha);
 };
 
 // ---------------------------------------------------------------------------
@@ -205,6 +251,17 @@ export const DEFAULT_ELEMENT_STROKE_PICKS = [
 // ORDER matters for positioning in quick picker
 export const DEFAULT_ELEMENT_BACKGROUND_PICKS = [
   COLOR_PALETTE.transparent,
+  COLOR_PALETTE.red[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
+  COLOR_PALETTE.green[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
+  COLOR_PALETTE.blue[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
+  COLOR_PALETTE.yellow[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
+] as ColorTuple;
+
+// ORDER matters for positioning in quick picker.
+// Same as element background picks, with `transparent` (a no-op fill for the
+// bucket tool) swapped for white.
+export const BUCKET_FILL_BACKGROUND_PICKS = [
+  COLOR_PALETTE.white,
   COLOR_PALETTE.red[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
   COLOR_PALETTE.green[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
   COLOR_PALETTE.blue[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX],
@@ -306,6 +363,17 @@ export const colorToHex = (color: string): string | null => {
 
 export const isTransparent = (color: string) => {
   return tinycolor(color).getAlpha() === 0;
+};
+
+/**
+ * Whether the color is fully opaque (alpha exactly 1).
+ *
+ * NOT the negation of `isTransparent`, which is true only at alpha 0 — a
+ * partial-alpha color (`#RRGGBBAA`, `rgba(…, 0.5)`) is neither transparent
+ * (it renders) nor opaque (what's beneath shows through it).
+ */
+export const isOpaqueColor = (color: string) => {
+  return tinycolor(color).getAlpha() === 1;
 };
 
 // -----------------------------------------------------------------------------
