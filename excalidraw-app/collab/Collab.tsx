@@ -112,6 +112,7 @@ interface CollabState {
 }
 
 export const activeRoomLinkAtom = atom<string | null>(null);
+export const userToFollowAtom = atom<UserToFollow | null>(null);
 
 type CollabInstance = InstanceType<typeof Collab>;
 
@@ -127,6 +128,7 @@ export interface CollabAPI {
   getUsername: CollabInstance["getUsername"];
   getActiveRoomLink: CollabInstance["getActiveRoomLink"];
   setCollabError: CollabInstance["setErrorDialog"];
+  setUserToFollow: CollabInstance["setUserToFollow"];
 }
 
 interface CollabProps {
@@ -143,6 +145,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   private socketInitializationTimer?: number;
   private lastBroadcastedOrReceivedSceneVersion: number = -1;
   private collaborators = new Map<SocketId, Collaborator>();
+  /** the socket ids of the users following the current user */
+  private followedBy = new Set<SocketId>();
 
   constructor(props: CollabProps) {
     super(props);
@@ -209,17 +213,14 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     (window as any).excalidrawZHelper.followCollaborator = (
       collaborator: UserToFollow | null,
     ) => {
-      this.excalidrawAPI.updateScene({
-        appState: {
-          ...this.excalidrawAPI.getAppState(),
-          userToFollow: !!collaborator
-            ? {
-                socketId: collaborator.socketId,
-                username: collaborator.username,
-              }
-            : null,
-        },
-      });
+      this.setUserToFollow(
+        collaborator
+          ? {
+              socketId: collaborator.socketId,
+              username: collaborator.username,
+            }
+          : null,
+      );
     };
     (window as any).excalidrawZHelper.setCollabName = (name: string) => {
       this.setUsername(name);
@@ -235,7 +236,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     window.addEventListener(EVENT.UNLOAD, this.onUnload);
 
     const unsubOnUserFollow = this.excalidrawAPI.onUserFollow((payload) => {
-      this.portal.socket && this.portal.broadcastUserFollowed(payload);
+      this.setUserToFollow(
+        payload.action === "FOLLOW" ? payload.userToFollow : null,
+      );
     });
     const throttledRelayUserViewportBounds = throttleRAF(
       this.relayVisibleSceneBounds,
@@ -261,6 +264,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       getUsername: this.getUsername,
       getActiveRoomLink: this.getActiveRoomLink,
       setCollabError: this.setErrorDialog,
+      setUserToFollow: this.setUserToFollow,
     };
 
     appJotaiStore.set(collabAPIAtom, collabAPI);
@@ -429,9 +433,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.lastBroadcastedOrReceivedSceneVersion = -1;
     this.portal.close();
     this.fileManager.reset();
+    this.followedBy = new Set();
     if (!opts?.isUnload) {
       this.setIsCollaborating(false);
       this.setActiveRoomLink(null);
+      appJotaiStore.set(userToFollowAtom, null);
       this.collaborators = new Map();
       this.excalidrawAPI.updateScene({
         collaborators: this.collaborators,
@@ -654,11 +660,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           case WS_SUBTYPES.USER_VISIBLE_SCENE_BOUNDS: {
             const { sceneBounds, socketId } = decryptedData.payload;
 
-            const appState = this.excalidrawAPI.getAppState();
+            const userToFollow = appJotaiStore.get(userToFollowAtom);
 
             // we're not following the user
             // (shouldn't happen, but could be late message or bug upstream)
-            if (appState.userToFollow?.socketId !== socketId) {
+            if (userToFollow?.socketId !== socketId) {
               console.warn(
                 `receiving remote client's (from ${socketId}) viewport bounds even though we're not subscribed to it!`,
               );
@@ -666,12 +672,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             }
 
             // cross-follow case, ignore updates in this case
-            if (
-              appState.userToFollow &&
-              appState.followedBy.has(appState.userToFollow.socketId)
-            ) {
+            if (this.followedBy.has(userToFollow.socketId)) {
               return;
             }
+
+            const appState = this.excalidrawAPI.getAppState();
 
             this.excalidrawAPI.updateScene({
               appState: zoomToFitBounds({
@@ -714,9 +719,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.portal.socket.on(
       WS_EVENTS.USER_FOLLOW_ROOM_CHANGE,
       (followedBy: SocketId[]) => {
-        this.excalidrawAPI.updateScene({
-          appState: { followedBy: new Set(followedBy) },
-        });
+        this.followedBy = new Set(followedBy);
 
         this.relayVisibleSceneBounds({ force: true });
       },
@@ -894,11 +897,16 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     const collaborators: InstanceType<typeof Collab>["collaborators"] =
       new Map();
     for (const socketId of sockets) {
+      const isCurrentUser = socketId === this.portal.socket?.id;
       collaborators.set(
         socketId,
-        Object.assign({}, this.collaborators.get(socketId), {
-          isCurrentUser: socketId === this.portal.socket?.id,
-        }),
+        Object.assign(
+          // we never receive our own broadcasts, so we need to seed
+          // our own collaborator entry with the local username
+          isCurrentUser ? { username: this.state.username } : {},
+          this.collaborators.get(socketId),
+          { isCurrentUser },
+        ),
       );
     }
     this.collaborators = collaborators;
@@ -909,17 +917,24 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         socketId,
       })),
     );
+
+    // unfollow if the followed user left the room
+    const userToFollow = appJotaiStore.get(userToFollowAtom);
+    if (userToFollow && !collaborators.has(userToFollow.socketId)) {
+      this.setUserToFollow(null);
+    }
   }
 
   updateCollaborator = (socketId: SocketId, updates: Partial<Collaborator>) => {
+    const isCurrentUser = socketId === this.portal.socket?.id;
     const collaborators = new Map(this.collaborators);
     const user: Mutable<Collaborator> = Object.assign(
-      {},
+      // we never receive our own broadcasts, so we need to seed
+      // our own collaborator entry with the local username
+      isCurrentUser ? { username: this.state.username } : {},
       collaborators.get(socketId),
       updates,
-      {
-        isCurrentUser: socketId === this.portal.socket?.id,
-      },
+      { isCurrentUser },
     );
     collaborators.set(socketId, user);
     this.collaborators = collaborators;
@@ -961,12 +976,10 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   );
 
   relayVisibleSceneBounds = (props?: { force: boolean }) => {
-    const appState = this.excalidrawAPI.getAppState();
-
-    if (this.portal.socket && (appState.followedBy.size > 0 || props?.force)) {
+    if (this.portal.socket && (this.followedBy.size > 0 || props?.force)) {
       this.portal.broadcastVisibleSceneBounds(
         {
-          sceneBounds: getVisibleSceneBounds(appState),
+          sceneBounds: getVisibleSceneBounds(this.excalidrawAPI.getAppState()),
         },
         `follow@${this.portal.socket.id}`,
       );
@@ -1023,9 +1036,37 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     { leading: false },
   );
 
+  setUserToFollow = (userToFollow: UserToFollow | null) => {
+    const prev = appJotaiStore.get(userToFollowAtom) ?? null;
+
+    if (prev?.socketId !== userToFollow?.socketId && this.portal.socket) {
+      // leave the previous user's follow room before joining the next one
+      if (prev) {
+        this.portal.broadcastUserFollowed({
+          userToFollow: prev,
+          action: "UNFOLLOW",
+        });
+      }
+      if (userToFollow) {
+        this.portal.broadcastUserFollowed({
+          userToFollow,
+          action: "FOLLOW",
+        });
+      }
+    }
+
+    appJotaiStore.set(userToFollowAtom, userToFollow);
+  };
+
   setUsername = (username: string) => {
     this.setState({ username });
     saveUsernameToLocalStorage(username);
+
+    // keep our own collaborator entry in sync
+    const socketId = this.portal.socket?.id as SocketId | undefined;
+    if (socketId && this.collaborators.has(socketId)) {
+      this.updateCollaborator(socketId, { username });
+    }
   };
 
   getUsername = () => this.state.username;
