@@ -273,5 +273,5 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - No Worker entry point is used; the deployment serves only static assets.
 - Keep production builds platform-independent through `scripts/build-app.js`. It resolves `VITE_APP_GIT_SHA` from common Cloudflare, Netlify, Vercel, and CI variables, then falls back to the current Git commit.
 - Use `yarn preview:cloudflare` for a local built-assets preview and `yarn deploy:cloudflare` for a local build and deployment.
-- For Cloudflare Git Builds, use repository root `/`, Node.js 20, build command `yarn build`, and deploy command `yarn wrangler deploy`. The production branch is `ExcalidrawZ-core` unless the repository deployment branch changes.
+- For Cloudflare Git Builds, use repository root `/`, Node.js 20, build command `yarn build`, and deploy command `yarn wrangler deploy --config wrangler.jsonc`. Set the production branch to `ExcalidrawZ-core`; the repository default `master` branch does not contain ExcalidrawZ's deployment configuration.
 - Before switching domains, allow the Cloudflare preview/custom domain in Firebase and external backend/WebSocket origin policies. Keeping the existing custom domain avoids Native host URL changes.

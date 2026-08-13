@@ -63,7 +63,7 @@
     "build": "yarn --cwd ./excalidraw-app build",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
     "preview:cloudflare": "yarn build && wrangler dev",
-    "deploy:cloudflare": "yarn build && wrangler deploy",
+    "deploy:cloudflare": "yarn build && wrangler deploy --config wrangler.jsonc",
     "start": "yarn --cwd ./excalidraw-app start",
     "start:production": "yarn --cwd ./excalidraw-app start:production",
     "start:example": "yarn build:packages && yarn --cwd ./examples/with-script-in-browser start",
