@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "excalidrawz-core",
+  "name": "excalidraw",
   "compatibility_date": "2026-08-13",
   "assets": {
     "directory": "./excalidraw-app/build",
