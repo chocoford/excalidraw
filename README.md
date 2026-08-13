@@ -264,3 +264,14 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Persist viewport camera state as file state: `scrollX`, `scrollY`, and `zoom`.
   - Other transient appState fields are still stripped by `cleanAppStateForExport()`.
   - `.excalidraw` file loads in `packages/excalidraw/data/blob.ts` line 170-181 continue to auto-center only when the imported file does not provide a complete scroll position.
+
+### Cloudflare Deployment
+
+- Deploy the Vite application as a Cloudflare Worker with Static Assets through `wrangler.jsonc`:
+  - Static output is read from `excalidraw-app/build`.
+  - `not_found_handling: "single-page-application"` keeps direct routes such as `/excalidraw-plus-export` working.
+  - No Worker entry point is used; the deployment serves only static assets.
+- Keep production builds platform-independent through `scripts/build-app.js`. It resolves `VITE_APP_GIT_SHA` from common Cloudflare, Netlify, Vercel, and CI variables, then falls back to the current Git commit.
+- Use `yarn preview:cloudflare` for a local built-assets preview and `yarn deploy:cloudflare` for a local build and deployment.
+- For Cloudflare Git Builds, use repository root `/`, Node.js 20, build command `yarn build`, and deploy command `yarn wrangler deploy`. The production branch is `ExcalidrawZ-core` unless the repository deployment branch changes.
+- Before switching domains, allow the Cloudflare preview/custom domain in Firebase and external backend/WebSocket origin policies. Keeping the existing custom domain avoids Native host URL changes.

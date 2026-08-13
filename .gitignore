@@ -8,6 +8,7 @@
 .history
 .idea
 .vercel
+.wrangler
 .vscode
 .yarn
 *.log
