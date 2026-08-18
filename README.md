@@ -139,6 +139,15 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Include native insets in editor UI camera offsets in `packages/excalidraw/components/App.viewport.ts` line 502-620 so `setViewport` avoids Swift-provided safe areas.
 - Declare the helper API in `packages/excalidraw/global.d.ts` line 68-90.
 
+### Native EyeDropper Bridge
+
+- Add the opt-in Native color sampling bridge in `excalidraw-app/excalidrawZ/eyeDropper.js` line 1-125 and expose `setNativeEyeDropperEnabled()`, `getNativeEyeDropperEnabled()`, and `completeNativeEyeDropper()` from `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 95-100 and line 665-669.
+- `packages/excalidraw/components/EyeDropper.tsx` line 95-138 contains one optional ExcalidrawZ hook at the color acquisition boundary. When Native mode is disabled, invalid, or unavailable, Excalidraw keeps its upstream canvas-only eyedropper behavior. The official color application, element updates, and undo handling remain unchanged.
+- After `setNativeEyeDropperEnabled(true)`, opening Excalidraw's eyedropper sends `requestNativeEyeDropper` with `{ requestId, colorPickerType, theme }`. Complete it with `completeNativeEyeDropper({ requestId, color: "#RRGGBB" })`, or cancel with `completeNativeEyeDropper({ requestId, cancelled: true })`. Native colors must be six-digit sRGB hex values.
+- If Excalidraw closes or supersedes a pending picker, it sends `cancelNativeEyeDropper` with the same `requestId`. Native mode intentionally does not subscribe to Excalidraw's `window.blur` cancellation because presenting a system picker may blur the WebView.
+- The first bridge version commits only the final Native color; it does not stream preview colors. Dark-theme results pass through Excalidraw's existing dark-mode color conversion before the official `onSelect` callback.
+- Declare the public and private hook contracts in `packages/excalidraw/global.d.ts` line 45-59 and line 107-128, and cover request pairing, cancellation, validation, fallback, and core delegation in `excalidraw-app/excalidrawZ/eyeDropper.test.js` line 1-132 and `packages/excalidraw/tests/eyeDropper.test.tsx` line 91-134.
+
 ### Transparent Canvas Overlay
 
 - Add reversible `window.excalidrawZHelper.setCanvasTransparent(enabled)` in `excalidraw-app/excalidrawZ/canvasPreferences.js` line 5-16 and line 183-251, and expose it from `excalidraw-app/excalidrawZ/index.js`.

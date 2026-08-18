@@ -95,7 +95,45 @@ export const EyeDropper: React.FC<{
   useEffect(() => {
     const colorPreviewDiv = ref.current;
 
-    if (!colorPreviewDiv || !app.canvas || !eyeDropperContainer) {
+    if (!colorPreviewDiv || !eyeDropperContainer) {
+      return;
+    }
+
+    const getColorToApply = (color: string) =>
+      appState.theme === THEME.DARK ? removeDarkModeFilter(color) : color;
+
+    const nativeRequest = window.excalidrawZHelper?._requestNativeEyeDropper?.({
+      colorPickerType,
+      theme: appState.theme,
+    });
+
+    if (nativeRequest) {
+      let isActive = true;
+      colorPreviewDiv.style.display = "none";
+
+      nativeRequest.promise.then((result) => {
+        if (!isActive) {
+          return;
+        }
+
+        if (result.cancelled) {
+          stableProps.onCancel();
+          return;
+        }
+
+        stableProps.onSelect(getColorToApply(result.color), {
+          altKey: result.altKey,
+        } as PointerEvent);
+      });
+
+      return () => {
+        isActive = false;
+        colorPreviewDiv.style.display = "";
+        nativeRequest.cancel("unmounted");
+      };
+    }
+
+    if (!app.canvas) {
       return;
     }
 
@@ -119,9 +157,6 @@ export const EyeDropper: React.FC<{
 
       return rgbToHex(pixel[0], pixel[1], pixel[2]);
     };
-
-    const getColorToApply = (color: string) =>
-      appState.theme === THEME.DARK ? removeDarkModeFilter(color) : color;
 
     const mouseMoveListener = ({
       clientX,

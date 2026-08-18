@@ -89,6 +89,50 @@ describe("eye dropper", () => {
     expect(h.state.currentItemBackgroundColor).toBe("#ffffff");
   });
 
+  it("uses the optional native bridge instead of sampling the canvas", async () => {
+    const cancel = vi.fn();
+    const nativeRequest = vi.fn(() => ({
+      requestId: "native-request",
+      promise: Promise.resolve({
+        cancelled: false as const,
+        color: "#121212",
+        altKey: false,
+      }),
+      cancel,
+    }));
+    const previousHelper = window.excalidrawZHelper;
+    window.excalidrawZHelper = {
+      ...previousHelper,
+      _requestNativeEyeDropper: nativeRequest,
+    } as Window["excalidrawZHelper"];
+
+    try {
+      await render(
+        <Excalidraw
+          autoFocus={true}
+          handleKeyboardGlobally={true}
+          theme={THEME.DARK}
+        />,
+      );
+      const ctx = h.app.canvas.getContext("2d")!;
+      const getImageData = vi.spyOn(ctx, "getImageData");
+
+      Keyboard.keyPress(KEYS.I);
+
+      await waitFor(() => {
+        expect(h.state.currentItemBackgroundColor).toBe("#ffffff");
+      });
+      expect(nativeRequest).toHaveBeenCalledWith({
+        colorPickerType: "elementBackground",
+        theme: THEME.DARK,
+      });
+      expect(getImageData).not.toHaveBeenCalled();
+      expect(cancel).toHaveBeenCalledWith("unmounted");
+    } finally {
+      window.excalidrawZHelper = previousHelper;
+    }
+  });
+
   it("contrasts the preview border with the sampled color", async () => {
     await render(<Excalidraw autoFocus={true} handleKeyboardGlobally={true} />);
 

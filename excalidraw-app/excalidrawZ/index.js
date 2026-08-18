@@ -93,6 +93,12 @@ import {
 import { prepareCanvas } from "./prepareCanvas";
 import { clearCanvas } from "./clearCanvas";
 import {
+  completeNativeEyeDropper,
+  getNativeEyeDropperEnabled,
+  requestNativeEyeDropper,
+  setNativeEyeDropperEnabled,
+} from "./eyeDropper";
+import {
   beginAICameraSession,
   updateAICameraTarget,
   endAICameraSession,
@@ -655,6 +661,12 @@ window.excalidrawZHelper = {
   nativeViewportInsets,
   setNativeViewportInsets,
   getNativeViewportInsets,
+
+  // Native eyedropper bridge
+  setNativeEyeDropperEnabled,
+  getNativeEyeDropperEnabled,
+  completeNativeEyeDropper,
+  _requestNativeEyeDropper: requestNativeEyeDropper,
 
   getAllMedias,
   insertMedias,

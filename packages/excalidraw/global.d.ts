@@ -42,6 +42,22 @@ type ExcalidrawZCanvasTool =
   | "embeddable"
   | "laser";
 
+type ExcalidrawZColorPickerType =
+  | "canvasBackground"
+  | "elementBackground"
+  | "elementStroke";
+
+type ExcalidrawZNativeEyeDropperResult =
+  | {
+      cancelled: true;
+      reason?: string;
+    }
+  | {
+      cancelled: false;
+      color: string;
+      altKey: boolean;
+    };
+
 interface Window {
   ClipboardItem: any;
   __EXCALIDRAW_SHA__: string | undefined;
@@ -88,6 +104,28 @@ interface Window {
       bottom: number;
       left: number;
     };
+    setNativeEyeDropperEnabled?: (enabled: boolean) => {
+      enabled: boolean;
+    };
+    getNativeEyeDropperEnabled?: () => boolean;
+    completeNativeEyeDropper?: (result: {
+      requestId: string;
+      color?: string;
+      cancelled?: boolean;
+      altKey?: boolean;
+    }) => {
+      accepted: boolean;
+      cancelled?: boolean;
+      reason?: string;
+    };
+    _requestNativeEyeDropper?: (options: {
+      colorPickerType: ExcalidrawZColorPickerType;
+      theme: "light" | "dark";
+    }) => {
+      requestId: string;
+      promise: Promise<ExcalidrawZNativeEyeDropperResult>;
+      cancel: (reason?: string) => boolean;
+    } | null;
     setCanvasTransparent?: (enabled: boolean) => {
       enabled: boolean;
       applied: boolean;
