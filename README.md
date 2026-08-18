@@ -264,7 +264,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 ### ExcalidrawZ File AppState
 
-- Keep ExcalidrawZ's intentional `APP_STATE_STORAGE_CONF` divergence from upstream in `packages/excalidraw/appState.ts` line 155-251:
+- Keep ExcalidrawZ's intentional `APP_STATE_STORAGE_CONF` divergence from upstream in `packages/excalidraw/appState.ts` line 155-272:
   - Upstream Excalidraw treats these as non-exported browser state. ExcalidrawZ treats them as file state because Native save/load depends on them surviving `cleanAppStateForExport()`.
   - Do not restore these fields to upstream `export: false` during merges unless the Native save/load contract is changed at the same time.
   - Persist current drawing defaults as per-file settings: `currentItemBackgroundColor`, `currentItemEndArrowhead`, `currentItemFillStyle`, `currentItemFontFamily`, `currentItemFontSize`, `currentItemRoundness`, `currentItemArrowType`, `currentItemOpacity`, `currentItemRoughness`, `currentItemStrokeVariability`, `currentItemStartArrowhead`, `currentItemStrokeColor`, `currentItemStrokeStyle`, `currentItemStrokeWidthKey`, and `currentItemTextAlign`.
