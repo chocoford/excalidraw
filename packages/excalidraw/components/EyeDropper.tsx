@@ -69,6 +69,7 @@ export const EyeDropper: React.FC<{
   const appState = useUIAppState();
   const elements = useExcalidrawElements();
   const app = useApp();
+  const ownerWindow = app.ownerWindow;
 
   const selectedElements = getSelectedElements(elements, appState);
 
@@ -102,10 +103,11 @@ export const EyeDropper: React.FC<{
     const getColorToApply = (color: string) =>
       appState.theme === THEME.DARK ? removeDarkModeFilter(color) : color;
 
-    const nativeRequest = window.excalidrawZHelper?._requestNativeEyeDropper?.({
-      colorPickerType,
-      theme: appState.theme,
-    });
+    const nativeRequest =
+      ownerWindow.excalidrawZHelper?._requestNativeEyeDropper?.({
+        colorPickerType,
+        theme: appState.theme,
+      });
 
     if (nativeRequest) {
       let isActive = true;
@@ -149,8 +151,8 @@ export const EyeDropper: React.FC<{
       clientY: number;
     }) => {
       const pixel = ctx.getImageData(
-        (clientX - appState.offsetLeft) * window.devicePixelRatio,
-        (clientY - appState.offsetTop) * window.devicePixelRatio,
+        (clientX - appState.offsetLeft) * ownerWindow.devicePixelRatio,
+        (clientY - appState.offsetTop) * ownerWindow.devicePixelRatio,
         1,
         1,
       ).data;
@@ -256,10 +258,10 @@ export const EyeDropper: React.FC<{
       pointerDownListener,
     );
     eyeDropperContainer.addEventListener(EVENT.POINTER_UP, pointerUpListener);
-    window.addEventListener("pointermove", mouseMoveListener, {
+    ownerWindow.addEventListener("pointermove", mouseMoveListener, {
       passive: true,
     });
-    window.addEventListener(EVENT.BLUR, onCancel);
+    ownerWindow.addEventListener(EVENT.BLUR, onCancel);
 
     return () => {
       isHoldingPointerDown = false;
@@ -272,8 +274,8 @@ export const EyeDropper: React.FC<{
         EVENT.POINTER_UP,
         pointerUpListener,
       );
-      window.removeEventListener("pointermove", mouseMoveListener);
-      window.removeEventListener(EVENT.BLUR, onCancel);
+      ownerWindow.removeEventListener("pointermove", mouseMoveListener);
+      ownerWindow.removeEventListener(EVENT.BLUR, onCancel);
     };
   }, [
     stableProps,
@@ -284,6 +286,7 @@ export const EyeDropper: React.FC<{
     appState.offsetLeft,
     appState.offsetTop,
     appState.theme,
+    ownerWindow,
   ]);
 
   const ref = useRef<HTMLDivElement>(null);

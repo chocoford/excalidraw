@@ -47,7 +47,14 @@
     ```
 
 - Add `resetScene` after dropping excalidraw file in `packages/excalidraw/components/App.tsx` line 13390.
-- Return process while the Native host handles a dropped library file in `packages/excalidraw/components/App.tsx` line 13419-13426; normal web/test imports continue through upstream handling.
+- Return process while the Native host handles a dropped library file in `packages/excalidraw/components/App.tsx` line 13470-13479; normal web/test imports continue through upstream handling.
+
+### Cross-document Rendering
+
+- Support mounting Excalidraw into another document through the stable `ownerDocument` prop in `packages/excalidraw/types.ts` line 786-798 and its wiring in `packages/excalidraw/index.tsx` line 68-213.
+- Centralize the editor's owning document and window in `packages/excalidraw/components/App.tsx` line 655-666. DOM creation, event listeners, browser constructors, portals, font loading, and viewport sizing use those owners instead of assuming the global document.
+- Keep ExcalidrawZ's Native integrations on the same owning window: PDF actions, selection notifications, pointer observation, dropped library handoff, and Native eyedropper requests use `app.ownerWindow` / `this.ownerWindow`, preserving the bridge in the Native WebView while remaining safe for cross-document mounts.
+- Cover iframe-owned constructors, events, portals, fonts, canvas creation, and cleanup in `packages/common/src/utils.test.ts` line 19-48 and `packages/excalidraw/tests/crossDocument.test.tsx` line 14-147.
 
 ### PDF Support
 
@@ -76,10 +83,10 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - Add PDF to line intersection test at line 229.
 - Integrate PDF rendering in `packages/excalidraw/components/App.tsx`:
   - Import `PDF_MIME_TYPE` and `ExcalidrawPdfElement` at line 43 and line 286.
-  - Add PDF to `renderEmbeddables()` at line 1760-2065:
+  - Add PDF to `renderEmbeddables()` at line 1807-2112:
     - Include `isPdfElement(el)` in the filter at line 1776.
     - Update the type assertion to include `ExcalidrawPdfElement` at line 1771.
-    - Render the PDF iframe from `this.files[element.fileId]?.dataURL` in `renderPdf()` at line 2173-2245.
+    - Render the PDF iframe from `this.files[element.fileId]?.dataURL` in `renderPdf()` at line 2195-2263.
     - **Benefits**: Automatic position updates on scroll/zoom, unified architecture with embeddables.
 - Create PDF loading utilities at `excalidraw-app/excalidrawZ/pdf.js`:
   - `loadPDFViewer(pdfData, options)` - Load PDF as interactive viewer element.
@@ -107,7 +114,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
   - `window.excalidrawZHelper.loadPDFTiles(pages, { x, y, gap, direction, itemsPerLine, autoScroll })`
   - `window.excalidrawZHelper.loadPDFViewer(pdfData, { x, y, width, height, totalPages })`
   - `window.excalidrawZHelper.handlePDFDrop(file, sceneX, sceneY)` - Handle PDF file drop (sends to Swift via `sendMessage`)
-- PDF drag & drop support in `packages/excalidraw/components/App.tsx` line 13196-13218:
+- PDF drag & drop support in `packages/excalidraw/components/App.tsx` line 13279-13296:
   - Detects PDF file drops (checks `file?.type === PDF_MIME_TYPE`)
   - Calls `window.excalidrawZHelper.handlePDFDrop()` to send PDF data to Swift side
   - PDF data sent includes: fileName, fileSize, base64Data, sceneX, sceneY
@@ -142,7 +149,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 ### Native EyeDropper Bridge
 
 - Add the opt-in Native color sampling bridge in `excalidraw-app/excalidrawZ/eyeDropper.js` line 1-125 and expose `setNativeEyeDropperEnabled()`, `getNativeEyeDropperEnabled()`, and `completeNativeEyeDropper()` from `window.excalidrawZHelper` in `excalidraw-app/excalidrawZ/index.js` line 95-100 and line 665-669.
-- `packages/excalidraw/components/EyeDropper.tsx` line 95-138 contains one optional ExcalidrawZ hook at the color acquisition boundary. When Native mode is disabled, invalid, or unavailable, Excalidraw keeps its upstream canvas-only eyedropper behavior. The official color application, element updates, and undo handling remain unchanged.
+- `packages/excalidraw/components/EyeDropper.tsx` line 103-137 contains one optional ExcalidrawZ hook at the color acquisition boundary and resolves it from `app.ownerWindow`. When Native mode is disabled, invalid, or unavailable, Excalidraw keeps its upstream canvas-only eyedropper behavior. The official color application, element updates, and undo handling remain unchanged.
 - After `setNativeEyeDropperEnabled(true)`, opening Excalidraw's eyedropper sends `requestNativeEyeDropper` with `{ requestId, colorPickerType, theme }`. Complete it with `completeNativeEyeDropper({ requestId, color: "#RRGGBB" })`, or cancel with `completeNativeEyeDropper({ requestId, cancelled: true })`. Native colors must be six-digit sRGB hex values.
 - If Excalidraw closes or supersedes a pending picker, it sends `cancelNativeEyeDropper` with the same `requestId`. Native mode intentionally does not subscribe to Excalidraw's `window.blur` cancellation because presenting a system picker may blur the WebView.
 - The first bridge version commits only the final Native color; it does not stream preview colors. Dark-theme results pass through Excalidraw's existing dark-mode color conversion before the official `onSelect` callback.
@@ -210,7 +217,7 @@ Uses browser native PDF rendering with **zero external dependencies**.
 
 - Keep the one-finger policy API in `excalidraw-app/excalidrawZ/interaction.js` line 41-104 and expose it on `window.excalidrawZHelper` from `excalidraw-app/excalidrawZ/index.js` line 2-9 and line 661-671. `setPointerInputPolicy({ oneFingerAction })` and legacy `togglePencilInterationMode(mode)` both support `select` / `move` / `none`; `pan` is accepted as an alias for `move`, and numeric modes map as `0 = select`, `1 = move`, `2 = none`.
 - Apply the one-finger behavior in `excalidraw-app/excalidrawZ/interaction.js` line 167-198: `select` switches touch input to the selection tool, `move` sends synthetic Space keydown/keyup with `bubbles: true` and `cancelable: true` for space-drag panning, and `none` leaves finger events untouched.
-- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 679 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3941-3944, line 4018-4023, line 5198-5220, line 7828, line 8607, line 9077, and line 9120 wires and invokes the hook while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
+- Keep a thin ExcalidrawZ pointer input hook that only observes events: `excalidraw-app/excalidrawZ/interaction.js` line 121-128 and line 186-198 forwards document pointer phases, `excalidraw-app/excalidrawZ/index.js` line 679 exposes `_pointerInputHook`, and `packages/excalidraw/components/App.tsx` line 3974-3977, line 4056-4062, line 5265-5282, line 7915, line 8694, line 9164, and line 9207 wires and invokes the hook through `ownerWindow` while ignoring return values. The hook does not call `preventDefault()`, stop propagation, release pointer capture, switch tools, or mutate pan state.
 - Add `window.excalidrawZHelper.clearPreviousSelection()` in `excalidraw-app/excalidrawZ/elements.js` line 337-348 and expose it from `excalidraw-app/excalidrawZ/index.js` line 116 and line 758. It clears only Excalidraw's cached `previousSelectedElementIds`, leaving the current selection unchanged, so a host that explicitly deselects elements when entering edit mode can prevent a later touch pan/zoom gesture from restoring them. The helper is declared in `packages/excalidraw/global.d.ts` line 167.
 
 ### State Change Bridge
