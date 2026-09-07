@@ -268,6 +268,7 @@ export const newTextElement = (
     containerId?: ExcalidrawTextContainer["id"] | null;
     lineHeight?: ExcalidrawTextElement["lineHeight"];
     autoResize?: ExcalidrawTextElement["autoResize"];
+    labelPosition?: ExcalidrawTextElement["labelPosition"];
   } & ElementConstructorOpts,
 ): NonDeleted<ExcalidrawTextElement> => {
   const fontFamily = opts.fontFamily || DEFAULT_FONT_FAMILY;
@@ -301,6 +302,7 @@ export const newTextElement = (
     originalText: opts.originalText ?? text,
     autoResize: opts.autoResize ?? true,
     lineHeight,
+    labelPosition: opts.labelPosition ?? null,
   };
 
   const textElement: NonDeleted<ExcalidrawTextElement> = newElementWith(
