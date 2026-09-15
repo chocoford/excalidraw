@@ -291,3 +291,12 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Use `yarn preview:cloudflare` for a local built-assets preview and `yarn deploy:cloudflare` for a local build and deployment.
 - For Cloudflare Git Builds, use repository root `/`, Node.js 20, build command `yarn build`, and deploy command `yarn wrangler deploy --config wrangler.jsonc`. Set the production branch to `ExcalidrawZ-core`; the repository default `master` branch does not contain ExcalidrawZ's deployment configuration.
 - Before switching domains, allow the Cloudflare preview/custom domain in Firebase and external backend/WebSocket origin policies. Keeping the existing custom domain avoids Native host URL changes.
+
+### Upstream sync — 2026-09-14
+
+- Integrate upstream `e1bb9ff8..afa3a653f` through origin master `9e75060e1`, including bound-arrow text dragging, sticky notes, element creation timestamps, device-pixel snapping, dropdown dismissal, translations, and dark-mode canvas performance.
+- Combine sticky-note canvas rendering with ExcalidrawZ's math-image filter and PDF placeholders in `packages/element/src/renderElement.ts` lines 329, 456, and 603. Read image-filter and cached-bitmap pixel ratios from their canvas owner documents at lines 340 and 778.
+- Preserve PDF skeleton conversion while adopting upstream constructors and sticky-note geometry normalization in `packages/element/src/transform.ts` line 686.
+- Keep per-file drawing defaults and camera state, and persist the new sticky-note stroke/background colors in `packages/excalidraw/appState.ts` line 190. Imported files retain complete saved scroll coordinates; files missing either coordinate center on the restored visible elements in `packages/excalidraw/data/blob.ts` line 161.
+- Read selection colors through the mounted element's owner window in `packages/excalidraw/renderer/helpers.ts` line 13, retaining host CSS overrides for editors mounted in another document.
+- Retain host-owned Cmd/Ctrl+F, conditional Native library handoff, Native viewport behavior, and the existing async file-load bridge. Regression coverage for camera/default round trips and restored-element centering is in `packages/excalidraw/tests/excalidrawZFileState.test.ts` line 11; owner-document coverage is in `packages/excalidraw/tests/crossDocument.test.tsx`.

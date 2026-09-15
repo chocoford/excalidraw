@@ -8,6 +8,7 @@ import {
 import { vi } from "vitest";
 
 import { Excalidraw } from "../index";
+import { getSelectionColor } from "../renderer/helpers";
 
 import type { ExcalidrawImperativeAPI } from "../types";
 
@@ -144,4 +145,24 @@ describe("cross-document rendering", () => {
       iframe.remove();
     }
   });
+});
+
+it("reads the selection color from the element's owner window", () => {
+  const iframe = document.createElement("iframe");
+  document.body.append(iframe);
+  try {
+    const ownerDocument = iframe.contentDocument!;
+    const node = ownerDocument.createElement("div");
+    ownerDocument.body.append(node);
+    node.style.setProperty("--color-selection", "#123456");
+    const getComputedStyle = vi.spyOn(
+      ownerDocument.defaultView!,
+      "getComputedStyle",
+    );
+    expect(getSelectionColor(node)).toBe("#123456");
+    expect(getComputedStyle).toHaveBeenCalledWith(node);
+    getComputedStyle.mockRestore();
+  } finally {
+    iframe.remove();
+  }
 });
