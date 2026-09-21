@@ -31,6 +31,7 @@ import type {
   ExcalidrawLineElement,
   ExcalidrawFlowchartNodeElement,
   ExcalidrawLinearElementSubType,
+  ExcalidrawStickyNoteElement,
 } from "./types";
 
 export const isInitializedImageElement = <T extends ExcalidrawElement>(
@@ -84,6 +85,12 @@ export const isTextElement = <T extends ExcalidrawElement>(
   element: T | null,
 ): element is T & ExcalidrawTextElement => {
   return element != null && element.type === "text";
+};
+
+export const isStickyNoteElement = <T extends ExcalidrawElement>(
+  element: T | null | undefined,
+): element is T & ExcalidrawStickyNoteElement => {
+  return element != null && element.type === "stickynote";
 };
 
 export const isFrameElement = <T extends ExcalidrawElement>(
@@ -199,6 +206,7 @@ export const isBindableElement = <T extends ExcalidrawElement>(
     element != null &&
     (!element.locked || includeLocked === true) &&
     (element.type === "rectangle" ||
+      element.type === "stickynote" ||
       element.type === "diamond" ||
       element.type === "ellipse" ||
       element.type === "image" ||
@@ -216,6 +224,7 @@ export const isRectanguloidElement = <T extends ExcalidrawElement>(
   return (
     element != null &&
     (element.type === "rectangle" ||
+      element.type === "stickynote" ||
       element.type === "diamond" ||
       element.type === "image" ||
       element.type === "iframe" ||
@@ -234,6 +243,7 @@ export const isRectangularElement = <T extends ExcalidrawElement>(
   return (
     element != null &&
     (element.type === "rectangle" ||
+      element.type === "stickynote" ||
       element.type === "image" ||
       element.type === "text" ||
       element.type === "iframe" ||
@@ -252,6 +262,7 @@ export const isTextBindableContainer = <T extends ExcalidrawElement>(
     element != null &&
     (!element.locked || includeLocked === true) &&
     (element.type === "rectangle" ||
+      element.type === "stickynote" ||
       element.type === "diamond" ||
       element.type === "ellipse" ||
       isArrowElement(element))
@@ -269,6 +280,7 @@ export const isExcalidrawElement = (
     case "text":
     case "diamond":
     case "rectangle":
+    case "stickynote":
     case "iframe":
     case "embeddable":
     case "ellipse":
@@ -294,6 +306,7 @@ export const isFlowchartNodeElement = <T extends ExcalidrawElement>(
 ): element is T & ExcalidrawFlowchartNodeElement => {
   return (
     element.type === "rectangle" ||
+    element.type === "stickynote" ||
     element.type === "ellipse" ||
     element.type === "diamond"
   );
@@ -331,7 +344,10 @@ export const isUsingAdaptiveRadius = (type: string) =>
   type === "image";
 
 export const isUsingProportionalRadius = (type: string) =>
-  type === "line" || type === "arrow" || type === "diamond";
+  type === "line" ||
+  type === "arrow" ||
+  type === "diamond" ||
+  type === "stickynote";
 
 export const canApplyRoundnessTypeToElement = (
   roundnessType: RoundnessType,
@@ -415,6 +431,7 @@ export const canBecomePolygon = (
 export const isEligibleFrameChildType = (type: ElementOrToolType) => {
   switch (type) {
     case "rectangle":
+    case "stickynote":
     case "diamond":
     case "ellipse":
     case "arrow":

@@ -170,6 +170,7 @@ export type ElementShapes = {
   arrow: Drawable[];
   line: Drawable[];
   text: null;
+  stickynote: null;
   image: null;
   pdf: null;
   frame: null;
