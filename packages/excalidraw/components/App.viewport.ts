@@ -469,6 +469,41 @@ export class AppViewport {
   };
 
   /**
+   * The side a rendered side UI (`data-viewport-ui="side"`) docks to, and
+   * how far it reaches into the canvas from it, in screen px.
+   */
+  private measureSide = (node: HTMLElement, containerRect: DOMRect) => {
+    const domRect = node.getBoundingClientRect();
+    const left = domRect.left - containerRect.left;
+    const right = domRect.right - containerRect.left;
+    return left + domRect.width / 2 < this.app.state.width / 2
+      ? { side: "left" as const, offset: right }
+      : { side: "right" as const, offset: this.app.state.width - left };
+  };
+
+  /**
+   * How far the sidebar reaches into the canvas, in screen px, from the
+   * right or (RTL) the left: the part of the canvas it covers. Zero when
+   * it's closed — or on phones, where it's an overlay that doesn't count as
+   * viewport UI.
+   */
+  getSidebarInsets = () => {
+    const insets = { left: 0, right: 0 };
+    const container = this.dependencies.getContainer();
+    const sidebar = container?.querySelector<HTMLElement>(
+      '[data-viewport-ui="side"][data-viewport-ui-name="sidebar"]',
+    );
+    if (container && sidebar) {
+      const { side, offset } = this.measureSide(
+        sidebar,
+        container.getBoundingClientRect(),
+      );
+      insets[side] = Math.max(0, offset);
+    }
+    return insets;
+  };
+
+  /**
    * Resolves user-supplied viewport offsets into concrete per-side pixel
    * values. Static sides take precedence over UI-derived sides.
    */
@@ -540,10 +575,10 @@ export class AppViewport {
             );
             break;
           case "side": {
-            const [side, offset] =
-              rect.left + rect.width / 2 < this.app.state.width / 2
-                ? (["left", rect.right] as const)
-                : (["right", this.app.state.width - rect.left] as const);
+            const { side, offset } = this.measureSide(
+              node,
+              excalidrawContainerRect,
+            );
 
             measuredOffsets[side] = Math.max(measuredOffsets[side], offset);
 
@@ -643,7 +678,10 @@ export class AppViewport {
     });
   };
 
-  /** Navigates to a target and optionally installs scroll/zoom constraints. */
+  /**
+   * Navigates to a target and optionally installs scroll/zoom constraints.
+   * Navigating stops following a collaborator, as a user's pan does.
+   */
   setViewport = (opts: SetViewportOptions | null) => {
     if (opts === null) {
       this.cancelTransition();
@@ -676,6 +714,10 @@ export class AppViewport {
       }
       return;
     }
+
+    // the view is about to show something other than what the followed
+    // user sees
+    this.app.requestUnfollow();
 
     const viewportUpdate = getConstrainedTargetViewport(
       this.app.state,
@@ -757,27 +799,40 @@ export class AppViewport {
       return false;
     }
 
+    // a user gesture interrupting an animated `setViewport` takes over from
+    // frames that draw from zoom-scaled bitmaps, and the completion handler
+    // that would switch back to crisp ones no longer runs. Otherwise the
+    // flag is left alone: wheel and touch zoom set it and clear it on a
+    // debounce once the gesture is over, and a pan frame landing between two
+    // zoom ticks must not force every element to be re-rasterized at the
+    // in-progress zoom
+    if (this.activeTransition) {
+      this.app.setState({ shouldCacheIgnoreZoom: false });
+    }
     this.cancelTransition();
     if (!opts?.preserveScrollConstraintsSnapBack) {
       AnimationController.cancel(SCROLL_CONSTRAINTS_SNAP_BACK_ANIMATION_KEY);
     }
-    this.app.setState({ shouldCacheIgnoreZoom: false });
     this.app.requestUnfollow();
 
-    const prevZoom = this.app.state.zoom.value;
-    this.app.setState(state);
-
-    this.app.setState((prevState) => {
-      if (!prevState.scrollConstraints) {
+    this.app.setState((prevState, props) => {
+      const update =
+        typeof state === "function" ? state(prevState, props) : state;
+      if (!update) {
         return null;
       }
+      const nextState = { ...prevState, ...update };
+      if (!nextState.scrollConstraints) {
+        return update;
+      }
       const zoomed =
-        !opts?.zoomPreConstrained && prevState.zoom.value !== prevZoom;
-      const overscroll = zoomed ? 0 : prevState.scrollConstraints.overscroll;
+        !opts?.zoomPreConstrained &&
+        nextState.zoom.value !== prevState.zoom.value;
+      const overscroll = zoomed ? 0 : nextState.scrollConstraints.overscroll;
       if (overscroll > 0) {
         this.snapBackDebounced();
       }
-      return constrainScrollState(prevState, overscroll);
+      return { ...nextState, ...constrainScrollState(nextState, overscroll) };
     });
 
     return true;
