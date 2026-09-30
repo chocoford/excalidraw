@@ -251,9 +251,9 @@ const LayerUI = ({
       <Section
         heading="selectedShapeActions"
         className={clsx("selected-shape-actions zen-mode-transition", {
-        "transition-left":
-          appState.zenModeEnabled ||
-          (window as any).excalidrawZHelper.shouldHideActionsMenu,
+          "transition-left":
+            appState.zenModeEnabled ||
+            (app.ownerWindow as any).excalidrawZHelper?.shouldHideActionsMenu,
         })}
       >
         {isCompactStylesPanel ? (
