@@ -89,7 +89,8 @@ export const renderRemoteCursors = ({
     y = Math.max(y, 0);
     y = Math.min(y, normalizedHeight - height);
 
-    const background = getClientColor(socketId, collaborator);
+    const background =
+      collaborator?.color?.background ?? getClientColor(socketId, collaborator);
 
     context.save();
     context.strokeStyle = background;

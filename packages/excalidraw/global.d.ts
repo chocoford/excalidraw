@@ -59,6 +59,7 @@ type ExcalidrawZNativeEyeDropperResult =
     };
 
 interface Window {
+  __excalidrawZLocalViewer?: boolean;
   ClipboardItem: any;
   __EXCALIDRAW_SHA__: string | undefined;
   EXCALIDRAW_ASSET_PATH: string | string[] | undefined;
@@ -69,6 +70,25 @@ interface Window {
   sa_event: Function;
   fathom: { trackEvent: Function };
   excalidrawZHelper?: {
+    localViewerProtocolVersion: 1;
+    startLocalViewerSession: (options: {
+      role: "editor" | "viewer";
+      sessionId: string;
+      transportURL: string;
+      followCamera?: boolean;
+      pointerAppearance?: {
+        visible: boolean;
+        color: string | null;
+      };
+    }) => Promise<void>;
+    waitForLocalViewerReady: (options: { sessionId: string }) => Promise<void>;
+    setLocalViewerFollowing: (enabled: boolean) => void;
+    setLocalViewerPointerAppearance: (options: {
+      sessionId: string;
+      visible: boolean;
+      color: string | null;
+    }) => void;
+    stopLocalViewerSession: (sessionId: string) => void;
     sendMessage: (payload: { event: string; data?: any }) => void;
     currentFileId?: string;
     loadFileBuffer: (
@@ -144,9 +164,7 @@ interface Window {
       activeTool: ExcalidrawZCanvasTool | null;
       appliedAppStateKeys: string[];
     }>;
-    clearCanvas?: (options?: {
-      clearHistory?: boolean;
-    }) => Promise<{
+    clearCanvas?: (options?: { clearHistory?: boolean }) => Promise<{
       cleared: true;
       historyCleared: boolean;
     }>;

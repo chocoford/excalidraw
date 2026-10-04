@@ -12,6 +12,7 @@ import type { SocketId } from "./types";
 export class LaserTrails implements Trail {
   public localTrail: AnimatedTrail;
   private collabTrails = new Map<SocketId, AnimatedTrail>();
+  private collaborators?: App["state"]["collaborators"];
   private container?: SVGSVGElement;
 
   constructor(private app: App) {
@@ -62,6 +63,7 @@ export class LaserTrails implements Trail {
   stop() {
     this.localTrail.stop();
     this.stopCollabTrails();
+    this.collaborators = undefined;
     this.container = undefined;
   }
 
@@ -77,6 +79,7 @@ export class LaserTrails implements Trail {
   }
 
   updateCollabTrails(collaborators: App["state"]["collaborators"]) {
+    this.collaborators = collaborators;
     this.stopCollabTrails(collaborators);
 
     if (!this.container || collaborators.size === 0) {
@@ -96,9 +99,13 @@ export class LaserTrails implements Trail {
       if (!trail) {
         trail = new AnimatedTrail(this.app, {
           ...this.getTrailOptions(),
-          fill: () =>
-            collaborator.pointer?.laserColor ||
-            getClientColor(key, collaborator),
+          fill: () => {
+            const currentCollaborator = this.collaborators?.get(key);
+            return (
+              currentCollaborator?.pointer?.laserColor ||
+              getClientColor(key, currentCollaborator)
+            );
+          },
         });
         trail.start(this.container);
 

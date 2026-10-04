@@ -440,6 +440,8 @@ import {
   resolveColorTarget,
 } from "../actions/colorTargets";
 
+import { waitForExcalidrawZSceneReady } from "../../../excalidraw-app/excalidrawZ/sceneReady";
+
 import ConvertElementTypePopup, {
   getConversionTypeFromElements,
   convertElementTypePopupAtom,
@@ -532,6 +534,7 @@ import { didToggleToolLock } from "../../../excalidraw-app/excalidrawZ/index";
 
 type ExcalidrawZImperativeAPI = ExcalidrawImperativeAPI & {
   _excalidrawZ: {
+    waitForSceneReady: (signal: AbortSignal) => Promise<void>;
     applyFileScene: (
       data: Awaited<ReturnType<typeof loadFromBlob>>,
     ) => Promise<{
@@ -885,10 +888,12 @@ class App extends React.Component<AppProps, AppState> {
       onUserFollow: (cb) => this.onUserFollowEmitter.on(cb),
       onStateChange: this.onStateChange,
       onEvent: this.onEvent,
-      // [ExcalidrawZ] Private bridge for atomically applying a restored file.
+      // [ExcalidrawZ] Private Native scene-loading and rendering bridge.
       // Kept out of the public ExcalidrawImperativeAPI surface.
       _excalidrawZ: {
         applyFileScene: this.applyExcalidrawZFileScene,
+        waitForSceneReady: (signal) =>
+          waitForExcalidrawZSceneReady(this, signal),
       },
     };
     return api;

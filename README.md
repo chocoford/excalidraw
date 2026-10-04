@@ -56,6 +56,47 @@
 - Keep ExcalidrawZ's Native integrations on the same owning window: PDF actions, selection notifications, pointer observation, dropped library handoff, and Native eyedropper requests use `app.ownerWindow` / `this.ownerWindow`, preserving the bridge in the Native WebView while remaining safe for cross-document mounts.
 - Cover iframe-owned constructors, events, portals, fonts, canvas creation, and cleanup in `packages/common/src/utils.test.ts` line 19-48 and `packages/excalidraw/tests/crossDocument.test.tsx` line 14-147.
 
+### Native Local Viewer
+
+The Native Viewer uses its own plain WebSocket connection, separate from the editor's online collaboration connection. The App supplies the transport URL and relays opaque text messages between an editor and Viewer in the same session. The Web module owns protocol version 1; Native does not need to encode scenes, convert camera coordinates, or implement element merging.
+
+```js
+const helper = window.excalidrawZHelper;
+if (helper.localViewerProtocolVersion !== 1) {
+  throw new Error("Local Viewer is not supported by these Web resources");
+}
+await helper.startLocalViewerSession({
+  role: "viewer", // "editor" in the editor WebView
+  sessionId: "session-uuid",
+  transportURL: "ws://127.0.0.1:8486/viewer/session-uuid/viewer",
+  followCamera: true,
+  pointerAppearance: { visible: true, color: null }, // Viewer only
+});
+helper.setLocalViewerPointerAppearance({
+  sessionId: "session-uuid",
+  visible: true,
+  color: "#ff3b30", // null restores the default
+});
+// Viewer only, after both editor and Viewer start calls have completed:
+await helper.waitForLocalViewerReady({ sessionId: "session-uuid" });
+helper.setLocalViewerFollowing(false);
+helper.stopLocalViewerSession("session-uuid");
+```
+
+- Native's existing document-start bootstrap, `window.__excalidrawZLocalViewer = true`, configures Viewer read-only mode and storage isolation before React mounts. Call session APIs after the helper-ready notification. `start` resolves after scene event subscriptions are installed and WebSocket connects, not after the first remote scene paints. Initial connection failure/10-second timeout rejects. Either peer may connect first. After connecting once, disconnected transports reconnect automatically and request a fresh full scene.
+- `waitForLocalViewerReady({ sessionId }): Promise<void>` separately waits for the active Viewer's first snapshot, referenced files, image decoding, scene fonts, initial camera application, React commit, and two animation frames for throttled canvas drawing to paint. An empty scene also completes. An already-ready session resolves immediately; editor roles, mismatched IDs, stopped/replaced sessions, and resource failures reject. Pending waits and paint frames are cancelled on stop/replacement, and late old completions are ignored. A temporary disconnect before readiness retries against the reconnect snapshot. This is a one-time readiness barrier per session, not a barrier for each later delta/reconnect. It does not alter `start`, protocol version 1, or the WebSocket schema; Native can feature-detect the new helper before calling it.
+- Follow defaults to `true` for Viewer. Camera bounds and scene updates are coalesced per animation frame. Viewer fits the editor's visible scene bounds using its own dimensions/UI offsets, including on resize. With following off, pan/zoom is independent while content keeps syncing; editing remains disabled.
+- Initial/reconnect snapshots include all referenced image/PDF data. Subsequent updates include changed elements/files and scene display settings (theme, background, grid). Files come from the live API first, with IndexedDB fallback. Viewer-local file IDs prevent old image-cache collisions; editor data is not rewritten. Pointer/laser updates reuse Excalidraw's collaborator renderer without a username label (`excalidraw-app/excalidrawZ/localViewer.ts` line 797); online collaborators' labels are unchanged.
+- Viewer `pointerAppearance` defaults to `{ visible: true, color: null }` and is applied before the first pointer. `setLocalViewerPointerAppearance({ sessionId, visible, color })` accepts `#RRGGBB` or `null` for the default color. Hiding removes only this session's cursor and laser trails while retaining the latest received pointer; showing restores it without waiting for another move. Color changes also affect existing laser trails. Stale session IDs, stopped sessions, and editor roles are ignored. Preferences survive full initialization/reconnect within a session, are display-only, and are not saved to files, history, or the transport protocol. Native owns persistence and supplies preferences on a new `start` (`excalidraw-app/excalidrawZ/localViewer.ts` line 146, line 538, line 789, and line 958).
+- Keep the same scene-sync performance model as online Collab: scan scene versions to select changed elements and reuse official `restoreElements`/`reconcileElements`, rather than introducing a separate merge algorithm or field-level patch protocol. Local pointer moves send immediately without the online Collab's 33ms throttle (`excalidraw-app/excalidrawZ/localViewer.ts` line 688); pointer down/up remain immediate, and leave/blur clears the cursor. Sending still checks the current session and socket state, so stopped/replaced sessions and disconnected sockets cannot send stale pointers. Large initial/reconnect snapshots still serialize referenced media in one message; this is not a guarantee of constant-time synchronization for arbitrarily large documents.
+- A new `start` replaces the old session. `stop` only matches the active session ID, releases its transport/listeners/timers, and ignores late messages/results. The stopped Viewer retains its last scene, stays read-only, and keeps browser persistence/tab synchronization disabled. Starting as `editor` restores normal editor behavior; closing the WebView also releases the persistence lock.
+- Editor saves and online collaboration remain on their existing paths. Viewer cancels pending browser saves and skips browser/tab-sync and Native state-save broadcasts, so mirrored content cannot overwrite an editor's browser document.
+- Implementation: `excalidraw-app/excalidrawZ/localViewer.ts` line 25 (version), line 159 (event subscriptions), line 384 (restore/reconcile and local file IDs), line 595 (incremental transmission), line 702 (readiness waits), and line 993 (helper attachment). Exports: `excalidraw-app/excalidrawZ/index.js` line 712 and `packages/excalidraw/global.d.ts` line 73; readiness: line 716 and line 84; pointer appearance setter: line 718 and line 86 respectively. App integration: `excalidraw-app/App.tsx` line 411 and line 1368; browser-save isolation: `excalidraw-app/data/LocalData.ts` line 115. Online Collab's connection, protocol, and merge flow are unchanged.
+- Readiness stays in `excalidraw-app/excalidrawZ/sceneReady.ts` line 40. It awaits the existing image-cache promises (no second decode), official scene-font loading, a render commit, and cancellable animation frames. The only new core wiring is the private `_excalidrawZ.waitForSceneReady` entry in `packages/excalidraw/components/App.tsx` line 537 and line 895, outside the official `ExcalidrawImperativeAPI`; no loading/reset/history behavior changes are made.
+- Minimal core renderer changes: `packages/excalidraw/clients.ts` line 92 honors the existing `Collaborator.color.background` field for cursor colors, falling back to the original default. `packages/excalidraw/laserTrails.ts` line 15 and line 82 keep the latest collaborator map; line 102 reads its current laser color every paint instead of capturing an old collaborator object. The supplied map is used because `updateScene` updates trails before React commits appState. No Native-specific collaborator types or rendering branches are added; the editor's local laser remains unchanged.
+- Tests: `excalidraw-app/excalidrawZ/localViewer.test.ts` line 218 covers connection order; line 268 through line 428 cover readiness, empty scenes, late media, failures, reconnect, stop/replacement, and helper detach; line 444 covers existing sync behavior; line 682 covers immediate pointers; line 740, line 838, and line 907 cover pointer preferences and isolation. `excalidraw-app/excalidrawZ/sceneReady.test.ts` line 57 covers fonts/in-flight images, commit/paint ordering, cancellation cleanup, and decode errors. `excalidraw-app/tests/localViewer.test.tsx` line 84 checks actual pointer/laser rendering; line 190 and line 230 verify empty-canvas/camera readiness and delayed image decoding/drawing through the real App; line 301 covers bootstrap, with read-only/navigation and image hydration below.
+- Build Web resources with `yarn build`; Native's bundled resource directory is `ExcalidrawZ/Resources/excalidraw-latest` in the App repository. Swift Viewer integration and the relay do not need to know the wire-message schema.
+
 ### PDF Support
 
 Uses browser native PDF rendering with **zero external dependencies**.

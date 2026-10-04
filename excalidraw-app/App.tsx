@@ -36,7 +36,14 @@ import {
   type StrokeWidthKey,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -159,6 +166,14 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+
+import {
+  attachLocalViewer,
+  broadcastLocalViewerPointer,
+  getLocalViewerState,
+  isLocalViewer,
+  subscribeLocalViewer,
+} from "./excalidrawZ/localViewer";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -393,6 +408,11 @@ const initializeScene = async (opts: {
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
+  const appContainerRef = useRef<HTMLDivElement>(null);
+  const localViewerState = useSyncExternalStore(
+    subscribeLocalViewer,
+    getLocalViewerState,
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
@@ -496,7 +516,7 @@ const ExcalidrawWrapper = () => {
   // ---------------------------------------------------------------------------
   const loadImages = useCallback(
     (data: ResolutionType<typeof initializeScene>, isInitialLoad = false) => {
-      if (!data.scene || !excalidrawAPI) {
+      if (!data.scene || !excalidrawAPI || isLocalViewer()) {
         return;
       }
 
@@ -508,6 +528,9 @@ const ExcalidrawWrapper = () => {
               forceFetchFiles: true,
             })
             .then(({ loadedFiles, erroredFiles }) => {
+              if (isLocalViewer()) {
+                return;
+              }
               excalidrawAPI.addFiles(loadedFiles);
               updateStaleImageStatuses({
                 excalidrawAPI,
@@ -537,6 +560,9 @@ const ExcalidrawWrapper = () => {
             data.key,
             fileIds,
           ).then(({ loadedFiles, erroredFiles }) => {
+            if (isLocalViewer()) {
+              return;
+            }
             excalidrawAPI.addFiles(loadedFiles);
             updateStaleImageStatuses({
               excalidrawAPI,
@@ -555,6 +581,9 @@ const ExcalidrawWrapper = () => {
             LocalData.fileStorage
               .getFiles(fileIds)
               .then(async ({ loadedFiles, erroredFiles }) => {
+                if (isLocalViewer()) {
+                  return;
+                }
                 if (loadedFiles.length) {
                   excalidrawAPI.addFiles(loadedFiles);
                 }
@@ -582,11 +611,18 @@ const ExcalidrawWrapper = () => {
     }
 
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+      if (isLocalViewer()) {
+        initialStatePromiseRef.current.promise.resolve(null);
+        return;
+      }
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
     });
 
     const onHashChange = async (event: HashChangeEvent) => {
+      if (isLocalViewer()) {
+        return;
+      }
       event.preventDefault();
       const libraryUrlTokens = parseLibraryTokensFromUrl();
       if (!libraryUrlTokens) {
@@ -599,6 +635,9 @@ const ExcalidrawWrapper = () => {
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
         initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
+          if (isLocalViewer()) {
+            return;
+          }
           loadImages(data);
           if (data.scene) {
             excalidrawAPI.updateScene({
@@ -614,7 +653,7 @@ const ExcalidrawWrapper = () => {
     };
 
     const syncData = debounce(() => {
-      if (isTestEnv()) {
+      if (isTestEnv() || isLocalViewer()) {
         return;
       }
       if (
@@ -658,6 +697,9 @@ const ExcalidrawWrapper = () => {
             LocalData.fileStorage
               .getFiles(fileIds)
               .then(({ loadedFiles, erroredFiles }) => {
+                if (isLocalViewer()) {
+                  return;
+                }
                 if (loadedFiles.length) {
                   excalidrawAPI.addFiles(loadedFiles);
                 }
@@ -1030,6 +1072,9 @@ const ExcalidrawWrapper = () => {
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
+      if (isLocalViewer()) {
+        return;
+      }
       LocalData.flushSave();
 
       if (
@@ -1049,11 +1094,20 @@ const ExcalidrawWrapper = () => {
     };
     window.addEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
 
+    const container = appContainerRef.current?.querySelector<HTMLElement>(
+      ".excalidraw-container",
+    );
+    const detachLocalViewer =
+      excalidrawAPI && container
+        ? attachLocalViewer(excalidrawAPI, container)
+        : undefined;
+
     // Bridge excalidrawAPI to excalidrawZHelper for camera & other native APIs
     if (excalidrawAPI && (window as any).excalidrawZHelper) {
       (window as any).excalidrawZHelper._api = excalidrawAPI;
       (window as any).excalidrawZHelper._getCommonBounds = getCommonBounds;
-      (window as any).excalidrawZHelper._computeSearchMatches = computeSearchMatches;
+      (window as any).excalidrawZHelper._computeSearchMatches =
+        computeSearchMatches;
       (window as any).excalidrawZHelper.startWatchExcalidrawState?.();
       (window as any).excalidrawZHelper.startCameraTracking?.();
       (window as any).excalidrawZHelper.startElementsTracking?.();
@@ -1064,6 +1118,7 @@ const ExcalidrawWrapper = () => {
     }
 
     return () => {
+      detachLocalViewer?.();
       window.removeEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
     };
   }, [excalidrawAPI]);
@@ -1077,6 +1132,9 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (isLocalViewer()) {
+      return;
+    }
     // send message to excalidrawZ
     if (lastActiveTool !== appState.activeTool.type) {
       console.info("activeTool onChange:", appState, appState.activeTool);
@@ -1307,19 +1365,32 @@ const ExcalidrawWrapper = () => {
 
   return (
     <div
+      ref={appContainerRef}
       style={{ height: "100%" }}
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
       })}
     >
       <Excalidraw
+        viewModeEnabled={localViewerState.isViewer ? true : undefined}
+        interaction={
+          localViewerState.isViewer
+            ? { enabled: { navigation: !localViewerState.following } }
+            : undefined
+        }
+        ui={localViewerState.isViewer ? false : undefined}
         viewportStatusFrame={viewportStatusFrame}
         userToFollow={userToFollow}
         onChange={onChange}
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
-        onPointerUpdate={collabAPI?.onPointerUpdate}
+        onPointerUpdate={(payload) => {
+          broadcastLocalViewerPointer(payload);
+          if (!isLocalViewer()) {
+            collabAPI?.onPointerUpdate(payload);
+          }
+        }}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,
@@ -1357,7 +1428,11 @@ const ExcalidrawWrapper = () => {
         detectScroll={false}
         handleKeyboardGlobally={true}
         autoFocus={true}
-        theme={editorTheme}
+        theme={
+          localViewerState.isViewer
+            ? localViewerState.theme ?? editorTheme
+            : editorTheme
+        }
         onThemeChange={setAppTheme}
         renderTopRightUI={(isMobile) => {
           if (isMobile || !collabAPI || isCollabDisabled) {

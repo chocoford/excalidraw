@@ -112,7 +112,7 @@ const isQuotaExceededError = (error: any) => {
   return error instanceof DOMException && error.name === "QuotaExceededError";
 };
 
-type SavingLockTypes = "collaboration";
+type SavingLockTypes = "collaboration" | "localViewer";
 
 export class LocalData {
   private static _save = debounce(
@@ -122,6 +122,9 @@ export class LocalData {
       files: BinaryFiles,
       onFilesSaved: () => void,
     ) => {
+      if (this.locker.isLocked("localViewer")) {
+        return;
+      }
       saveDataStateToLocalStorage(elements, appState);
 
       await this.fileStorage.saveFiles({
@@ -148,6 +151,10 @@ export class LocalData {
 
   static flushSave = () => {
     this._save.flush();
+  };
+
+  static discardPendingSave = () => {
+    this._save.cancel();
   };
 
   private static locker = new Locker<SavingLockTypes>();

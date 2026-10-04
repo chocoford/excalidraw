@@ -7,11 +7,7 @@ import {
   togglePenMode,
   togglePencilInterationMode,
 } from "./interaction";
-import {
-  connectFileStore,
-  getAllMedias,
-  insertMedias,
-} from "./indexdb+";
+import { connectFileStore, getAllMedias, insertMedias } from "./indexdb+";
 import { sendMessage } from "./message";
 import { toggleToolbarAction } from "./actions";
 import { throttle } from "./_helpers";
@@ -92,6 +88,15 @@ import {
 } from "./canvasPreferences";
 import { prepareCanvas } from "./prepareCanvas";
 import { clearCanvas } from "./clearCanvas";
+import {
+  isLocalViewer,
+  localViewerProtocolVersion,
+  startLocalViewerSession,
+  waitForLocalViewerReady,
+  setLocalViewerFollowing,
+  setLocalViewerPointerAppearance,
+  stopLocalViewerSession,
+} from "./localViewer";
 import {
   completeNativeEyeDropper,
   getNativeEyeDropperEnabled,
@@ -211,8 +216,7 @@ let watchStateSuppressionDepth = 0;
 let watchStateSuppressionGeneration = 0;
 
 const getPerformanceNow = () =>
-  typeof performance !== "undefined" &&
-  typeof performance.now === "function"
+  typeof performance !== "undefined" && typeof performance.now === "function"
     ? performance.now()
     : Date.now();
 
@@ -365,6 +369,7 @@ const startWatchExcalidrawState = () => {
   const dispatch = throttle((elements, appState, suppressionGeneration) => {
     try {
       if (
+        isLocalViewer() ||
         watchStateSuppressionDepth > 0 ||
         suppressionGeneration !== watchStateSuppressionGeneration
       ) {
@@ -411,7 +416,7 @@ const startWatchExcalidrawState = () => {
   }, 1000);
 
   api.onChange((elements, appState) => {
-    if (watchStateSuppressionDepth > 0) {
+    if (isLocalViewer() || watchStateSuppressionDepth > 0) {
       return;
     }
 
@@ -489,7 +494,7 @@ const watchHistoryButtonState = () => {
       event: "historyStateChanged",
       data: {
         type: "undo",
-        disabled: newUndoButtonNode.disabled,
+        disabled: newUndoButtonNode?.disabled ?? true,
       },
     });
     const newRedoButtonNode = document.querySelector(
@@ -499,7 +504,7 @@ const watchHistoryButtonState = () => {
       event: "historyStateChanged",
       data: {
         type: "redo",
-        disabled: newRedoButtonNode.disabled,
+        disabled: newRedoButtonNode?.disabled ?? true,
       },
     });
     if (newUndoButtonNode && newUndoButtonNode !== undoButtonNode) {
@@ -704,6 +709,14 @@ window.excalidrawZHelper = {
   collaborators: [],
   reportCollaborators,
   updateCollaborators,
+
+  // Local Viewer transport, independent of online collaboration.
+  localViewerProtocolVersion,
+  startLocalViewerSession,
+  waitForLocalViewerReady,
+  setLocalViewerFollowing,
+  setLocalViewerPointerAppearance,
+  stopLocalViewerSession,
 
   // PDF
   loadPDFTiles,
