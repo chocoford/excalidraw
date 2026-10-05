@@ -75,6 +75,23 @@ describe("cross-document rendering", () => {
       );
       expect(api).not.toBeNull();
       await waitFor(() => expect(api!.getAppState().isLoading).toBe(false));
+      Object.defineProperty(ownerWindow, "excalidrawZHelper", {
+        configurable: true,
+        value: {
+          nativeViewportInsets: {
+            top: 101,
+            right: 102,
+            bottom: 103,
+            left: 104,
+          },
+        },
+      });
+      expect(api!.getViewportOffsets({ padding: 0 })).toMatchObject({
+        top: 101,
+        right: 102,
+        bottom: 103,
+        left: 104,
+      });
       expect(
         addDocumentEventListener.mock.calls.some(
           ([eventName]) => eventName === "pointermove",

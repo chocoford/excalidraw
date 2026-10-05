@@ -309,3 +309,9 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Use upstream customizable font top picks with ExcalidrawZ font-family values in `packages/excalidraw/components/FontPicker/FontPicker.tsx` line 63. Native font/menu options are optional and read from the editor owner window in `packages/excalidraw/components/FontPicker/FontPickerList.tsx` line 181 and `packages/excalidraw/components/LayerUI.tsx` line 256.
 - Preserve ExcalidrawZ lock-toggle notifications and host-owned Cmd/Ctrl+S behavior in `packages/excalidraw/components/App.tsx` line 5486 and `packages/excalidraw/wysiwyg/textWysiwyg.test.tsx` line 970. The text tests reset the global Native pencil session between cases so touch gestures are tested independently.
 - Regression tests for file drops and saved camera state are in `packages/excalidraw/tests/fileDrop.test.tsx` line 190 and `packages/excalidraw/tests/excalidrawZFileState.test.ts` line 11.
+
+### Upstream sync — 2026-10-05
+
+- Integrate ten upstream commits from `438d89861..ed10ac7dc` through origin master `b167daf02`, after the 2026-09-28 sync was merged into ExcalidrawZ-core. The upstream changes extract clipboard and text editing into `packages/excalidraw/components/App.clipboard.ts` and `packages/excalidraw/components/App.text.ts`, and add list-aware duplication and text wrapping.
+- Keep host-owned Cmd/Ctrl+F and Cmd/Ctrl+S handling in `packages/excalidraw/components/App.tsx` near lines 5774–5821, Native pointer observation near line 4934, and Native file/PDF/library bridge handling near lines 12268–12532 while adopting the upstream modules.
+- Read Native viewport insets from the editor's owner window in `packages/excalidraw/components/App.viewport.ts` near line 615, so an editor mounted in another document uses its own host state. Saved camera restoration and normal web file imports continue through the existing ExcalidrawZ and upstream paths respectively.
