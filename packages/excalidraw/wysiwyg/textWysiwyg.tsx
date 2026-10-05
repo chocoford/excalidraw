@@ -11,6 +11,7 @@ import {
   MIME_TYPES,
   applyDarkModeFilter,
   isRTL,
+  hasRTLChars,
 } from "@excalidraw/common";
 import { pointFrom, pointRotateRads, type Radians } from "@excalidraw/math";
 
@@ -126,21 +127,27 @@ const getCaretBoundaryOffsets = (text: string) => {
   return offsets;
 };
 
-const getLineCaretOffsetFromNativeLayout = ({
-  text,
-  font,
-  lineHeightPx,
-  direction,
-  targetX,
-  ownerDocument,
-}: {
+type NativeLineLayout = {
   text: string;
   font: ReturnType<typeof getFontString>;
   lineHeightPx: number;
   direction: "ltr" | "rtl";
-  targetX: number;
   ownerDocument: Document;
-}) => {
+};
+
+/**
+ * Where the caret shows at each of `offsets` into a line of text, as the
+ * browser lays the line out, bidirectionally: the x of each (px, from the
+ * viewport's left), and of the line's left edge. Null where it can't tell.
+ */
+const measureNativeLineCaretPositions = ({
+  text,
+  font,
+  lineHeightPx,
+  direction,
+  ownerDocument,
+  offsets,
+}: NativeLineLayout & { offsets: readonly number[] }) => {
   if (
     !text ||
     !ownerDocument.body ||
@@ -149,7 +156,6 @@ const getLineCaretOffsetFromNativeLayout = ({
     return null;
   }
 
-  const offsets = getCaretBoundaryOffsets(text);
   const mirror = ownerDocument.createElement("div");
   const textNode = ownerDocument.createTextNode(text);
   const range = ownerDocument.createRange();
@@ -173,6 +179,8 @@ const getLineCaretOffsetFromNativeLayout = ({
   ownerDocument.body.append(mirror);
 
   try {
+    range.selectNodeContents(textNode);
+    const { left } = range.getBoundingClientRect();
     for (const offset of offsets) {
       range.setStart(textNode, offset);
       range.setEnd(textNode, offset);
@@ -184,10 +192,25 @@ const getLineCaretOffsetFromNativeLayout = ({
 
       positions.push(caretRect.left);
     }
+    return { left, positions };
   } catch {
     return null;
   } finally {
     mirror.remove();
+  }
+};
+
+const getLineCaretOffsetFromNativeLayout = ({
+  targetX,
+  ...layout
+}: NativeLineLayout & { targetX: number }) => {
+  const offsets = getCaretBoundaryOffsets(layout.text);
+  const positions = measureNativeLineCaretPositions({
+    ...layout,
+    offsets,
+  })?.positions;
+  if (!positions) {
+    return null;
   }
 
   const leftEdge = Math.min(...positions);
@@ -206,6 +229,22 @@ const getLineCaretOffsetFromNativeLayout = ({
   return closestOffset;
 };
 
+/**
+ * Where the caret shows at `offset` into a line of text, as the browser lays
+ * the line out, bidirectionally: px from the line's left edge; null where it
+ * can't tell.
+ */
+const getLineCaretXFromNativeLayout = ({
+  offset,
+  ...layout
+}: NativeLineLayout & { offset: number }) => {
+  const measured = measureNativeLineCaretPositions({
+    ...layout,
+    offsets: [offset],
+  });
+  return measured ? measured.positions[0] - measured.left : null;
+};
+
 type SubmitHandler = () => void;
 
 export const textWysiwyg = ({
@@ -218,6 +257,7 @@ export const textWysiwyg = ({
   app,
   autoSelect = true,
   initialCaretSceneCoords = null,
+  initialSelection = null,
 }: {
   /**
    * textWysiwyg only deals with `originalText`
@@ -234,6 +274,8 @@ export const textWysiwyg = ({
   app: App;
   autoSelect?: boolean;
   initialCaretSceneCoords?: { x: number; y: number } | null;
+  /** range of `originalText` to select (takes precedence over the caret) */
+  initialSelection?: { start: number; end: number } | null;
 }): SubmitHandler => {
   const ownerDocument = excalidrawContainer?.ownerDocument ?? document;
   const ownerWindow = ownerDocument.defaultView ?? window;
@@ -424,7 +466,7 @@ export const textWysiwyg = ({
       const editorBoxLeft = updateEditorBoxInsets();
 
       // a free text that stopped growing at the viewport's width (see
-      // App.getMaxTextWidth) wraps from then on, and so does its editor
+      // AppText.getMaxTextWidth) wraps from then on, and so does its editor
       if (
         !updatedTextElement.autoResize &&
         editable.style.whiteSpace !== "pre-wrap"
@@ -576,18 +618,129 @@ export const textWysiwyg = ({
     return line.start + (lineCaretOffset || 0);
   };
 
-  let pendingInitialSelection = (() => {
-    const caretIndex = getCaretIndexFromInitialSceneCoords();
-
-    if (caretIndex === null) {
+  /**
+   * Where the caret is on screen (see getViewportCoords), as the editor lays
+   * the text out: the bounds of its line-high stroke.
+   */
+  const getCaretViewportBounds = () => {
+    const layout = currentTextLayout;
+    if (!layout) {
       return null;
     }
-
+    const { value } = editable;
+    const caret =
+      editable.selectionDirection === "backward"
+        ? editable.selectionStart
+        : editable.selectionEnd;
+    const lines = getWrappedTextLines(
+      value,
+      layout.font,
+      editable.style.whiteSpace === "pre-wrap" ? layout.width : Infinity,
+    );
+    // the last line starting at or before it: at a soft break, the caret
+    // shows at the start of the next line
+    const lineIndex = Math.max(
+      0,
+      lines.findLastIndex((line) => line.start <= caret),
+    );
+    const line = lines[lineIndex];
+    const lineWidth = getLineWidth(line.text, layout.font);
+    const lineStartX =
+      layout.textAlign === "center"
+        ? (layout.width - lineWidth) / 2
+        : layout.textAlign === "right"
+        ? layout.width - lineWidth
+        : 0;
+    const lineText = value.slice(line.start, line.end);
+    const offset = Math.min(caret, line.end) - line.start;
+    const widthBefore = getLineWidth(lineText.slice(0, offset), layout.font);
+    // the editor's `dir="auto"` makes it `unicode-bidi: plaintext`: each
+    // paragraph goes its first strong character's way
+    const direction = getLineDirection(value, line.start);
+    // any RTL character in it, and the browser's bidirectional layout of
+    // the line says where the caret is
+    const nativeX = hasRTLChars(lineText)
+      ? getLineCaretXFromNativeLayout({
+          text: lineText,
+          font: layout.font,
+          lineHeightPx: layout.lineHeightPx,
+          direction,
+          ownerDocument,
+          offset,
+        })
+      : null;
+    const caretX =
+      lineStartX +
+      (nativeX ??
+        (direction === "rtl" ? lineWidth - widthBefore : widthBefore));
+    const center = pointFrom(
+      layout.x + layout.width / 2,
+      layout.y + layout.height / 2,
+    );
+    const [[x1, y1], [x2, y2]] = [lineIndex, lineIndex + 1].map((index) => {
+      const [x, y] = pointRotateRads(
+        pointFrom(layout.x + caretX, layout.y + index * layout.lineHeightPx),
+        center,
+        layout.angle,
+      );
+      return getViewportCoords(x, y);
+    });
     return {
-      start: caretIndex,
-      end: caretIndex,
+      left: Math.min(x1, x2),
+      right: Math.max(x1, x2),
+      top: Math.min(y1, y2),
+      bottom: Math.max(y1, y2),
     };
-  })();
+  };
+
+  /**
+   * A caret typed in under the stats or the styles panel (see
+   * AppText.getTextSidePanels) is out of sight, yet inside the editor's box, so
+   * the browser doesn't reveal it (unlike the sidebar, the panels don't span
+   * the box's height, see updateEditorBoxInsets). Pan the canvas to bring it
+   * out from under the panel, on the canvas' side, with some room to spare —
+   * only then: a text beside or below a panel stays where it is.
+   */
+  const followCaretFromUnderPanels = () => {
+    const caret = !isDestroyed && getCaretViewportBounds();
+    if (!caret) {
+      return;
+    }
+    for (const name of app.text.getTextSidePanels()) {
+      const panel = app.viewport.getSideUIRect(name);
+      if (
+        panel &&
+        caret.right >= panel.left &&
+        caret.left <= panel.right &&
+        caret.bottom > panel.top &&
+        caret.top < panel.bottom
+      ) {
+        const panX =
+          panel.left + panel.right < app.state.width
+            ? panel.right + CARET_FOLLOW_PADDING - caret.left
+            : panel.left - CARET_FOLLOW_PADDING - caret.right;
+        app.viewport.translate((state) => ({
+          scrollX: state.scrollX + panX / state.zoom.value,
+        }));
+        return;
+      }
+    }
+  };
+
+  let pendingInitialSelection =
+    initialSelection ??
+    (() => {
+      const caretIndex = getCaretIndexFromInitialSceneCoords();
+
+      if (caretIndex === null) {
+        return null;
+      }
+
+      return {
+        start: caretIndex,
+        end: caretIndex,
+      };
+    })();
 
   if (onChange) {
     editable.onpaste = async (event) => {
@@ -691,6 +844,9 @@ export const textWysiwyg = ({
         editable.selectionEnd = selectionStart;
       }
       onChange(editable.value);
+      // once the update, and any scroll it made (see
+      // AppText.handleTextWysiwyg), is in the app's state
+      queueMicrotask(followCaretFromUnderPanels);
     };
   }
 
@@ -989,7 +1145,7 @@ export const textWysiwyg = ({
   };
 
   // prevent blur when changing properties from the menu
-  const onPointerDown = (event: MouseEvent) => {
+  const onPointerDown = (event: PointerEvent) => {
     const target = event?.target;
 
     // panning canvas
@@ -1001,6 +1157,25 @@ export const textWysiwyg = ({
       }
 
       temporarilyDisableSubmit();
+      return;
+    }
+
+    // alt+drag on the text being edited duplicates it, as on the canvas:
+    // finish the edit keeping the text selected, then hand the press to the
+    // canvas (the editor is gone by then, so the canvas receives the drag)
+    if (
+      event.altKey &&
+      !event[KEYS.CTRL_OR_CMD] &&
+      event.button === POINTER_BUTTON.MAIN &&
+      target === editable &&
+      (app.state.activeTool.type === "selection" ||
+        app.state.activeTool.type === "lasso")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      submittedViaKeyboard = true;
+      handleSubmit();
+      app.duplicate.handOverTextEditorPress(event, element.id);
       return;
     }
 

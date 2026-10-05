@@ -30,7 +30,6 @@ import {
   DEFAULT_STROKE_STREAMLINE,
   DEFAULT_STROKE_STREAMLINE_PRECISE,
   DEFAULT_TRANSFORM_HANDLE_SPACING,
-  DEFAULT_VERTICAL_ALIGN,
   DRAGGING_THRESHOLD,
   ELEMENT_SHIFT_TRANSLATE_AMOUNT,
   ELEMENT_TRANSLATE_AMOUNT,
@@ -45,15 +44,12 @@ import {
   ROUNDNESS,
   SCROLL_TIMEOUT,
   TAP_TWICE_TIMEOUT,
-  TEXT_TO_CENTER_SNAP_THRESHOLD,
   THEME,
   TOUCH_CTX_MENU_TIMEOUT,
-  VERTICAL_ALIGN,
   YOUTUBE_STATES,
   POINTER_EVENTS,
   TOOL_TYPE,
   DEFAULT_COLLISION_THRESHOLD,
-  DEFAULT_TEXT_ALIGN,
   ARROW_TYPE,
   DEFAULT_REDUCED_GLOBAL_ALPHA,
   DEFAULT_STICKY_NOTE_SIZE,
@@ -62,7 +58,6 @@ import {
   normalizeLink,
   toValidURL,
   getGridPoint,
-  getLineHeight,
   debounce,
   distance,
   getFontString,
@@ -82,7 +77,6 @@ import {
   isDevEnv,
   updateStable,
   addEventListener,
-  normalizeEOL,
   getDateTime,
   isShallowEqual,
   arrayToMap,
@@ -109,7 +103,6 @@ import {
   isSelectionLikeTool,
   oneOf,
   getStrokeWidthByKey,
-  TEXT_VIEWPORT_PADDING,
 } from "@excalidraw/common";
 
 import {
@@ -117,7 +110,6 @@ import {
   getCommonBounds,
   getElementAbsoluteCoords,
   bindOrUnbindBindingElements,
-  fixBindingsAfterDeletion,
   getHoveredElementForBinding,
   isBindingEnabled,
   updateBoundElements,
@@ -133,8 +125,6 @@ import {
   newElement,
   newImageElement,
   newLinearElement,
-  newTextElement,
-  refreshTextDimensions,
   deepCopyElement,
   duplicateElements,
   hasBoundTextElement,
@@ -165,7 +155,6 @@ import {
   isPathALoop,
   createSrcDoc,
   embeddableURLValidator,
-  maybeParseEmbedSrc,
   getEmbedLink,
   getInitializedImageElements,
   normalizeSVG,
@@ -174,7 +163,6 @@ import {
   getContainerCenter,
   getContainerElement,
   getColorUpdate,
-  getStickyNoteLayout,
   getStickyNoteMinSize,
   isValidTextContainer,
   redrawTextBoundingBox,
@@ -197,16 +185,9 @@ import {
   hitElementBoundText,
   hitElementBoundingBoxOnly,
   hitElementItself,
-  getVisibleSceneBounds,
   cropElement,
-  wrapText,
   isElementLink,
   isMeasureTextSupported,
-  normalizeText,
-  measureText,
-  getLineHeightInPx,
-  getApproxMinLineWidth,
-  getApproxMinLineHeight,
   getMinTextElementWidth,
   ShapeCache,
   resolveElementRenderState,
@@ -247,8 +228,6 @@ import {
   getElementBounds,
   doBoundsIntersect,
   isPointInElement,
-  convertToExcalidrawElements,
-  type ExcalidrawElementSkeleton,
   getSnapOutlineMidPoint,
   handleFocusPointDrag,
   handleFocusPointHover,
@@ -256,21 +235,18 @@ import {
   handleFocusPointPointerUp,
   maybeHandleArrowPointlikeDrag,
   getUncroppedWidthAndHeight,
-  getActiveTextElement,
   isEligibleFrameChildType,
   getBindingStrategyForDraggingBindingElementEndpoints,
   isNonDeletedElement,
-  DEFAULT_BOUND_TEXT_LABEL_POSITION,
 } from "@excalidraw/element";
 
-import type { GlobalPoint, LocalPoint, Radians } from "@excalidraw/math";
+import type { GlobalPoint, LocalPoint } from "@excalidraw/math";
 
 import type {
   ExcalidrawElement,
   ExcalidrawFreeDrawElement,
   ExcalidrawGenericElement,
   ExcalidrawLinearElement,
-  ExcalidrawTextElement,
   NonDeleted,
   InitializedExcalidrawImageElement,
   ExcalidrawImageElement,
@@ -292,10 +268,7 @@ import type {
   ExcalidrawBindableElement,
 } from "@excalidraw/element/types";
 
-import type {
-  ArrowEndpoint,
-  TransformHandleDirection,
-} from "@excalidraw/element";
+import type { TransformHandleDirection } from "@excalidraw/element";
 
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 
@@ -352,9 +325,7 @@ import { trackEvent } from "../analytics";
 import { getDefaultAppState, isEraserActive } from "../appState";
 import {
   copyTextToSystemClipboard,
-  parseClipboard,
   parseDataTransferEvent,
-  type ParsedDataTransferFile,
 } from "../clipboard";
 
 import { exportCanvas, loadFromBlob } from "../data";
@@ -381,7 +352,6 @@ import {
   generateIdFromFile,
   getDataURL,
   getDataURL_sync,
-  ImageURLToFile,
   isImageFileHandle,
   isSupportedImageFile,
   loadSceneOrLibraryFromBlob,
@@ -417,19 +387,14 @@ import { Renderer } from "../scene/Renderer";
 import {
   type SetViewportOptions,
   getViewportForZoomWithScrollConstraints,
-  scrollBoundsIntoView,
 } from "../viewport";
 import { ElementCanvasButtons } from "../components/ElementCanvasButtons";
 import { LaserTrails } from "../laserTrails";
 import { withBatchedUpdates, withBatchedUpdatesThrottled } from "../reactUtils";
-import { isPointHittingTextAutoResizeHandle } from "../textAutoResizeHandle";
-import { textWysiwyg } from "../wysiwyg/textWysiwyg";
 import { isOverScrollBars } from "../scene/scrollbars";
-import { isMaybeMermaidDefinition } from "../mermaid";
 import { LassoTrail } from "../lasso";
 import { EraserTrail } from "../eraser";
 import { getShortcutKey } from "../shortcut";
-import { tryParseSpreadsheet } from "../charts";
 
 import {
   getColorTargetAppStateUpdates,
@@ -444,6 +409,8 @@ import ConvertElementTypePopup, {
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import { AppArrowText } from "./App.arrowText";
+import { AppClipboard } from "./App.clipboard";
+import { AppText } from "./App.text";
 import { AppTextTool } from "./App.textTool";
 import { AppBucketFill } from "./App.bucketFill";
 import { AppToolDrag, TOOL_DRAG_PREVIEW_OPACITY } from "./App.toolDrag";
@@ -465,6 +432,7 @@ import { SVGLayer } from "./SVGLayer";
 import Spinner from "./Spinner";
 import { searchItemInFocusAtom } from "./SearchMenu";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
+import { hideTooltip } from "./Tooltip";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
@@ -483,7 +451,6 @@ import type {
   ScrollBars,
 } from "../scene/types";
 
-import type { ClipboardData, PastedMixedContent } from "../clipboard";
 import type { ExportedElements } from "../data";
 import type { ContextMenuItems } from "./ContextMenu";
 
@@ -623,10 +590,6 @@ const YOUTUBE_VIDEO_STATES = new Map<
 
 const MAX_EMBEDDABLE_VIEWPORT_SCALE = 4;
 
-let IS_PLAIN_PASTE = false;
-let IS_PLAIN_PASTE_TIMER = 0;
-let PLAIN_PASTE_TOAST_SHOWN = false;
-
 let lastPointerUp: (() => void) | null = null;
 const gesture: Gesture = {
   pointers: new Map(),
@@ -716,7 +679,9 @@ class App extends React.Component<AppProps, AppState> {
   public onStateChange: OnStateChange = this.appStateObserver.onStateChange;
 
   public bucketFill: AppBucketFill = new AppBucketFill(this);
-  public duplicate: AppDuplicate = new AppDuplicate(this);
+  public duplicate: AppDuplicate = new AppDuplicate(this, {
+    getPointerCount: () => gesture.pointers.size,
+  });
   public toolDrag: AppToolDrag = new AppToolDrag(this);
   public flowchart: AppFlowchart = new AppFlowchart(this);
   public cursor: AppCursor = new AppCursor(this);
@@ -726,6 +691,13 @@ class App extends React.Component<AppProps, AppState> {
     isDraggingScrollBar: () => isDraggingScrollBar,
   });
   public textTool: AppTextTool = new AppTextTool(this);
+  public clipboard: AppClipboard = new AppClipboard(this, {
+    getContainer: () => this.excalidrawContainerRef.current,
+  });
+  public text: AppText = new AppText(this, {
+    getContainer: () => this.excalidrawContainerRef.current,
+    getStylesPanelMode: () => this.stylesPanelMode,
+  });
   public viewport: AppViewport = new AppViewport(this, {
     getContainer: () => this.excalidrawContainerRef.current,
     getStylesPanelMode: () => this.stylesPanelMode,
@@ -734,8 +706,6 @@ class App extends React.Component<AppProps, AppState> {
   public wheel: AppWheel = new AppWheel(this);
 
   bindModeHandler: ReturnType<typeof setTimeout> | null = null;
-  private textWysiwygSubmitHandler: ReturnType<typeof textWysiwyg> | null =
-    null;
 
   hitLinkElement?: NonDeletedExcalidrawElement;
   lastPointerDownEvent: React.PointerEvent<HTMLElement> | null = null;
@@ -1523,26 +1493,6 @@ class App extends React.Component<AppProps, AppState> {
     return (
       isGridModeEnabled(this) ? this.state.gridSize : null
     ) as NullableGridSize;
-  };
-
-  private getTextCreationGridPoint = (x: number, y: number) => {
-    const effectiveGridSize = this.getEffectiveGridSize();
-
-    if (effectiveGridSize === null) {
-      return null;
-    }
-
-    const getTextCreationGridCoordinate = (coordinate: number) => {
-      const topLeftGridPoint =
-        Math.floor(coordinate / effectiveGridSize) * effectiveGridSize;
-
-      return topLeftGridPoint;
-    };
-
-    return {
-      x: getTextCreationGridCoordinate(x),
-      y: getTextCreationGridCoordinate(y),
-    };
   };
 
   private getHTMLIFrameElement(
@@ -3352,9 +3302,7 @@ class App extends React.Component<AppProps, AppState> {
     App.resetTapTwice();
     this.resetContextMenuTimer();
 
-    clearTimeout(IS_PLAIN_PASTE_TIMER);
-    IS_PLAIN_PASTE_TIMER = 0;
-    IS_PLAIN_PASTE = false;
+    this.clipboard.clearPlainPaste();
 
     if (this.bindModeHandler) {
       clearTimeout(this.bindModeHandler);
@@ -3378,7 +3326,7 @@ class App extends React.Component<AppProps, AppState> {
     // is active if editing is still disabled.
     queueMicrotask(() => {
       if (!this.isInteractionEnabled() || this.state.viewModeEnabled) {
-        this.textWysiwygSubmitHandler?.();
+        this.text.textWysiwygSubmitHandler?.();
       }
     });
 
@@ -3946,7 +3894,8 @@ class App extends React.Component<AppProps, AppState> {
       }
     }
 
-    clearTimeout(this.zenModeTransitionTimer);
+    this.ownerWindow.clearTimeout(this.zenModeTransitionTimer);
+    this.unmarkZenModeTransition();
     this.editorLifecycleEvents.emit("editor:unmount");
     this.props.onUnmount?.();
     this.props.onExcalidrawAPI?.(null);
@@ -4193,7 +4142,7 @@ class App extends React.Component<AppProps, AppState> {
         this.wheel.handle,
         { passive: false },
       ),
-      addEventListener(this.ownerDocument, EVENT.COPY, this.onCopy, {
+      addEventListener(this.ownerDocument, EVENT.COPY, this.clipboard.onCopy, {
         passive: false,
       }),
       addEventListener(this.ownerDocument, EVENT.KEYUP, this.onKeyUp, {
@@ -4244,12 +4193,12 @@ class App extends React.Component<AppProps, AppState> {
       addEventListener(
         this.ownerDocument,
         EVENT.PASTE,
-        this.pasteFromClipboard,
+        this.clipboard.pasteFromClipboard,
         {
           passive: false,
         },
       ),
-      addEventListener(this.ownerDocument, EVENT.CUT, this.onCut, {
+      addEventListener(this.ownerDocument, EVENT.CUT, this.clipboard.onCut, {
         passive: false,
       }),
       addEventListener(this.ownerWindow, EVENT.RESIZE, this.onResize, false),
@@ -4295,12 +4244,21 @@ class App extends React.Component<AppProps, AppState> {
     if (!container) {
       return;
     }
+    // controls fade out or slide over without the pointer moving, so nothing
+    // would retract a tooltip anchored to one of them
+    hideTooltip();
     container.setAttribute("data-zen-mode-transition", "");
-    clearTimeout(this.zenModeTransitionTimer);
-    this.zenModeTransitionTimer = window.setTimeout(() => {
-      container.removeAttribute("data-zen-mode-transition");
+    this.ownerWindow.clearTimeout(this.zenModeTransitionTimer);
+    this.zenModeTransitionTimer = this.ownerWindow.setTimeout(() => {
+      this.unmarkZenModeTransition();
       // slightly past the CSS transition so it isn't cut short
     }, ZEN_MODE_TRANSITION_DURATION + 100);
+  }
+
+  private unmarkZenModeTransition() {
+    this.excalidrawContainerRef.current?.removeAttribute(
+      "data-zen-mode-transition",
+    );
   }
 
   componentDidUpdate(prevProps: AppProps, prevState: AppState) {
@@ -4537,38 +4495,6 @@ class App extends React.Component<AppProps, AppState> {
     });
   }, SCROLL_TIMEOUT);
 
-  // Copy/paste
-
-  private onCut = withBatchedUpdates((event: ClipboardEvent) => {
-    if (!this.isInteractionEnabled()) {
-      return;
-    }
-    const isExcalidrawActive = this.excalidrawContainerRef.current?.contains(
-      this.ownerDocument.activeElement,
-    );
-    if (!isExcalidrawActive || isWritableElement(event.target)) {
-      return;
-    }
-    this.actionManager.executeAction(actionCut, "keyboard", event);
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
-  private onCopy = withBatchedUpdates((event: ClipboardEvent) => {
-    if (!this.isInteractionEnabled()) {
-      return;
-    }
-    const isExcalidrawActive = this.excalidrawContainerRef.current?.contains(
-      this.ownerDocument.activeElement,
-    );
-    if (!isExcalidrawActive || isWritableElement(event.target)) {
-      return;
-    }
-    this.actionManager.executeAction(actionCopy, "keyboard", event);
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
   private static resetTapTwice() {
     didTapTwice = false;
     firstTapPosition = null;
@@ -4656,231 +4582,6 @@ class App extends React.Component<AppProps, AppState> {
       gesture.pointers.clear();
     }
   };
-
-  // TODO: Cover with tests
-  private async insertClipboardContent(
-    data: ClipboardData,
-    dataTransferFiles: ParsedDataTransferFile[],
-    isPlainPaste: boolean,
-  ) {
-    const { x: sceneX, y: sceneY } = viewportCoordsToSceneCoords(
-      {
-        clientX: this.viewport.lastPosition.x,
-        clientY: this.viewport.lastPosition.y,
-      },
-      this.state,
-    );
-
-    // ------------------- Error -------------------
-    if (data.errorMessage) {
-      this.setState({ errorMessage: data.errorMessage });
-      return;
-    }
-
-    // ------------------- Mixed content with no files -------------------
-    if (dataTransferFiles.length === 0 && !isPlainPaste && data.mixedContent) {
-      await this.addElementsFromMixedContentPaste(data.mixedContent, {
-        isPlainPaste,
-        sceneX,
-        sceneY,
-      });
-      return;
-    }
-
-    // ------------------- Spreadsheet -------------------
-
-    if (!isPlainPaste && data.text) {
-      const result = tryParseSpreadsheet(data.text);
-      if (result.ok) {
-        this.setState({
-          openDialog: {
-            name: "charts",
-            data: result.data,
-            rawText: data.text,
-          },
-        });
-        return;
-      }
-    }
-
-    // ------------------- Images or SVG code -------------------
-    const imageFiles = dataTransferFiles.map((data) => data.file);
-
-    if (imageFiles.length === 0 && data.text && !isPlainPaste) {
-      const trimmedText = data.text.trim();
-      if (trimmedText.startsWith("<svg") && trimmedText.endsWith("</svg>")) {
-        // ignore SVG validation/normalization which will be done during image
-        // initialization
-        imageFiles.push(SVGStringToFile(trimmedText));
-      }
-    }
-
-    if (imageFiles.length > 0) {
-      if (this.isToolSupported("image")) {
-        await this.insertImages(imageFiles, sceneX, sceneY);
-      } else {
-        this.setState({ errorMessage: t("errors.imageToolNotSupported") });
-      }
-      return;
-    }
-
-    // ------------------- Elements -------------------
-    if (data.elements) {
-      const elements = (
-        data.programmaticAPI
-          ? convertToExcalidrawElements(
-              data.elements as ExcalidrawElementSkeleton[],
-            )
-          : data.elements
-      ) as readonly ExcalidrawElement[];
-      // TODO: remove formatting from elements if isPlainPaste
-      this.addElementsFromPasteOrLibrary({
-        elements,
-        files: data.files || null,
-        position:
-          this.editorInterface.formFactor === "desktop" ? "cursor" : "center",
-        retainSeed: isPlainPaste,
-        preserveFrameChildrenOrder: true,
-      });
-      return;
-    }
-
-    // ------------------- Only textual stuff remaining -------------------
-    if (!data.text) {
-      return;
-    }
-
-    // ------------------- Successful Mermaid -------------------
-    if (!isPlainPaste && isMaybeMermaidDefinition(data.text)) {
-      const api = await import("@excalidraw/mermaid-to-excalidraw");
-      try {
-        const { elements: skeletonElements, files = {} } =
-          await api.parseMermaidToExcalidraw(data.text);
-
-        const elements = convertToExcalidrawElements(skeletonElements, {
-          regenerateIds: true,
-        });
-
-        this.addElementsFromPasteOrLibrary({
-          elements,
-          files,
-          position:
-            this.editorInterface.formFactor === "desktop" ? "cursor" : "center",
-        });
-
-        return;
-      } catch (err: any) {
-        console.warn(
-          `parsing pasted text as mermaid definition failed: ${err.message}`,
-        );
-      }
-    }
-
-    // ------------------- Pure embeddable URLs -------------------
-    const nonEmptyLines = normalizeEOL(data.text)
-      .split(/\n+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const embbeddableUrls = nonEmptyLines
-      .map((str) => maybeParseEmbedSrc(str))
-      .filter(
-        (string) =>
-          embeddableURLValidator(string, this.props.validateEmbeddable) &&
-          (/^(http|https):\/\/[^\s/$.?#].[^\s]*$/.test(string) ||
-            getEmbedLink(string)?.type === "video"),
-      );
-
-    if (
-      !isPlainPaste &&
-      embbeddableUrls.length > 0 &&
-      embbeddableUrls.length === nonEmptyLines.length
-    ) {
-      const embeddables: NonDeleted<ExcalidrawEmbeddableElement>[] = [];
-      for (const url of embbeddableUrls) {
-        const prevEmbeddable: ExcalidrawEmbeddableElement | undefined =
-          embeddables[embeddables.length - 1];
-        const embeddable = this.insertEmbeddableElement({
-          sceneX: prevEmbeddable
-            ? prevEmbeddable.x + prevEmbeddable.width + 20
-            : sceneX,
-          sceneY,
-          link: normalizeLink(url),
-        });
-        if (embeddable) {
-          embeddables.push(embeddable);
-        }
-      }
-      if (embeddables.length) {
-        this.store.scheduleCapture();
-        this.setState({
-          selectedElementIds: Object.fromEntries(
-            embeddables.map((embeddable) => [embeddable.id, true]),
-          ),
-        });
-      }
-      return;
-    }
-
-    // ------------------- Text -------------------
-    this.addTextFromPaste(data.text, isPlainPaste);
-  }
-
-  public pasteFromClipboard = withBatchedUpdates(
-    async (event: ClipboardEvent) => {
-      if (!this.isInteractionEnabled()) {
-        return;
-      }
-
-      const isPlainPaste = !!IS_PLAIN_PASTE;
-
-      // #686
-      const target = this.ownerDocument.activeElement;
-      const isExcalidrawActive =
-        this.excalidrawContainerRef.current?.contains(target);
-      if (event && !isExcalidrawActive) {
-        return;
-      }
-
-      const elementUnderCursor = this.ownerDocument.elementFromPoint(
-        this.viewport.lastPosition.x,
-        this.viewport.lastPosition.y,
-      );
-      if (
-        event &&
-        (!(elementUnderCursor instanceof this.ownerWindow.HTMLCanvasElement) ||
-          isWritableElement(target))
-      ) {
-        return;
-      }
-
-      // must be called in the same frame (thus before any awaits) as the paste
-      // event else some browsers (FF...) will clear the clipboardData
-      // (something something security)
-      const dataTransferList = await parseDataTransferEvent(event);
-
-      const filesList = dataTransferList.getFiles();
-
-      const data = await parseClipboard(dataTransferList, isPlainPaste);
-
-      if (this.props.onPaste) {
-        try {
-          if ((await this.props.onPaste(data, event)) === false) {
-            return;
-          }
-        } catch (error: any) {
-          console.error(error);
-        }
-      }
-
-      await this.insertClipboardContent(data, filesList, isPlainPaste);
-
-      this.setActiveTool(
-        { type: this.state.preferredSelectionTool.type },
-        { keepSelection: true },
-      );
-      event?.preventDefault();
-    },
-  );
 
   addElementsFromPasteOrLibrary = (opts: {
     elements: readonly ExcalidrawElement[];
@@ -4990,193 +4691,6 @@ class App extends React.Component<AppProps, AppState> {
       });
     }
   };
-
-  // TODO rewrite this to paste both text & images at the same time if
-  // pasted data contains both
-  private async addElementsFromMixedContentPaste(
-    mixedContent: PastedMixedContent,
-    {
-      isPlainPaste,
-      sceneX,
-      sceneY,
-    }: { isPlainPaste: boolean; sceneX: number; sceneY: number },
-  ) {
-    if (
-      !isPlainPaste &&
-      mixedContent.some((node) => node.type === "imageUrl") &&
-      this.isToolSupported("image")
-    ) {
-      const imageURLs = mixedContent
-        .filter((node) => node.type === "imageUrl")
-        .map((node) => node.value);
-      const responses = await Promise.all(
-        imageURLs.map(async (url) => {
-          try {
-            return { file: await ImageURLToFile(url) };
-          } catch (error: any) {
-            let errorMessage = error.message;
-            if (error.cause === "FETCH_ERROR") {
-              errorMessage = t("errors.failedToFetchImage");
-            } else if (error.cause === "UNSUPPORTED") {
-              errorMessage = t("errors.unsupportedFileType");
-            }
-            return { errorMessage };
-          }
-        }),
-      );
-
-      const imageFiles = responses
-        .filter((response): response is { file: File } => !!response.file)
-        .map((response) => response.file);
-      await this.insertImages(imageFiles, sceneX, sceneY);
-      const error = responses.find((response) => !!response.errorMessage);
-      if (error && error.errorMessage) {
-        this.setState({ errorMessage: error.errorMessage });
-      }
-    } else {
-      const textNodes = mixedContent.filter((node) => node.type === "text");
-      if (textNodes.length) {
-        this.addTextFromPaste(
-          textNodes.map((node) => node.value).join("\n\n"),
-          isPlainPaste,
-        );
-      }
-    }
-  }
-
-  private addTextFromPaste(text: string, isPlainPaste = false) {
-    const { x, y } = viewportCoordsToSceneCoords(
-      {
-        clientX: this.viewport.lastPosition.x,
-        clientY: this.viewport.lastPosition.y,
-      },
-      this.state,
-    );
-
-    const textElementProps = {
-      x,
-      y,
-      strokeColor: this.state.currentItemStrokeColor,
-      backgroundColor: this.state.currentItemBackgroundColor,
-      fillStyle: this.state.currentItemFillStyle,
-      strokeWidth: this.getCurrentItemStrokeWidth("text"),
-      strokeStyle: this.state.currentItemStrokeStyle,
-      roundness: null,
-      roughness: this.state.currentItemRoughness,
-      opacity: this.state.currentItemOpacity,
-      text,
-      fontSize: this.state.currentItemFontSize,
-      fontFamily: this.state.currentItemFontFamily,
-      textAlign: DEFAULT_TEXT_ALIGN,
-      verticalAlign: DEFAULT_VERTICAL_ALIGN,
-      locked: false,
-    };
-    const fontString = getFontString({
-      fontSize: textElementProps.fontSize,
-      fontFamily: textElementProps.fontFamily,
-    });
-    const lineHeight = getLineHeight(textElementProps.fontFamily);
-    const [x1, , x2] = getVisibleSceneBounds(this.state);
-    // long texts should not go beyond 800 pixels in width nor should it go
-    // below 200 px — nor, whatever those make of it, outgrow the view
-    const maxTextWidth = Math.min(
-      Math.max(Math.min((x2 - x1) * 0.5, 800), 200),
-      this.getMaxTextWidth(),
-    );
-    const LINE_GAP = 10;
-    let currentY = y;
-
-    const lines = isPlainPaste ? [text] : text.split("\n");
-    const textElements = lines.reduce(
-      (acc: ExcalidrawTextElement[], line, idx) => {
-        const originalText = normalizeText(line).trim();
-        if (originalText.length) {
-          const topLayerFrame = this.getTopLayerFrameAtSceneCoords({
-            x,
-            y: currentY,
-          });
-
-          let metrics = measureText(originalText, fontString, lineHeight);
-          const isTextUnwrapped = metrics.width > maxTextWidth;
-
-          const text = isTextUnwrapped
-            ? wrapText(originalText, fontString, maxTextWidth)
-            : originalText;
-
-          metrics = isTextUnwrapped
-            ? measureText(text, fontString, lineHeight)
-            : metrics;
-
-          const startX = x - metrics.width / 2;
-          const startY = currentY - metrics.height / 2;
-
-          const element = newTextElement({
-            ...textElementProps,
-            x: startX,
-            y: startY,
-            text,
-            originalText,
-            lineHeight,
-            autoResize: !isTextUnwrapped,
-            frameId: topLayerFrame ? topLayerFrame.id : null,
-          });
-          acc.push(element);
-          currentY += element.height + LINE_GAP;
-        } else {
-          const prevLine = lines[idx - 1]?.trim();
-          // add paragraph only if previous line was not empty, IOW don't add
-          // more than one empty line
-          if (prevLine) {
-            currentY +=
-              getLineHeightInPx(textElementProps.fontSize, lineHeight) +
-              LINE_GAP;
-          }
-        }
-
-        return acc;
-      },
-      [],
-    );
-
-    if (textElements.length === 0) {
-      return;
-    }
-
-    this.insertNewElements(textElements);
-    this.store.scheduleCapture();
-    this.setState({
-      selectedElementIds: makeNextSelectedElementIds(
-        Object.fromEntries(textElements.map((el) => [el.id, true])),
-        this.state,
-      ),
-    });
-    // wrapped to fit the view: make sure all of it is in view, too
-    if (textElements.some((element) => !element.autoResize)) {
-      const scroll = scrollBoundsIntoView({
-        bounds: getCommonBounds(textElements),
-        appState: this.state,
-        offsets: this.getTextViewportOffsets(),
-      });
-      if (scroll) {
-        this.viewport.translate(scroll);
-      }
-    }
-
-    if (
-      !isPlainPaste &&
-      textElements.length > 1 &&
-      PLAIN_PASTE_TOAST_SHOWN === false &&
-      this.editorInterface.formFactor !== "phone"
-    ) {
-      this.setToast({
-        message: t("toast.pasteAsSingleElement", {
-          shortcut: getShortcutKey("CtrlOrCmd+Shift+V"),
-        }),
-        duration: 5000,
-      });
-      PLAIN_PASTE_TOAST_SHOWN = true;
-    }
-  }
 
   setAppState: React.Component<any, AppState>["setState"] = (
     state,
@@ -5692,14 +5206,7 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (event[KEYS.CTRL_OR_CMD] && event.key.toLowerCase() === KEYS.V) {
-        IS_PLAIN_PASTE = event.shiftKey;
-        clearTimeout(IS_PLAIN_PASTE_TIMER);
-        // reset (100ms to be safe that we it runs after the ensuing
-        // paste event). Though, technically unnecessary to reset since we
-        // (re)set the flag before each paste event.
-        IS_PLAIN_PASTE_TIMER = this.ownerWindow.setTimeout(() => {
-          IS_PLAIN_PASTE = false;
-        }, 100);
+        this.clipboard.onPasteShortcut(event);
       }
 
       // prevent browser zoom in input fields
@@ -5971,7 +5478,7 @@ class App extends React.Component<AppProps, AppState> {
             );
             const sceneX = midPoint.x;
             const sceneY = midPoint.y;
-            this.startTextEditing({
+            this.text.startTextEditing({
               sceneX,
               sceneY,
               container,
@@ -6438,236 +5945,7 @@ class App extends React.Component<AppProps, AppState> {
     gesture.initialScale = null;
   });
 
-  /**
-   * The part of the canvas a typed or pasted text is kept within, as offsets
-   * from its edges (screen px): all of it but the sidebar, less some room
-   * at each side.
-   */
-  private getTextViewportOffsets = () => {
-    const { left, right } = this.viewport.getSidebarInsets();
-    const padding = TEXT_VIEWPORT_PADDING;
-    return {
-      top: padding,
-      right: right + padding,
-      bottom: padding,
-      left: left + padding,
-    };
-  };
-
-  /**
-   * The widest a text may grow to as it's typed or pasted, in scene units:
-   * the width of the part of the canvas it's kept within, so that a text
-   * never outgrows the view.
-   */
-  private getMaxTextWidth = () => {
-    const { left, right } = this.getTextViewportOffsets();
-    const width = this.state.width - left - right;
-    return width > 0 ? width / this.state.zoom.value : Infinity;
-  };
-
-  private handleTextWysiwyg(
-    element: NonDeleted<ExcalidrawTextElement>,
-    {
-      isExistingElement = false,
-      initialCaretSceneCoords = null,
-    }: {
-      isExistingElement?: boolean;
-      /**
-       * supply null if no caret positioning is desired, and instead
-       * text should be auto-selected
-       */
-      initialCaretSceneCoords?: { x: number; y: number } | null;
-    },
-  ) {
-    const elementsMap = this.scene.getElementsMapIncludingDeleted();
-
-    const updateElement = (nextOriginalText: string, isDeleted: boolean) => {
-      const latestTextElement = this.scene.getElement<ExcalidrawTextElement>(
-        element.id,
-      );
-
-      if (!latestTextElement || !isTextElement(latestTextElement)) {
-        return;
-      }
-
-      const container = getContainerElement(latestTextElement, elementsMap);
-      const stickyContainer =
-        container && isStickyNoteElement(container) ? container : null;
-      // sticky notes: the fit owns both the label and the note geometry
-      const stickyLayout = stickyContainer
-        ? getStickyNoteLayout(stickyContainer, latestTextElement, {
-            originalText: nextOriginalText,
-          })
-        : null;
-      // a free text stops growing at the view's width and wraps from there
-      const maxWidth = this.getMaxTextWidth();
-
-      this.scene.replaceAllElements([
-        // Not sure why we include deleted elements as well hence using deleted elements map
-        ...this.scene.getElementsIncludingDeleted().map((_element) => {
-          if (
-            stickyLayout &&
-            _element.id === stickyContainer?.id &&
-            isStickyNoteElement(_element)
-          ) {
-            return newElementWith(_element, stickyLayout.container);
-          }
-          if (_element.id === latestTextElement.id && isTextElement(_element)) {
-            return newElementWith(_element, {
-              originalText: nextOriginalText,
-              isDeleted: isDeleted ?? _element.isDeleted,
-              ...(stickyLayout?.text ??
-                // returns (wrapped) text and new dimensions
-                refreshTextDimensions(
-                  _element,
-                  getContainerElement(_element, elementsMap),
-                  elementsMap,
-                  nextOriginalText,
-                  maxWidth,
-                )),
-            });
-          }
-          return _element;
-        }),
-      ]);
-
-      const updatedTextElement = this.scene.getNonDeletedElement(
-        latestTextElement.id,
-      );
-      if (
-        latestTextElement.autoResize &&
-        updatedTextElement &&
-        isTextElement(updatedTextElement) &&
-        !updatedTextElement.autoResize
-      ) {
-        // it just started wrapping at the view's width: bring all of it into
-        // view (right edge off the view's by the same room as the width
-        // left) — vertically only if it fits; the caret follows the rest
-        const scroll = scrollBoundsIntoView({
-          bounds: getElementBounds(
-            updatedTextElement,
-            this.scene.getNonDeletedElementsMap(),
-          ),
-          appState: this.state,
-          offsets: this.getTextViewportOffsets(),
-          tooLarge: "leave",
-        });
-        if (scroll) {
-          this.viewport.translate(scroll);
-        }
-      }
-
-      if (stickyContainer) {
-        // the note may have grown or shrunk — arrows bound to it must follow
-        const latestContainer = this.scene.getNonDeletedElement(
-          stickyContainer.id,
-        );
-        if (latestContainer) {
-          updateBoundElements(latestContainer, this.scene);
-        }
-      }
-    };
-
-    this.textWysiwygSubmitHandler = textWysiwyg({
-      canvas: this.canvas,
-      getViewportCoords: (x, y) => {
-        const { x: viewportX, y: viewportY } = sceneCoordsToViewportCoords(
-          {
-            sceneX: x,
-            sceneY: y,
-          },
-          this.state,
-        );
-        return [
-          viewportX - this.state.offsetLeft,
-          viewportY - this.state.offsetTop,
-        ];
-      },
-      onChange: withBatchedUpdates((nextOriginalText) => {
-        updateElement(nextOriginalText, false);
-        if (isNonDeletedElement(element)) {
-          updateBoundElements(element, this.scene);
-        }
-      }),
-      onSubmit: withBatchedUpdates(({ viaKeyboard, nextOriginalText }) => {
-        this.textWysiwygSubmitHandler = null;
-
-        const isDeleted = !nextOriginalText.trim();
-        updateElement(nextOriginalText, isDeleted);
-
-        // keyboard-submit keeps focus on the edited object. For bound text, keep
-        // the container selected even if the text becomes empty and is deleted.
-        // The autoshape tool stays active through the editing session and never
-        // selects anything — don't fight the finalize action's selection reset.
-        const elementIdToSelect =
-          viaKeyboard &&
-          !this.isToolLocked() &&
-          this.state.activeTool.type !== "autoshape"
-            ? element.containerId || (!isDeleted ? element.id : null)
-            : null;
-
-        if (elementIdToSelect) {
-          // needed to ensure state is updated before "finalize" action
-          // that's invoked on keyboard-submit as well
-          // TODO either move this into finalize as well, or handle all state
-          // updates in one place, skipping finalize action
-          flushSync(() => {
-            this.setState((prevState) => ({
-              selectedElementIds: makeNextSelectedElementIds(
-                {
-                  ...prevState.selectedElementIds,
-                  [elementIdToSelect]: true,
-                },
-                prevState,
-              ),
-            }));
-          });
-        }
-
-        if (isDeleted) {
-          fixBindingsAfterDeletion(this.scene.getNonDeletedElements(), [
-            element,
-          ]);
-        }
-
-        if (!isDeleted || isExistingElement) {
-          this.store.scheduleCapture();
-        }
-
-        flushSync(() => {
-          this.setState({
-            newElement: null,
-            editingTextElement: null,
-          });
-        });
-
-        // tools that survive the submit (locked, or autoshape's
-        // double-click-to-type flow) need their cursor back
-        if (this.isToolLocked() || this.state.activeTool.type === "autoshape") {
-          this.cursor.applyForTool();
-        }
-
-        this.focusContainer();
-      }),
-      element,
-      excalidrawContainer: this.excalidrawContainerRef.current,
-      app: this,
-      initialCaretSceneCoords,
-      // when text is selected, it's hard (at least on iOS) to re-position the
-      // caret (i.e. deselect). There's not much use for always selecting
-      // the text on edit anyway (and users can select-all from contextmenu
-      // if needed)
-      autoSelect: !this.editorInterface.isTouchScreen,
-    });
-    // deselect all other elements when inserting text
-    this.deselectElements();
-
-    // do an initial update to re-initialize element position since we were
-    // modifying element's x/y for sake of editor (case: syncing to remote)
-    updateElement(element.originalText, false);
-  }
-
-  private deselectElements() {
+  public deselectElements() {
     this.setState({
       selectedElementIds: makeNextSelectedElementIds({}, this.state),
       selectedGroupIds: {},
@@ -6675,133 +5953,6 @@ class App extends React.Component<AppProps, AppState> {
       activeEmbeddable: null,
     });
   }
-
-  private getSelectedTextElement(
-    container?: ExcalidrawTextContainer | null,
-  ): NonDeleted<ExcalidrawTextElement> | null {
-    const selectedElements = this.scene.getSelectedElements(this.state);
-
-    if (selectedElements.length !== 1) {
-      return null;
-    }
-
-    const selectedElement = selectedElements[0]!;
-
-    if (isTextElement(selectedElement)) {
-      return selectedElement;
-    }
-
-    if (!container) {
-      return null;
-    }
-
-    return getBoundTextElement(
-      selectedElement,
-      this.scene.getNonDeletedElementsMap(),
-    ) as NonDeleted<ExcalidrawTextElement> | null;
-  }
-
-  private getSelectedTextEditingContainerAtPosition(
-    hitElement: NonDeletedExcalidrawElement | null,
-    sceneCoords: { x: number; y: number },
-  ): ExcalidrawTextContainer | null | undefined {
-    const selectedElements = this.scene.getSelectedElements(this.state);
-
-    if (
-      selectedElements.length !== 1 ||
-      !hitElement ||
-      hitElement.id !== selectedElements[0]!.id
-    ) {
-      return null;
-    }
-
-    const selectedElement = selectedElements[0]!;
-
-    if (isTextElement(selectedElement)) {
-      return null;
-    }
-
-    if (!isValidTextContainer(selectedElement)) {
-      return undefined;
-    }
-
-    const textElement = this.getSelectedTextElement(selectedElement);
-    const hitTextElement = this.getTextElementAtPosition(
-      sceneCoords.x,
-      sceneCoords.y,
-    );
-
-    if (!textElement || hitTextElement?.id !== textElement.id) {
-      return undefined;
-    }
-
-    return selectedElement;
-  }
-
-  getTextElementAtPosition(
-    x: number,
-    y: number,
-  ): NonDeleted<ExcalidrawTextElement> | null {
-    const element = this.getElementAtPosition(x, y, {
-      includeBoundTextElement: true,
-    });
-    if (element && isTextElement(element) && !element.isDeleted) {
-      return element;
-    }
-    return null;
-  }
-
-  private isHittingTextAutoResizeHandle = (
-    selectedElements: NonDeleted<ExcalidrawElement>[],
-    point: Readonly<{ x: number; y: number }>,
-  ): boolean => {
-    const activeTextElement = getActiveTextElement(
-      selectedElements,
-      this.state,
-    );
-
-    if (
-      activeTextElement &&
-      !activeTextElement.isDeleted &&
-      !activeTextElement.autoResize &&
-      isPointHittingTextAutoResizeHandle(
-        point,
-        activeTextElement,
-        this.state.zoom.value,
-        this.editorInterface.formFactor,
-      )
-    ) {
-      return true;
-    }
-
-    return false;
-  };
-
-  private handleTextAutoResizeHandlePointerDown = (
-    selectedElements: NonDeleted<ExcalidrawElement>[],
-    point: Readonly<{ x: number; y: number }>,
-  ) => {
-    const activeTextElement = getActiveTextElement(
-      selectedElements,
-      this.state,
-    );
-    if (
-      !activeTextElement ||
-      !this.isHittingTextAutoResizeHandle(selectedElements, point)
-    ) {
-      return false;
-    }
-
-    this.actionManager.executeAction(
-      actionTextAutoResize,
-      "ui",
-      // we need to pass down the element since it may already be deselected
-      // due to the pointerdown
-      activeTextElement,
-    );
-    this.cursor.reset();
-    return true;
-  };
 
   // NOTE: Hot path for hit testing, so avoid unnecessary computations
   public getElementAtPosition(
@@ -6874,8 +6025,6 @@ class App extends React.Component<AppProps, AppState> {
   ): NonDeleted<ExcalidrawElement>[] {
     const iframeLikes: Ordered<NonDeleted<ExcalidrawIframeLikeElement>>[] = [];
 
-    const elementsMap = this.scene.getNonDeletedElementsMap();
-
     const elements = (
       opts?.includeBoundTextElement && opts?.includeLockedElements
         ? this.scene.getNonDeletedElements()
@@ -6889,25 +6038,7 @@ class App extends React.Component<AppProps, AppState> {
             )
     )
       .filter((el) => this.hitElement(x, y, el))
-      .filter((element) => {
-        // hitting a frame's element from outside the frame is not considered a hit
-        const containingFrame = getContainingFrame(element, elementsMap);
-        if (containingFrame && !isNonDeletedElement(containingFrame)) {
-          console.error("[NONDELETED][INVARIANT] Containing frame is deleted");
-        }
-        return containingFrame &&
-          this.state.frameRendering.enabled &&
-          this.state.frameRendering.clip &&
-          // iframe-like elements are rendered as DOM overlays and are not
-          // visually clipped by their containing frames
-          !isIframeLikeElement(element)
-          ? isCursorInFrame(
-              { x, y },
-              containingFrame as NonDeleted<ExcalidrawFrameLikeElement>,
-              elementsMap,
-            )
-          : true;
-      })
+      .filter((element) => !this.isClippedByFrameAt(x, y, element))
       .filter((el) => {
         // The parameter elements comes ordered from lower z-index to higher.
         // We want to preserve that order on the returned array.
@@ -6922,6 +6053,31 @@ class App extends React.Component<AppProps, AppState> {
       .concat(iframeLikes) as NonDeleted<ExcalidrawElement>[];
 
     return elements;
+  }
+
+  /**
+   * Whether the element's frame clips it away at the position — hitting a
+   * frame's element from outside the frame is not considered a hit.
+   */
+  isClippedByFrameAt(x: number, y: number, element: ExcalidrawElement) {
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const containingFrame = getContainingFrame(element, elementsMap);
+    if (containingFrame && !isNonDeletedElement(containingFrame)) {
+      console.error("[NONDELETED][INVARIANT] Containing frame is deleted");
+    }
+    return (
+      !!containingFrame &&
+      this.state.frameRendering.enabled &&
+      this.state.frameRendering.clip &&
+      // iframe-like elements are rendered as DOM overlays and are not
+      // visually clipped by their containing frames
+      !isIframeLikeElement(element) &&
+      !isCursorInFrame(
+        { x, y },
+        containingFrame as NonDeleted<ExcalidrawFrameLikeElement>,
+        elementsMap,
+      )
+    );
   }
 
   getElementHitThreshold(element: ExcalidrawElement) {
@@ -6980,322 +6136,6 @@ class App extends React.Component<AppProps, AppState> {
         : null,
     });
   }
-
-  /**
-   * The text container at a position — an arrow hit on its path, any other
-   * container hit anywhere in its bounds (frames are skipped so a container
-   * inside one can be hit). Purely positional: the selection plays no part.
-   */
-  getTextBindableContainerAtPosition(x: number, y: number) {
-    const elements = this.scene.getNonDeletedElements();
-    let hitElement = null;
-    // We need to do hit testing from front (end of the array) to back (beginning of the array)
-    for (let index = elements.length - 1; index >= 0; --index) {
-      if (elements[index].isDeleted) {
-        continue;
-      }
-      const [x1, y1, x2, y2] = getElementAbsoluteCoords(
-        elements[index],
-        this.scene.getNonDeletedElementsMap(),
-      );
-      if (
-        isArrowElement(elements[index]) &&
-        hitElementItself({
-          point: pointFrom(x, y),
-          element: elements[index],
-          elementsMap: this.scene.getNonDeletedElementsMap(),
-          threshold: this.getElementHitThreshold(elements[index]),
-        })
-      ) {
-        hitElement = elements[index];
-        break;
-      } else if (x1 < x && x < x2 && y1 < y && y < y2) {
-        // to allow binding to containers within frames,
-        // ignore frames in hit testing
-        if (isFrameLikeElement(elements[index])) {
-          continue;
-        }
-
-        hitElement = elements[index];
-        break;
-      }
-    }
-
-    return isTextBindableContainer(hitElement, false) ? hitElement : null;
-  }
-
-  /**
-   * Whether a text element's content is still being authored.
-   *
-   * Creating a text reverts the tool to selection during pointerdown, so the
-   * pointerup that follows looks like an ordinary canvas click and would
-   * capture the still-empty element as a history entry of its own. Undo would
-   * then rewind only the typing, restoring an invisible, zero-content element
-   * (and, for an endpoint label, leaving the arrow bound to it) rather than
-   * removing it. The editor's own submit captures the finished text instead,
-   * so the whole create-and-type lands in a single entry.
-   */
-  private isEditingTextContent() {
-    return (
-      !!this.state.editingTextElement || isTextElement(this.state.newElement)
-    );
-  }
-
-  public startTextEditing = ({
-    sceneX,
-    sceneY,
-    insertAtParentCenter = true,
-    container,
-    autoEdit = true,
-    initialCaretSceneCoords,
-    arrowEndpoint,
-    textElement,
-  }: {
-    /** X position to insert text at */
-    sceneX: number;
-    /** Y position to insert text at */
-    sceneY: number;
-    /** whether to attempt to insert at element center if applicable */
-    insertAtParentCenter?: boolean;
-    container?: ExcalidrawTextContainer | null;
-    autoEdit?: boolean;
-    initialCaretSceneCoords?: { x: number; y: number };
-    /**
-     * creates the text as a label for this arrow endpoint: the binding then
-     * dictates the text's position and alignment, overriding (sceneX, sceneY)
-     */
-    arrowEndpoint?: ArrowEndpoint | null;
-    /**
-     * the text to edit: an element to edit exactly that one; `null` to always
-     * create, never adopting a selected text or one under the pointer;
-     * `undefined` to resolve it here — a single selected text, the label of a
-     * selected or passed arrow container, else the text at (sceneX, sceneY)
-     */
-    textElement?: NonDeleted<ExcalidrawTextElement> | null;
-  }) => {
-    let shouldBindToContainer = false;
-
-    // Resolved here rather than by the caller so that the stroke width the
-    // binding gap derives from (see `getBindingGap`) is, by construction, the
-    // one the text is created with below.
-    const arrowEndpointBinding =
-      arrowEndpoint &&
-      this.arrowText.getTextBinding(
-        arrowEndpoint,
-        this.getCurrentItemStrokeWidth("text"),
-      );
-
-    if (arrowEndpointBinding) {
-      // an arrow endpoint is not a text container — the text is a sibling the
-      // arrow binds to, not a label inside it
-      container = null;
-      insertAtParentCenter = false;
-      // the scene position of the text's bound side midpoint, not a caret
-      // position
-      sceneX = arrowEndpointBinding.anchor[0];
-      sceneY = arrowEndpointBinding.anchor[1];
-    }
-
-    let parentCenterPosition =
-      insertAtParentCenter &&
-      this.getTextWysiwygSnappedToCenterPosition(
-        sceneX,
-        sceneY,
-        this.state,
-        container,
-      );
-    if (container && parentCenterPosition) {
-      const boundTextElementToContainer = getBoundTextElement(
-        container,
-        this.scene.getNonDeletedElementsMap(),
-      );
-      if (!boundTextElementToContainer) {
-        shouldBindToContainer = true;
-      }
-    }
-    const existingTextElement = arrowEndpointBinding
-      ? null
-      : textElement !== undefined
-      ? textElement
-      : this.getSelectedTextElement(container) ||
-        (container && isArrowElement(container)
-          ? getBoundTextElement(
-              container,
-              this.scene.getNonDeletedElementsMap(),
-            )
-          : null) ||
-        this.getTextElementAtPosition(sceneX, sceneY);
-
-    const fontFamily =
-      existingTextElement?.fontFamily || this.state.currentItemFontFamily;
-
-    const lineHeight =
-      existingTextElement?.lineHeight || getLineHeight(fontFamily);
-    const fontSize = this.state.currentItemFontSize;
-
-    if (
-      !existingTextElement &&
-      shouldBindToContainer &&
-      container &&
-      !isArrowElement(container) &&
-      !isStickyNoteElement(container)
-    ) {
-      const fontString = {
-        fontSize,
-        fontFamily,
-      };
-      const minWidth = getApproxMinLineWidth(
-        getFontString(fontString),
-        lineHeight,
-      );
-      const minHeight = getApproxMinLineHeight(fontSize, lineHeight);
-      const newHeight = Math.max(container.height, minHeight);
-      const newWidth = Math.max(container.width, minWidth);
-      this.scene.mutateElement(container, {
-        height: newHeight,
-        width: newWidth,
-      });
-      sceneX = container.x + newWidth / 2;
-      sceneY = container.y + newHeight / 2;
-      if (parentCenterPosition) {
-        parentCenterPosition = this.getTextWysiwygSnappedToCenterPosition(
-          sceneX,
-          sceneY,
-          this.state,
-          container,
-        );
-      }
-    }
-
-    const textCreationGridPoint = this.getTextCreationGridPoint(sceneX, sceneY);
-
-    const newTextElementPosition = arrowEndpointBinding
-      ? // the anchor is dictated by the arrow, so neither the grid nor the
-        // caret-centering fudge may nudge it
-        { x: sceneX, y: sceneY }
-      : parentCenterPosition
-      ? {
-          x: parentCenterPosition.elementCenterX,
-          y: parentCenterPosition.elementCenterY,
-        }
-      : !existingTextElement
-      ? {
-          x: textCreationGridPoint?.x ?? sceneX,
-          y:
-            textCreationGridPoint === null
-              ? // Free text starts from a point cursor, so center the first line box on it.
-                sceneY - getLineHeightInPx(fontSize, lineHeight) / 2
-              : textCreationGridPoint.y,
-        }
-      : {
-          x: sceneX,
-          y: sceneY,
-        };
-
-    const topLayerFrame = this.getTopLayerFrameAtSceneCoords({
-      x: newTextElementPosition.x,
-      y: newTextElementPosition.y,
-    });
-
-    // container has higher priority. Only add to frame if container is in the same frame.
-    const frameId =
-      topLayerFrame &&
-      (!shouldBindToContainer ||
-        !container ||
-        container.frameId === topLayerFrame.id)
-        ? topLayerFrame.id
-        : null;
-
-    const element =
-      existingTextElement ||
-      newTextElement({
-        x: newTextElementPosition.x,
-        y: newTextElementPosition.y,
-        // a note's stroke color is its text color: the label inherits it
-        strokeColor:
-          shouldBindToContainer && isStickyNoteElement(container)
-            ? container.strokeColor
-            : this.state.currentItemStrokeColor,
-        backgroundColor: this.state.currentItemBackgroundColor,
-        fillStyle: this.state.currentItemFillStyle,
-        strokeWidth: this.getCurrentItemStrokeWidth("text"),
-        strokeStyle: this.state.currentItemStrokeStyle,
-        roughness: this.state.currentItemRoughness,
-        opacity: this.state.currentItemOpacity,
-        text: "",
-        fontSize,
-        baseFontSize:
-          shouldBindToContainer && isStickyNoteElement(container)
-            ? fontSize
-            : null,
-        fontFamily,
-        textAlign:
-          arrowEndpointBinding?.textAlign ??
-          (parentCenterPosition ? "center" : this.state.currentItemTextAlign),
-        verticalAlign:
-          arrowEndpointBinding?.verticalAlign ??
-          (parentCenterPosition
-            ? VERTICAL_ALIGN.MIDDLE
-            : DEFAULT_VERTICAL_ALIGN),
-        containerId: shouldBindToContainer ? container?.id : undefined,
-        labelPosition:
-          shouldBindToContainer && container && isArrowElement(container)
-            ? DEFAULT_BOUND_TEXT_LABEL_POSITION
-            : null,
-        groupIds: shouldBindToContainer ? container?.groupIds ?? [] : [],
-        lineHeight,
-        angle:
-          shouldBindToContainer && container && !isArrowElement(container)
-            ? container.angle
-            : (0 as Radians),
-        frameId,
-      });
-
-    if (!existingTextElement && shouldBindToContainer && container) {
-      this.scene.mutateElement(container, {
-        boundElements: (container.boundElements || []).concat({
-          type: "text",
-          id: element.id,
-        }),
-      });
-    }
-    this.setState({ editingTextElement: element });
-
-    if (!existingTextElement) {
-      if (container && shouldBindToContainer) {
-        const containerIndex = this.scene.getElementIndex(container.id);
-        // TODO should use insertNewElement, after we update it to handle
-        // elements with containerId + frameId at the same time (containerId
-        // should take precedence when it comes to z-index)
-        this.scene.insertElementsAtIndex([element], containerIndex + 1);
-      } else {
-        this.insertNewElement(element);
-      }
-    }
-
-    if (arrowEndpoint && arrowEndpointBinding) {
-      this.arrowText.bindText(
-        arrowEndpoint,
-        element,
-        arrowEndpointBinding.fixedPoint,
-      );
-    }
-
-    // A nearby container only skips drag sizing when the text binds to it.
-    if (autoEdit || existingTextElement || shouldBindToContainer) {
-      this.handleTextWysiwyg(element, {
-        isExistingElement: !!existingTextElement,
-        initialCaretSceneCoords: existingTextElement
-          ? initialCaretSceneCoords
-          : null,
-      });
-    } else {
-      this.setState({
-        newElement: element,
-        multiElement: null,
-      });
-    }
-  };
 
   private startImageCropping = (image: ExcalidrawImageElement) => {
     this.store.scheduleCapture();
@@ -7524,7 +6364,7 @@ class App extends React.Component<AppProps, AppState> {
             ? isTextBindableContainer(selectedElements[0], false)
               ? selectedElements[0]
               : null
-            : this.getTextBindableContainerAtPosition(sceneX, sceneY));
+            : this.text.getTextBindableContainerAtPosition(sceneX, sceneY));
 
         if (container) {
           if (
@@ -7552,7 +6392,7 @@ class App extends React.Component<AppProps, AppState> {
           }
         }
 
-        this.startTextEditing({
+        this.text.startTextEditing({
           sceneX,
           sceneY,
           insertAtParentCenter: !event.altKey,
@@ -8321,7 +7161,9 @@ class App extends React.Component<AppProps, AppState> {
 
     const selectedElements = this.scene.getSelectedElements(this.state);
 
-    if (this.isHittingTextAutoResizeHandle(selectedElements, scenePointer)) {
+    if (
+      this.text.isHittingTextAutoResizeHandle(selectedElements, scenePointer)
+    ) {
       this.cursor.set(CURSOR_TYPE.POINTER);
       return;
     }
@@ -8565,7 +7407,8 @@ class App extends React.Component<AppProps, AppState> {
       elementsMap,
     );
 
-    if (!element) {
+    // (editing text deselects the element)
+    if (!element || this.state.editingTextElement) {
       return;
     }
     if (this.state.selectedLinearElement) {
@@ -8620,15 +7463,16 @@ class App extends React.Component<AppProps, AppState> {
         this.cursor.set(CURSOR_TYPE.MOVE);
       }
 
+      // (updating the previous state, as these updates are batched)
       if (
         this.state.selectedLinearElement.hoverPointIndex !== hoverPointIndex
       ) {
-        this.setState({
-          selectedLinearElement: {
-            ...this.state.selectedLinearElement,
+        this.setState((prevState) => ({
+          selectedLinearElement: prevState.selectedLinearElement && {
+            ...prevState.selectedLinearElement,
             hoverPointIndex,
           },
-        });
+        }));
       }
 
       if (
@@ -8637,12 +7481,12 @@ class App extends React.Component<AppProps, AppState> {
           segmentMidPointHoveredCoords,
         )
       ) {
-        this.setState({
-          selectedLinearElement: {
-            ...this.state.selectedLinearElement,
+        this.setState((prevState) => ({
+          selectedLinearElement: prevState.selectedLinearElement && {
+            ...prevState.selectedLinearElement,
             segmentMidPointHoveredCoords,
           },
-        });
+        }));
       }
 
       // Check for focus point hover
@@ -8662,13 +7506,13 @@ class App extends React.Component<AppProps, AppState> {
         this.state.selectedLinearElement.hoveredFocusPointBinding !==
         hoveredFocusPointBinding
       ) {
-        this.setState({
-          selectedLinearElement: {
-            ...this.state.selectedLinearElement,
+        this.setState((prevState) => ({
+          selectedLinearElement: prevState.selectedLinearElement && {
+            ...prevState.selectedLinearElement,
             isDragging: false,
             hoveredFocusPointBinding,
           },
-        });
+        }));
       }
 
       // Set cursor to pointer when hovering over a focus point
@@ -8942,7 +7786,7 @@ class App extends React.Component<AppProps, AppState> {
     });
 
     if (
-      this.handleTextAutoResizeHandlePointerDown(
+      this.text.handleTextAutoResizeHandlePointerDown(
         selectedElements,
         pointerDownState.origin,
       )
@@ -9432,6 +8276,8 @@ class App extends React.Component<AppProps, AppState> {
         allHitElements: [],
         wasAddedToSelection: false,
         hasBeenDuplicated: false,
+        advancedListMarkers: [],
+        editedTextId: this.duplicate.handedOverTextId,
         arrowLabel: false,
         hasHitCommonBoundingBoxOfSelectedElements:
           this.isHittingCommonBoundingBoxOfSelectedElements(
@@ -9517,6 +8363,10 @@ class App extends React.Component<AppProps, AppState> {
     pointerDownState: PointerDownState,
   ): boolean => {
     if (isSelectionLikeTool(this.state.activeTool.type)) {
+      if (this.duplicate.hitEditedElement(pointerDownState)) {
+        return false;
+      }
+
       const elements = this.scene.getNonDeletedElements();
       const elementsMap = this.scene.getNonDeletedElementsMap();
       const selectedElements = this.scene.getSelectedElements(this.state);
@@ -11518,6 +10368,14 @@ class App extends React.Component<AppProps, AppState> {
 
       this.textTool.handlePointerUp(childEvent, pointerDownState);
 
+      if (pointerDownState.hit.hasBeenDuplicated) {
+        this.duplicate.commitDraggedDuplicates(pointerDownState, {
+          // not for a replay by the missing-pointerup cleanup (a
+          // pointercancel, or the next interaction's pointerdown)
+          editText: childEvent.type === "pointerup",
+        });
+      }
+
       // an armed bucket fill commits only on a GENUINE pointer up. The
       // missing-pointer-up cleanup replays this handler with the pointer
       // DOWN event (e.g. when a second finger lands mid-press — pinch/pan
@@ -11591,7 +10449,7 @@ class App extends React.Component<AppProps, AppState> {
           },
         );
 
-        if (!this.isEditingTextContent()) {
+        if (!this.text.isEditingTextContent()) {
           this.store.scheduleCapture();
         }
 
@@ -11906,7 +10764,7 @@ class App extends React.Component<AppProps, AppState> {
 
         this.cursor.reset();
 
-        this.handleTextWysiwyg(newElement, {
+        this.text.handleTextWysiwyg(newElement, {
           isExistingElement: true,
         });
       }
@@ -11991,7 +10849,7 @@ class App extends React.Component<AppProps, AppState> {
             type: this.state.preferredSelectionTool.type,
           }),
         });
-        this.startTextEditing({
+        this.text.startTextEditing({
           sceneX: newElement.x + newElement.width / 2,
           sceneY: newElement.y + newElement.height / 2,
           container: newElement,
@@ -12502,7 +11360,10 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       const selectedTextEditingContainer =
-        this.getSelectedTextEditingContainerAtPosition(hitElement, sceneCoords);
+        this.text.getSelectedTextEditingContainerAtPosition(
+          hitElement,
+          sceneCoords,
+        );
 
       if (
         activeTool.type === this.state.preferredSelectionTool.type &&
@@ -12519,7 +11380,7 @@ class App extends React.Component<AppProps, AppState> {
           this.scene.getSelectedElements(this.state).length === 1) ||
           selectedTextEditingContainer)
       ) {
-        this.startTextEditing({
+        this.text.startTextEditing({
           sceneX: sceneCoords.x,
           sceneY: sceneCoords.y,
           container: selectedTextEditingContainer,
@@ -12551,7 +11412,7 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (
-        !this.isEditingTextContent() &&
+        !this.text.isEditingTextContent() &&
         (activeTool.type !== "selection" ||
           isSomeElementSelected(
             this.scene.getNonDeletedElements(),
@@ -13057,7 +11918,7 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  private insertImages = async (
+  public insertImages = async (
     imageFiles: File[],
     sceneX: number,
     sceneY: number,
@@ -13934,40 +12795,6 @@ class App extends React.Component<AppProps, AppState> {
       actionDeleteSelected,
     ];
   };
-
-  getTextWysiwygSnappedToCenterPosition(
-    x: number,
-    y: number,
-    appState: AppState,
-    container?: ExcalidrawTextContainer | null,
-  ) {
-    if (container) {
-      let elementCenterX = container.x + container.width / 2;
-      let elementCenterY = container.y + container.height / 2;
-
-      const elementCenter = getContainerCenter(
-        container,
-        this.scene.getNonDeletedElementsMap(),
-      );
-      if (elementCenter) {
-        elementCenterX = elementCenter.x;
-        elementCenterY = elementCenter.y;
-      }
-      const distanceToCenter = Math.hypot(
-        x - elementCenterX,
-        y - elementCenterY,
-      );
-      const isSnappedToCenter =
-        distanceToCenter < TEXT_TO_CENTER_SNAP_THRESHOLD;
-      if (isSnappedToCenter) {
-        const { x: viewportX, y: viewportY } = sceneCoordsToViewportCoords(
-          { sceneX: elementCenterX, sceneY: elementCenterY },
-          appState,
-        );
-        return { viewportX, viewportY, elementCenterX, elementCenterY };
-      }
-    }
-  }
 
   public savePointer = (x: number, y: number, button: "up" | "down") => {
     // Pan teardown broadcasts once the viewport has settled. Updates during

@@ -9,7 +9,10 @@ import type {
 
 import type { LinearElementEditor } from "@excalidraw/element";
 
-import type { MaybeTransformHandleType } from "@excalidraw/element";
+import type {
+  ListMarkerAdvance,
+  MaybeTransformHandleType,
+} from "@excalidraw/element";
 
 import type {
   PointerType,
@@ -1198,7 +1201,7 @@ export type AppClassProperties = {
   scene: App["scene"];
   syncActionResult: App["syncActionResult"];
   fonts: App["fonts"];
-  pasteFromClipboard: App["pasteFromClipboard"];
+  clipboard: App["clipboard"];
   id: App["id"];
   onInsertElements: App["onInsertElements"];
   onExportImage: App["onExportImage"];
@@ -1284,6 +1287,13 @@ export type PointerDownState = Readonly<{
     // Whether selected element(s) were duplicated, might change during the
     // pointer interaction
     hasBeenDuplicated: boolean;
+    // The list markers advanced by duplicating the selected element(s)
+    // (alt-drag)
+    advancedListMarkers: readonly ListMarkerAdvance[];
+    // The text whose editing the pointer down ended (alt-pressing it in the
+    // text editor), swapped with its duplicate when duplicated, which is
+    // then edited on drop
+    editedTextId: ExcalidrawTextElement["id"] | null;
     // Whether the pointer is hitting the common bounding box of selected
     // elements, which is useful for discriminating between selecitng
     // the entire selection vs a specific element
@@ -1598,9 +1608,10 @@ export type ViewportOffsets = Offsets & {
 /**
  * Value of the `data-viewport-ui-name` attribute, identifying a
  * conditionally-rendered surface (marked with `data-viewport-ui`) so that
- * `getViewportOffsets` can reserve space for it while it's hidden (see the
- * `reserve` option). Whenever a named surface is rendered, its measured
- * footprint is remembered; reserving uses that remembered footprint, or an
- * approximate default if the surface hasn't been rendered yet.
+ * it can be measured on its own, and so that `getViewportOffsets` can
+ * reserve space for it while it's hidden (see the `reserve` option).
+ * Whenever a named surface is rendered, its measured footprint is
+ * remembered; reserving uses that remembered footprint, or an approximate
+ * default if the surface hasn't been rendered yet.
  */
-export type ViewportUIName = "sidebar" | "stylesPanel";
+export type ViewportUIName = "sidebar" | "stylesPanel" | "stats";

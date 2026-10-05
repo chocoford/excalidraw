@@ -5,6 +5,7 @@ import { pointFrom } from "@excalidraw/math";
 import {
   getLineHeightInPx,
   getOriginalContainerHeightFromCache,
+  isTextElement,
   newElementWith,
 } from "@excalidraw/element";
 
@@ -19,6 +20,7 @@ import {
   VERTICAL_ALIGN,
   applyDarkModeFilter,
   TEXT_VIEWPORT_PADDING,
+  TEXT_MAX_WRAP_WIDTH,
 } from "@excalidraw/common";
 
 import type {
@@ -47,6 +49,7 @@ import {
 import * as dataModule from "../data";
 import { actionBindText } from "../actions";
 import { actionTextAutoResize } from "../actions/actionTextAutoResize";
+import { getTextAutoResizeHandle } from "../textAutoResizeHandle";
 
 import { CARET_FOLLOW_PADDING } from "./textWysiwyg";
 
@@ -1077,6 +1080,135 @@ describe("textWysiwyg", () => {
       sidebar.remove();
     });
 
+    it.each([0.5, 2])(
+      "should stop a growing text at TEXT_MAX_WRAP_WIDTH at any zoom, however wide the view (zoom %s)",
+      (zoom) => {
+        API.setAppState({
+          width: 2000,
+          zoom: { value: zoom as typeof h.state.zoom.value },
+        });
+
+        updateTextEditor(
+          textarea,
+          "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams! Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!",
+        );
+        const text = h.elements[0] as ExcalidrawTextElement;
+        expect(text.autoResize).toBe(false);
+        // in scene units: at 200%, the view would allow 980
+        expect(text.width).toBe(TEXT_MAX_WRAP_WIDTH);
+      },
+    );
+
+    describe("next to the side panels (desktop)", () => {
+      beforeEach(async () => {
+        // the 800x400 view is a phone's: make it a desktop's instead
+        unmountComponent();
+        await render(
+          <Excalidraw
+            handleKeyboardGlobally={true}
+            UIOptions={{ getFormFactor: () => "desktop" }}
+          />,
+        );
+        API.setAppState({ stats: { ...h.state.stats, open: true } });
+      });
+
+      const long =
+        "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!";
+
+      /**
+       * Types `text` as a new text started at (x, y), with the styles panel
+       * at the view's left, up to 216px, and the stats panel from 500px,
+       * over the view's top `statsHeight`.
+       */
+      const typeAt = async (
+        x: number,
+        y: number,
+        text: string,
+        statsHeight = 400,
+      ) => {
+        UI.clickTool("text");
+        mouse.clickAt(x, y);
+        textarea = await getTextEditor();
+        const panel = (name: string) =>
+          document.querySelector<HTMLElement>(
+            `[data-viewport-ui="side"][data-viewport-ui-name="${name}"]`,
+          )!;
+        panel("stylesPanel").getBoundingClientRect = domRect(16, 200);
+        panel("stats").getBoundingClientRect = () =>
+          ({
+            ...domRect(500, 204)(),
+            height: statsHeight,
+            bottom: statsHeight,
+          } as DOMRect);
+        updateTextEditor(textarea, text);
+        // the canvas follows the caret once the update's in the app's state
+        await act(() => new Promise((resolve) => setTimeout(resolve)));
+        return h.app.scene.getElement(
+          h.state.editingTextElement!.id,
+        ) as ExcalidrawTextElement;
+      };
+
+      it("should keep a text being edited clear of the full styles panel and the stats panel", async () => {
+        // starts under the styles panel's right edge
+        const text = await typeAt(100, 300, long);
+        expect(text.autoResize).toBe(false);
+        // it wraps at the canvas between the panels, less the room, and is
+        // brought in between them
+        expect(text.width).toBe(500 - 216 - 2 * TEXT_VIEWPORT_PADDING);
+        expect(text.x + h.state.scrollX).toBeCloseTo(
+          216 + TEXT_VIEWPORT_PADDING,
+        );
+      });
+
+      it("should keep a text being edited clear of the stats panel only beside it", async () => {
+        // below it, the text runs on past it
+        let text = await typeAt(236, 300, long, 200);
+        expect(text.width).toBe(800 - 216 - 2 * TEXT_VIEWPORT_PADDING);
+        Keyboard.exitTextEditor(textarea);
+
+        text = await typeAt(236, 100, long, 200);
+        expect(text.width).toBe(500 - 216 - 2 * TEXT_VIEWPORT_PADDING);
+      });
+
+      it("should pan the canvas while typing only once the caret is under the stats panel", async () => {
+        // below it, the caret is in sight
+        let text = await typeAt(400, 300, "Excalidraw is", 200);
+        expect(text.x + text.width).toBeGreaterThan(500);
+        expect(h.state.scrollX).toBe(0);
+        Keyboard.exitTextEditor(textarea);
+
+        // under it, it's brought out, with some room to spare
+        text = await typeAt(400, 100, "Excalidraw is", 200);
+        expect(h.state.scrollX).toBeLessThan(0);
+        expect(
+          (text.x + text.width + h.state.scrollX) * h.state.zoom.value,
+        ).toBeCloseTo(500 - CARET_FOLLOW_PADDING);
+      });
+
+      it("should find the caret in a bidirectional line where the browser lays it out", async () => {
+        // "א abcdef", a paragraph of its own, goes right to left, as
+        // "abcdef א": the caret after the "f" is 60px in (not at the line's
+        // left edge, where it'd be if all of it went right to left, nor its
+        // right one, as the text's first paragraph goes), which jsdom can't
+        // lay out
+        const { getBoundingClientRect } = Range.prototype;
+        Range.prototype.getBoundingClientRect = function (this: Range) {
+          const isRTL =
+            this.startContainer.parentElement?.getAttribute("dir") === "rtl";
+          return { left: this.collapsed && isRTL ? 60 : 0 } as DOMRect;
+        };
+        try {
+          // from 450px, 80px long: its caret's under the stats panel
+          const text = await typeAt(450, 100, "hello\nא abcdef", 200);
+          expect(
+            (text.x + 60 + h.state.scrollX) * h.state.zoom.value,
+          ).toBeCloseTo(500 - CARET_FOLLOW_PADDING);
+        } finally {
+          Range.prototype.getBoundingClientRect = getBoundingClientRect;
+        }
+      });
+    });
+
     it("should bring a text that starts wrapping into view, with room at its right edge", async () => {
       Keyboard.exitTextEditor(textarea);
       UI.clickTool("text");
@@ -1338,6 +1470,169 @@ describe("textWysiwyg", () => {
       expect(text.type).toBe("text");
       expect(text.containerId).toBe(rectangle.id);
       expect(text.frameId).toBe(frame.id);
+    });
+
+    it.each(["text tool click", "double-click"] as const)(
+      "should bind text to a shape nested in a transparent one above it on a %s at its center",
+      async (via) => {
+        const inner = API.createElement({
+          type: "rectangle",
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 100,
+        });
+        // on top, with the same center
+        const outer = API.createElement({
+          type: "rectangle",
+          x: 50,
+          y: 50,
+          width: 300,
+          height: 200,
+        });
+        API.setElements([inner, outer]);
+
+        if (via === "text tool click") {
+          UI.clickTool("text");
+          mouse.moveTo(200, 150);
+          expect(h.state.textToolHover).toEqual({
+            type: "container",
+            elementId: inner.id,
+          });
+          mouse.clickAt(200, 150);
+        } else {
+          mouse.doubleClickAt(200, 150);
+        }
+        const editor = await getTextEditor();
+        updateTextEditor(editor, "Label");
+        Keyboard.exitTextEditor(editor);
+
+        const text = h.elements.find(isTextElement)!;
+        expect(text.containerId).toBe(inner.id);
+        expect(outer.boundElements).toBe(null);
+      },
+    );
+
+    it("should not reach a shape below a filled one at its center", () => {
+      const inner = API.createElement({
+        type: "rectangle",
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+      });
+      const outer = API.createElement({
+        type: "rectangle",
+        x: 50,
+        y: 50,
+        width: 300,
+        height: 200,
+        backgroundColor: "#ffc9c9",
+        fillStyle: "solid",
+      });
+      API.setElements([inner, outer]);
+
+      UI.clickTool("text");
+      mouse.moveTo(200, 150);
+      expect(h.state.textToolHover).toEqual({
+        type: "container",
+        elementId: outer.id,
+      });
+    });
+
+    it("should not let an arrow below a shape take its label off the arrow's path", () => {
+      // midpoint (200, 200), off the path at the shape's center
+      const arrow = API.createElement({
+        type: "arrow",
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 200,
+        points: [pointFrom(0, 0), pointFrom(200, 200)],
+      });
+      const shape = API.createElement({
+        type: "rectangle",
+        x: 65,
+        y: 35,
+        width: 300,
+        height: 300,
+      });
+      API.setElements([arrow, shape]);
+
+      UI.clickTool("text");
+      mouse.moveTo(215, 185);
+      expect(h.state.textToolHover).toEqual({
+        type: "container",
+        elementId: shape.id,
+      });
+    });
+
+    it("should not bind to a frame child's clipped-off part", () => {
+      const frame = API.createElement({
+        type: "frame",
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 200,
+      });
+      // centered outside the frame, where it is clipped
+      const child = API.createElement({
+        type: "rectangle",
+        x: 160,
+        y: 60,
+        width: 100,
+        height: 80,
+        frameId: frame.id,
+      });
+      const shape = API.createElement({
+        type: "rectangle",
+        x: 110,
+        y: 0,
+        width: 200,
+        height: 200,
+      });
+      API.setElements([child, frame, shape]);
+
+      UI.clickTool("text");
+      mouse.moveTo(210, 100);
+      expect(h.state.textToolHover).toEqual({
+        type: "container",
+        elementId: shape.id,
+      });
+    });
+
+    it("should label an arrow below a transparent shape when clicking its midpoint", async () => {
+      const arrow = API.createElement({
+        type: "arrow",
+        x: 100,
+        y: 200,
+        width: 150,
+        height: 0,
+        points: [pointFrom(0, 0), pointFrom(150, 0)],
+      });
+      const shape = API.createElement({
+        type: "rectangle",
+        x: 50,
+        y: 50,
+        width: 300,
+        height: 200,
+      });
+      API.setElements([arrow, shape]);
+
+      UI.clickTool("text");
+      mouse.moveTo(175, 200);
+      expect(h.state.textToolHover).toEqual({
+        type: "arrow",
+        elementId: arrow.id,
+        anchor: "label",
+      });
+      mouse.clickAt(175, 200);
+      const editor = await getTextEditor();
+      updateTextEditor(editor, "Label");
+      Keyboard.exitTextEditor(editor);
+
+      const text = h.elements.find(isTextElement)!;
+      expect(text.containerId).toBe(arrow.id);
     });
 
     it("should set the text element angle to same as container angle when binding to rotated container", async () => {
@@ -3191,6 +3486,34 @@ describe("textWysiwyg", () => {
         expect(edge(text)).toBeCloseTo(before, 4);
       },
     );
+
+    it("unwraps a text clicked on its handle", async () => {
+      // the handle's shown on desktop only
+      unmountComponent();
+      await render(
+        <Excalidraw
+          handleKeyboardGlobally={true}
+          UIOptions={{ getFormFactor: () => "desktop" }}
+        />,
+      );
+      API.setElements([wrappedText()]);
+      API.setAppState({ selectedElementIds: { text: true } });
+      const [x, y] = getTextAutoResizeHandle(
+        h.elements[0] as ExcalidrawTextElement,
+        h.state.zoom.value,
+        "desktop",
+      )!.center;
+
+      mouse.moveTo(x, y);
+      expect(GlobalTestState.interactiveCanvas.style.cursor).toBe(
+        CURSOR_TYPE.POINTER,
+      );
+
+      mouse.clickAt(x, y);
+      const text = h.elements[0] as ExcalidrawTextElement;
+      expect(text.autoResize).toBe(true);
+      expect(text.text).toBe(text.originalText);
+    });
   });
 
   describe("history", () => {
