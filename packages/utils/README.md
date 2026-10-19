@@ -18,33 +18,19 @@ yarn add @excalidraw/utils
 
 See [`serializeAsJSON`](https://github.com/excalidraw/excalidraw/blob/master/src/packages/excalidraw/README.md#serializeAsJSON) for API and description.
 
-### `exportToBlob` (async)
+### `exportScene` (async)
 
-Export an Excalidraw diagram to a [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob).
-
-### `exportToSvg`
-
-Export an Excalidraw diagram to a [SVGElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGElement).
+Export a scene as a canvas, PNG or JPEG [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob), or SVG element. Choose the result with `type: "canvas" | "png" | "jpeg" | "svg"`. Pass scene contents in `data` and rendering options in `config`.
 
 ## Usage
 
-Excalidraw utils is published as a UMD (Universal Module Definition). If you are using a module bundler (for instance, Webpack), you can import it as an ES6 module:
+With a module bundler, import the export function:
 
 ```js
-import { exportToSvg, exportToBlob } from "@excalidraw/utils";
+import { exportScene } from "@excalidraw/utils";
 ```
 
-To use it in a browser directly:
-
-```html
-<script src="https://unpkg.com/@excalidraw/utils@0.1.0/dist/excalidraw-utils.min.js"></script>
-<script>
-  // ExcalidrawUtils is a global variable defined by excalidraw.min.js
-  const { exportToSvg, exportToBlob } = ExcalidrawUtils;
-</script>
-```
-
-Here's the `exportToBlob` and `exportToSvg` functions in action:
+Here's `exportScene` in action:
 
 ```js
 const excalidrawDiagram = {
@@ -82,18 +68,14 @@ const excalidrawDiagram = {
   },
 };
 
-// Export the Excalidraw diagram as SVG string
-const svg = exportToSvg(excalidrawDiagram);
-console.log(svg.outerHTML);
+const data = {
+  elements: excalidrawDiagram.elements,
+  appState: excalidrawDiagram.appState,
+  files: {},
+};
 
-// Export the Excalidraw diagram as PNG Blob URL
-(async () => {
-  const blob = await exportToBlob({
-    ...excalidrawDiagram,
-    mimeType: "image/png",
-  });
-
-  const urlCreator = window.URL || window.webkitURL;
-  console.log(urlCreator.createObjectURL(blob));
-})();
+// Export an SVG element or a PNG Blob.
+const svg = await exportScene({ type: "svg", data });
+const png = await exportScene({ type: "png", data });
+console.log(svg.outerHTML, URL.createObjectURL(png));
 ```

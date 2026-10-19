@@ -10,7 +10,10 @@ import type {
 
 import type { LinearElementEditor } from "@excalidraw/element";
 
-import type { MaybeTransformHandleType } from "@excalidraw/element";
+import type {
+  ListMarkerAdvance,
+  MaybeTransformHandleType,
+} from "@excalidraw/element";
 
 import type {
   PointerType,
@@ -1201,7 +1204,7 @@ export type AppClassProperties = {
   scene: App["scene"];
   syncActionResult: App["syncActionResult"];
   fonts: App["fonts"];
-  pasteFromClipboard: App["pasteFromClipboard"];
+  clipboard: App["clipboard"];
   id: App["id"];
   onInsertElements: App["onInsertElements"];
   onExportImage: App["onExportImage"];
@@ -1225,6 +1228,9 @@ export type AppClassProperties = {
   duplicate: App["duplicate"];
   toolDrag: App["toolDrag"];
   activeResizeHandle: App["activeResizeHandle"];
+  selectionTool: App["selectionTool"];
+  wrap: App["wrap"];
+  modifiers: App["modifiers"];
   isToolLocked: App["isToolLocked"];
   getEffectiveGridSize: App["getEffectiveGridSize"];
   setPlugins: App["setPlugins"];
@@ -1284,9 +1290,20 @@ export type PointerDownState = Readonly<{
     allHitElements: NonDeleted<ExcalidrawElement>[];
     // This is determined on the initial pointer down event
     wasAddedToSelection: boolean;
+    // The element an alt-click selects instead: the one below the selected
+    // one, cycling through the elements under the pointer (determined on the
+    // initial pointer down event)
+    cycleTarget: NonDeleted<ExcalidrawElement> | null;
     // Whether selected element(s) were duplicated, might change during the
     // pointer interaction
     hasBeenDuplicated: boolean;
+    // The list markers advanced by duplicating the selected element(s)
+    // (alt-drag)
+    advancedListMarkers: readonly ListMarkerAdvance[];
+    // The text whose editing the pointer down ended (alt-pressing it in the
+    // text editor), swapped with its duplicate when duplicated, which is
+    // then edited on drop
+    editedTextId: ExcalidrawTextElement["id"] | null;
     // Whether the pointer is hitting the common bounding box of selected
     // elements, which is useful for discriminating between selecitng
     // the entire selection vs a specific element
@@ -1306,6 +1323,9 @@ export type PointerDownState = Readonly<{
     // by default same as PointerDownState.origin. On alt-duplication, reset
     // to current pointer position at time of duplication.
     origin: { x: number; y: number };
+    // The offset from origin (axis-locked with shift) as of the previous
+    // pointer move in the crop editor, which moves the image by the change
+    lastOffset: { x: number; y: number };
     // explicit flag for specific scenarios such as:
     // - after lasso selection until the next pointer down
     blockDragging: boolean;
@@ -1361,6 +1381,24 @@ export interface ExcalidrawImperativeAPI {
   history: {
     clear: InstanceType<typeof App>["resetHistory"];
   };
+  /**
+   * Selects elements (or their ids — one or many), adds them to or removes
+   * them from the selection, or clears it — as the editor does: an element is
+   * selected with its group (unless `deep`), a frame and its children aren't
+   * selected at the same time, and locked elements are skipped (unless
+   * `includeLocked`). Text editing and cropping end, and the link popup of a
+   * lone selected element shows. Missing and deleted elements are skipped.
+   *
+   * By default the change is recorded for undo along with the next undoable
+   * change — pass `captureUpdate` as for `updateScene()` otherwise. Like
+   * `updateScene()`, it applies on the next render: read it back through
+   * `onChange()` or `getAppState()` after that. Works in view mode too, where
+   * the selection shows without transform handles.
+   */
+  selection: Pick<
+    InstanceType<typeof App>["selection"],
+    "select" | "add" | "remove" | "clear"
+  >;
   getSceneElements: InstanceType<typeof App>["getSceneElements"];
   getAppState: () => InstanceType<typeof App>["state"];
   getFiles: () => InstanceType<typeof App>["files"];
@@ -1601,9 +1639,10 @@ export type ViewportOffsets = Offsets & {
 /**
  * Value of the `data-viewport-ui-name` attribute, identifying a
  * conditionally-rendered surface (marked with `data-viewport-ui`) so that
- * `getViewportOffsets` can reserve space for it while it's hidden (see the
- * `reserve` option). Whenever a named surface is rendered, its measured
- * footprint is remembered; reserving uses that remembered footprint, or an
- * approximate default if the surface hasn't been rendered yet.
+ * it can be measured on its own, and so that `getViewportOffsets` can
+ * reserve space for it while it's hidden (see the `reserve` option).
+ * Whenever a named surface is rendered, its measured footprint is
+ * remembered; reserving uses that remembered footprint, or an approximate
+ * default if the surface hasn't been rendered yet.
  */
-export type ViewportUIName = "sidebar" | "stylesPanel";
+export type ViewportUIName = "sidebar" | "stylesPanel" | "stats";
