@@ -1,13 +1,13 @@
 import * as exportUtils from "../../packages/utils/src";
 
-import { exportElementsToBlob } from "./export";
+import { exportElementsToBlob, exportElementsToSvg } from "./export";
 
 describe("exportElementsToBlob", () => {
-  let exportToBlobMock;
+  let exportSceneMock;
 
   beforeEach(() => {
-    exportToBlobMock = vi
-      .spyOn(exportUtils, "exportToBlob")
+    exportSceneMock = vi
+      .spyOn(exportUtils, "exportScene")
       .mockResolvedValue(new Blob(["export"], { type: "image/png" }));
   });
 
@@ -42,11 +42,36 @@ describe("exportElementsToBlob", () => {
       { exportingFrame },
     );
 
-    expect(exportToBlobMock).toHaveBeenCalledWith(
+    expect(exportSceneMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        elements: [content],
-        exportingFrame,
+        type: "png",
+        data: expect.objectContaining({ elements: [content] }),
+        config: expect.objectContaining({ exportingFrame }),
       }),
     );
+  });
+
+  it("passes Native SVG settings through the new export API", async () => {
+    exportSceneMock.mockResolvedValue(
+      document.createElementNS("http://www.w3.org/2000/svg", "svg"),
+    );
+    const element = { id: "content", type: "rectangle", isDeleted: false };
+
+    await exportElementsToSvg([element], {}, true, false, true, 2, "#123456");
+
+    expect(exportSceneMock).toHaveBeenCalledWith({
+      type: "svg",
+      data: {
+        elements: [element],
+        files: {},
+        appState: { viewBackgroundColor: "#123456" },
+      },
+      config: {
+        embedScene: true,
+        canvasBackgroundColor: false,
+        theme: "dark",
+        scale: 2,
+      },
+    });
   });
 });

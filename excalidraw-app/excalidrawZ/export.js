@@ -7,7 +7,7 @@ import {
   updateImageCache,
 } from "../../packages/element/src";
 import { renderStaticScene } from "../../packages/excalidraw/renderer/staticScene";
-import { exportToBlob, exportToSvg } from "../../packages/utils/src";
+import { exportScene } from "../../packages/utils/src";
 
 import { getRelativeFiles } from "./indexdb+";
 import { sendMessage } from "./message";
@@ -54,9 +54,7 @@ const clampCanvasScale = (width, height, requestedScale) => {
     1,
   );
   const areaRatio =
-    targetArea > MAX_CANVAS_AREA
-      ? Math.sqrt(MAX_CANVAS_AREA / targetArea)
-      : 1;
+    targetArea > MAX_CANVAS_AREA ? Math.sqrt(MAX_CANVAS_AREA / targetArea) : 1;
   const safetyRatio = Math.min(dimRatio, areaRatio);
 
   return {
@@ -72,7 +70,9 @@ const canvasToBlob = (canvas, mimeType, quality) =>
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          reject(new Error("Canvas export failed. The canvas may be too large."));
+          reject(
+            new Error("Canvas export failed. The canvas may be too large."),
+          );
           return;
         }
         resolve(blob);
@@ -100,11 +100,7 @@ const getViewportExportBounds = ({
 };
 
 const elementOverlapsBounds = (element, elementsMap, bounds) => {
-  const [x1, y1, x2, y2] = getElementAbsoluteCoords(
-    element,
-    elementsMap,
-    true,
-  );
+  const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap, true);
   return (
     x2 >= bounds.minX &&
     x1 <= bounds.maxX &&
@@ -150,26 +146,19 @@ export const exportElementsToBlob = async (...args) => {
   let scaleClamped = false;
 
   try {
-    const blob = await exportToBlob({
+    const data = {
       elements: elements.filter(
         (element) => !element.isDeleted && element.id !== exportingFrame?.id,
       ),
-      exportingFrame,
       files: files || (await getRelativeFiles(elements)),
-      appState: {
-        exportEmbedScene,
-        exportBackground: withBackground,
-        exportWithDarkMode,
-        exportScale: actualScale,
-        viewBackgroundColor,
-      },
-      mimeType,
-      quality,
-      // exportToCanvas only honors appState.exportScale when maxWidthOrHeight
-      // is set, so we explicitly provide getDimensions to apply the scale
-      // multiplier — and pre-flight clamp it if the canvas would exceed
-      // WebKit's limits.
-      getDimensions: (width, height) => {
+      appState: { viewBackgroundColor },
+    };
+    const config = {
+      canvasBackgroundColor: withBackground ? viewBackgroundColor : false,
+      theme: exportWithDarkMode ? THEME.DARK : THEME.LIGHT,
+      exportingFrame,
+      // Clamp the requested scale before rendering to fit WebKit canvas limits.
+      scale: (width, height) => {
         const scale = clampCanvasScale(width, height, exportScale);
         actualScale = scale.actualScale;
         scaleClamped = scale.scaleClamped;
@@ -184,13 +173,29 @@ export const exportElementsToBlob = async (...args) => {
           );
         }
 
-        return {
-          width: width * actualScale,
-          height: height * actualScale,
-          scale: actualScale,
-        };
+        return actualScale;
       },
-    });
+    };
+    const normalizedMimeType =
+      mimeType === "image/jpg" ? "image/jpeg" : mimeType || "image/png";
+    const blob =
+      normalizedMimeType === "image/png"
+        ? await exportScene({
+            type: "png",
+            data,
+            config: { ...config, embedScene: exportEmbedScene },
+          })
+        : normalizedMimeType === "image/jpeg"
+        ? await exportScene({
+            type: "jpeg",
+            data,
+            config: { ...config, quality },
+          })
+        : await canvasToBlob(
+            await exportScene({ type: "canvas", data, config }),
+            normalizedMimeType,
+            quality,
+          );
 
     const blobData = await blobToBase64(blob);
     const result = { blobData, actualScale, scaleClamped };
@@ -258,14 +263,13 @@ export const exportViewportToBlob = async (source = {}) => {
   const exportTheme = appState.theme === THEME.DARK ? THEME.DARK : THEME.LIGHT;
   const elements = hasSourceElements
     ? source.elements
-    : (api.getSceneElementsIncludingDeleted?.() ??
+    : api.getSceneElementsIncludingDeleted?.() ??
       api.getSceneElements?.() ??
-      []);
+      [];
   const allElements = elements.filter((element) => !element.isDeleted);
   const allElementsMap = arrayToMap(allElements);
   const zoomValue = Number(appState.zoom?.value ?? 1);
-  const zoom =
-    Number.isFinite(zoomValue) && zoomValue > 0 ? zoomValue : 1;
+  const zoom = Number.isFinite(zoomValue) && zoomValue > 0 ? zoomValue : 1;
   const width = Math.max(1, Math.floor(appState.width ?? 1));
   const height = Math.max(1, Math.floor(appState.height ?? 1));
   const scrollX = appState.scrollX ?? 0;
@@ -390,15 +394,18 @@ export const exportElementsToSvg = async (...args) => {
   const viewBackgroundColor = args[offset + 6] ?? getLiveViewBackgroundColor();
 
   const visibleElements = elements.filter((el) => !el.isDeleted);
-  const svgEl = await exportToSvg({
-    elements: visibleElements,
-    files: files || (await getRelativeFiles(visibleElements)),
-    appState: {
-      exportEmbedScene,
-      exportBackground: withBackground,
-      exportWithDarkMode,
-      exportScale,
-      viewBackgroundColor,
+  const svgEl = await exportScene({
+    type: "svg",
+    data: {
+      elements: visibleElements,
+      files: files || (await getRelativeFiles(visibleElements)),
+      appState: { viewBackgroundColor },
+    },
+    config: {
+      embedScene: exportEmbedScene,
+      canvasBackgroundColor: withBackground ? viewBackgroundColor : false,
+      theme: exportWithDarkMode ? THEME.DARK : THEME.LIGHT,
+      scale: exportScale,
     },
   });
   const svg = new XMLSerializer().serializeToString(svgEl);
