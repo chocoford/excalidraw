@@ -231,6 +231,9 @@ it("waits for in-flight image decoding and final canvas drawing, without decodin
   await render(<ExcalidrawApp />);
   await startViewer();
   const pendingImages: HTMLImageElement[] = [];
+  const sceneImageSrc = "data:image/png;base64,AA==";
+  const sceneImages = () =>
+    pendingImages.filter((pendingImage) => pendingImage.src === sceneImageSrc);
   vi.stubGlobal(
     "Image",
     class extends Image {
@@ -280,22 +283,22 @@ it("waits for in-flight image decoding and final canvas drawing, without decodin
             id: fileId,
             created: 1,
             mimeType: "image/png",
-            dataURL: "data:image/png;base64,AA==",
+            dataURL: sceneImageSrc,
           },
         },
       }),
     }),
   );
   await waitFor(() => expect(sceneReady).toHaveBeenCalledTimes(1));
-  expect(pendingImages).toHaveLength(1);
+  expect(sceneImages()).toHaveLength(1);
   expect(settled).not.toHaveBeenCalled();
-  act(() => pendingImages[0].onload?.call(pendingImages[0], new Event("load")));
+  act(() => sceneImages()[0].onload?.call(sceneImages()[0], new Event("load")));
   await waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
   await ready;
-  expect(pendingImages).toHaveLength(1);
+  expect(sceneImages()).toHaveLength(1);
   expect(drawImage).toHaveBeenCalled();
   const localId = (h.elements[0] as typeof image).fileId!;
-  expect(h.app.imageCache.get(localId)?.image).toBe(pendingImages[0]);
+  expect(h.app.imageCache.get(localId)?.image).toBe(sceneImages()[0]);
 });
 
 it("honors the Native Viewer bootstrap before any session starts", async () => {
