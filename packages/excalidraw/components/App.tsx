@@ -5316,12 +5316,11 @@ class App extends React.Component<AppProps, AppState> {
       this.scene.getElementsMapIncludingDeleted(),
     ) as SceneElementsMap;
 
-    return StoreDelta.applyTo(
-      aggregatedDelta,
-      nextElements,
-      nextAppState,
-      options,
-    );
+    return StoreDelta.applyTo(aggregatedDelta, nextElements, nextAppState, {
+      ...options,
+      // labels re-laid out by the deltas are measured with the host's metrics
+      renderEnvironment: options?.renderEnvironment ?? this.renderEnvironment,
+    });
   };
 
   public mutateElement = <TElement extends Mutable<ExcalidrawElement>>(
@@ -5736,6 +5735,7 @@ class App extends React.Component<AppProps, AppState> {
 
           updateBoundElements(element, this.scene, {
             simultaneouslyUpdated: selectedElements,
+            renderEnvironment: this.renderEnvironment,
           });
         });
 
