@@ -370,3 +370,9 @@ Uses browser native PDF rendering with **zero external dependencies**.
 - Keep ExcalidrawZ's Native import, camera restore, viewport insets, bridge, host-owned search, and math/PDF rendering while adopting upstream's host-aware label measurement in `packages/excalidraw/components/App.tsx` near line 5322, restored-element cleanup in `packages/excalidraw/data/restore.ts` near line 536, and CPU-backed PNG export in `packages/excalidraw/scene/export.ts` near line 873.
 - The application still excludes upstream's PWA and Sitemap configuration in `excalidraw-app/vite.config.mts`; Mermaid service-worker chunk precaching is therefore inactive in ExcalidrawZ. Upstream's performance mark and build SHA use the mounted root's owner window in `excalidraw-app/index.tsx` near line 9.
 - Merge the new Mermaid dependency with ExcalidrawZ's existing `elkjs`, `idb-keyval`, and `wrangler` dependencies in `yarn.lock`; the resolved lockfile retains both upstream and ExcalidrawZ package requirements.
+
+### Upstream sync — 2026-11-09
+
+- Integrate four upstream commits from `8bcdca452..701b901a0` through origin master `a8a6fafd5`. This updates Mermaid to 3.6.0 with elbow flowcharts, Gantt, quadrant charts, and timelines; fixes frame-arrow clipping; and updates the SDK documentation redirects.
+- Adopt upstream's frame-arrow movement and clipping behavior in `packages/excalidraw/components/App.tsx` near lines 5686 and 6361 and `packages/excalidraw/renderer/staticSvgScene.ts` near line 86. Native viewport insets, saved camera restore, file/library bridges, host-owned search, and math/PDF rendering remain in the ExcalidrawZ core base.
+- Pass the shared Mermaid conversion configuration to clipboard imports in `packages/excalidraw/components/App.clipboard.ts` near line 218, matching the Mermaid 3.6.0 dependency in `packages/excalidraw/package.json` near line 91.
